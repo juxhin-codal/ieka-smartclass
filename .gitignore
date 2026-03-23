@@ -1,0 +1,36 @@
+# v0 runtime files (should only exist in preview, not in git)
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+
+# Common ignores
+node_modules/
+.next/
+*.tsbuildinfo
+.env*.local
+.env
+.DS_Store
+storage/
+backups/
+IekaSmartClass.Api/storage/
+IekaSmartClass.Api/appsettings*.json
+IekaSmartClass.Api/appsettings.json
+IekaSmartClass.Api/appsettings.Development.json
+IekaSmartClass.Api/secrets.json
+IekaSmartClass.Api/Logs/
+IekaSmartClass.Api/Logs/*
+IekaSmartClass.Api/bin/
+IekaSmartClass.Api/obj/
+IekaSmartClass.Api/bld/
+IekaSmartClass.Api/x64/
+IekaSmartClass.Api/x86/
+IekaSmartClass.Api/Aa/
+IekaSmartClass.Api/Aa64/
+IekaSmartClass.Api/Debug/
+IekaSmartClass.Api/DebugPublic/
+IekaSmartClass.Api/Release/
+IekaSmartClass.Api/Releases/
+
+
+#docs
+docs/

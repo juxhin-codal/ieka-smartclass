@@ -1,0 +1,49 @@
+# bin and obj folders
+bin/
+obj/
+
+# Visual Studio user specific files
+.vs/
+*.user
+*.userosscache
+*.suo
+
+# Rider user specific files
+.idea/
+*.sln.iml
+
+# Mac specific files
+.DS_Store
+
+# User Secrets
+secrets.json
+
+# Environment variables
+.env
+appsettings.Development.json
+appsettings.Local.json
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# NLog files
+*.log
+
+# vscode
+.vscode/
+
+# SQLite config files
+*.db
+*.sqlite3
