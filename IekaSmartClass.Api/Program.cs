@@ -96,6 +96,7 @@ builder.Services.AddScoped<IConfigurationService, ConfigurationService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IStazhService, StazhService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IStudentModuleService, StudentModuleService>();
 builder.Services.AddHostedService<NotificationSchedulerService>();
 
 // Add AutoMapper

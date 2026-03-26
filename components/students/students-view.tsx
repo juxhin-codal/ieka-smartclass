@@ -13,6 +13,8 @@ import type {
   MentorAttendanceQrResponse,
   StudentAttendanceDayResponse,
   StudentAttendanceScanResponse,
+  StudentModuleResponse,
+  StudentModuleStudentItem,
   StudentTrainingCalendarResponse,
   StudentTrainingQrResponse,
   StudentTrainingSession,
@@ -50,12 +52,17 @@ import {
   Star,
   Trash2,
   Loader2,
+  Upload,
+  FileText,
+  ChevronRight,
+  Plus,
+  Library,
 } from "lucide-react"
 import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pagination-bar"
 
 type SortKey = "name" | "attendance" | "mentor"
 type SortDir = "asc" | "desc"
-type ManagementTab = "students" | "attendance"
+type ManagementTab = "modules" | "students" | "attendance"
 
 type ScheduleRow = {
   id: string
@@ -147,6 +154,43 @@ function getDefaultStudentStartYear() {
 
 function getDefaultStudentEndYear() {
   return String(new Date().getFullYear() + 2)
+}
+
+type YearGrade = 1 | 2 | 3
+
+function getYearGradeDates(grade: YearGrade) {
+  const now = new Date()
+  const thisYear = now.getFullYear()
+  switch (grade) {
+    case 1:
+      return { from: `${thisYear - 1}-09-01`, to: `${thisYear}-09-01`, fromLabel: `Shtator ${thisYear - 1}`, toLabel: `Shtator ${thisYear}` }
+    case 2:
+      return { from: `${thisYear}-09-01`, to: `${thisYear + 1}-09-01`, fromLabel: `Shtator ${thisYear}`, toLabel: `Shtator ${thisYear + 1}` }
+    case 3:
+      return { from: `${thisYear + 1}-09-01`, to: `${thisYear + 2}-09-01`, fromLabel: `Shtator ${thisYear + 1}`, toLabel: `Shtator ${thisYear + 2}` }
+  }
+}
+
+function getYearGradeStartEndYears(grade: YearGrade) {
+  const now = new Date()
+  const thisYear = now.getFullYear()
+  switch (grade) {
+    case 1:
+      return { startYear: thisYear - 1, endYear: thisYear }
+    case 2:
+      return { startYear: thisYear - 1, endYear: thisYear + 1 }
+    case 3:
+      return { startYear: thisYear - 1, endYear: thisYear + 2 }
+  }
+}
+
+function formatYearGradeLabel(grade: number) {
+  switch (grade) {
+    case 1: return "Viti i Parë"
+    case 2: return "Viti i Dytë"
+    case 3: return "Viti i Tretë"
+    default: return `Viti ${grade}`
+  }
 }
 
 function parseStudentYear(value: string) {
@@ -350,7 +394,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const isAdmin = user?.role === "Admin"
   const isMentor = user?.role === "Mentor"
 
-  const [activeTab, setActiveTab] = useState<ManagementTab>(forcedTab ?? (isMentor ? "attendance" : "students"))
+  const [activeTab, setActiveTab] = useState<ManagementTab>(forcedTab ?? (isMentor ? "attendance" : "modules"))
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
@@ -370,6 +414,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [newPhone, setNewPhone] = useState("")
   const [newStudentStartYear, setNewStudentStartYear] = useState(getDefaultStudentStartYear())
   const [newStudentEndYear, setNewStudentEndYear] = useState(getDefaultStudentEndYear())
+  const [newYearGrade, setNewYearGrade] = useState<YearGrade>(1)
+  const [newYearGradeFrom, setNewYearGradeFrom] = useState(() => getYearGradeDates(1).from)
+  const [newYearGradeTo, setNewYearGradeTo] = useState(() => getYearGradeDates(1).to)
   const [newMentorId, setNewMentorId] = useState("")
   const [newCompany, setNewCompany] = useState("")
   const [newDistrict, setNewDistrict] = useState("")
@@ -435,6 +482,22 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [endingStazhComment, setEndingStazhComment] = useState("")
   const [endingStazhSaving, setEndingStazhSaving] = useState(false)
   const [endingStazhError, setEndingStazhError] = useState("")
+
+  // Student modules state
+  const [studentModules, setStudentModules] = useState<StudentModuleResponse[]>([])
+  const [modulesLoading, setModulesLoading] = useState(false)
+  const [showAddModuleForm, setShowAddModuleForm] = useState(false)
+  const [moduleYearGrade, setModuleYearGrade] = useState<YearGrade>(1)
+  const [moduleTopic, setModuleTopic] = useState("")
+  const [moduleLecturer, setModuleLecturer] = useState("")
+  const [moduleFiles, setModuleFiles] = useState<File[]>([])
+  const [moduleSaving, setModuleSaving] = useState(false)
+  const [moduleError, setModuleError] = useState("")
+  const [moduleStudentPreview, setModuleStudentPreview] = useState<StudentModuleStudentItem[]>([])
+  const [moduleStudentPreviewLoading, setModuleStudentPreviewLoading] = useState(false)
+  const [moduleStudentPreviewExpanded, setModuleStudentPreviewExpanded] = useState(true)
+  const [deletingModuleId, setDeletingModuleId] = useState<string | null>(null)
+  const [isDeletingModule, setIsDeletingModule] = useState(false)
 
   useEffect(() => {
     if (forcedTab && activeTab !== forcedTab) {
@@ -514,6 +577,125 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       isCancelled = true
     }
   }, [isAdmin, isMentor])
+
+  // Load student modules
+  async function loadStudentModules() {
+    setModulesLoading(true)
+    try {
+      const response = (await fetchApi("/StudentModules")) as StudentModuleResponse[]
+      setStudentModules(response)
+    } catch {
+      setStudentModules([])
+    } finally {
+      setModulesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isAdmin) return
+    if (activeTab !== "modules") return
+
+    let isCancelled = false
+    const run = async () => {
+      setModulesLoading(true)
+      try {
+        const response = (await fetchApi("/StudentModules")) as StudentModuleResponse[]
+        if (!isCancelled) setStudentModules(response)
+      } catch {
+        if (!isCancelled) setStudentModules([])
+      } finally {
+        if (!isCancelled) setModulesLoading(false)
+      }
+    }
+
+    void run()
+    return () => { isCancelled = true }
+  }, [isAdmin, activeTab])
+
+  // Load student preview when module year grade changes
+  useEffect(() => {
+    if (!showAddModuleForm) return
+
+    let isCancelled = false
+    setModuleStudentPreviewLoading(true)
+
+    const run = async () => {
+      try {
+        const response = (await fetchApi(`/StudentModules/students-by-year/${moduleYearGrade}`)) as StudentModuleStudentItem[]
+        if (!isCancelled) setModuleStudentPreview(response)
+      } catch {
+        if (!isCancelled) setModuleStudentPreview([])
+      } finally {
+        if (!isCancelled) setModuleStudentPreviewLoading(false)
+      }
+    }
+
+    void run()
+    return () => { isCancelled = true }
+  }, [showAddModuleForm, moduleYearGrade])
+
+  async function handleCreateModule() {
+    if (moduleSaving) return
+
+    if (!moduleTopic.trim()) {
+      setModuleError("Tema është e detyrueshme.")
+      return
+    }
+    if (!moduleLecturer.trim()) {
+      setModuleError("Lektori është i detyrueshëm.")
+      return
+    }
+
+    setModuleSaving(true)
+    setModuleError("")
+
+    try {
+      const result = (await fetchApi("/StudentModules", {
+        method: "POST",
+        body: JSON.stringify({
+          yearGrade: moduleYearGrade,
+          topic: moduleTopic.trim(),
+          lecturer: moduleLecturer.trim(),
+        }),
+      })) as { id: string }
+
+      // Upload documents if any
+      for (const file of moduleFiles) {
+        const formData = new FormData()
+        formData.append("file", file)
+        await fetchApi(`/StudentModules/${result.id}/documents`, {
+          method: "POST",
+          body: formData,
+        })
+      }
+
+      // Reset form
+      setModuleTopic("")
+      setModuleLecturer("")
+      setModuleFiles([])
+      setModuleYearGrade(1)
+      setModuleError("")
+      setShowAddModuleForm(false)
+      await loadStudentModules()
+    } catch (e: any) {
+      setModuleError(e?.message ?? "Gabim gjatë krijimit të modulit")
+    } finally {
+      setModuleSaving(false)
+    }
+  }
+
+  async function handleDeleteModule(moduleId: string) {
+    setIsDeletingModule(true)
+    try {
+      await fetchApi(`/StudentModules/${moduleId}`, { method: "DELETE" })
+      setDeletingModuleId(null)
+      await loadStudentModules()
+    } catch {
+      // silent
+    } finally {
+      setIsDeletingModule(false)
+    }
+  }
 
   const studentStats = useMemo(() => {
     const stats: Record<string, { attended: number; total: number }> = {}
@@ -691,14 +873,15 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setError("Ju lutem zgjidhni mentorin për studentin.")
       return
     }
-    if (!newStudentStartYearNumber || !newStudentEndYearNumber) {
-      setError("Ju lutem plotësoni vitin e fillimit dhe vitin e mbarimit.")
+    if (!newYearGradeFrom || !newYearGradeTo) {
+      setError("Ju lutem plotësoni datat e vitit të studimit.")
       return
     }
-    if (newStudentEndYearNumber < newStudentStartYearNumber) {
-      setError("Viti i mbarimit nuk mund të jetë më i vogël se viti i fillimit.")
-      return
-    }
+    const gradeYears = getYearGradeStartEndYears(newYearGrade)
+    const computedStartYear = gradeYears.startYear
+    const computedEndYear = gradeYears.endYear
+    // Derive validUntilMonth from the admin-editable "to" date
+    const validToDate = newYearGradeTo.slice(0, 7) // "yyyy-MM" format
     setAddingStudent(true)
     try {
       await addUser({
@@ -710,11 +893,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         role: "Student",
         phone: newPhone.trim() || undefined,
         mentorId: newMentorId,
-        validUntilMonth: toStudentValidUntilMonth(newStudentEndYearNumber),
+        validUntilMonth: validToDate,
         studentTrackingNumber: newStudentTrackingNumber,
         studentNumber: newRegistry.trim().toUpperCase(),
-        studentStartYear: newStudentStartYearNumber,
-        studentEndYear: newStudentEndYearNumber,
+        studentStartYear: computedStartYear,
+        studentEndYear: computedEndYear,
         company: newCompany.trim() || null,
         district: newDistrict.trim() || null,
         cpdHoursCompleted: 0,
@@ -729,6 +912,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setNewPhone("")
       setNewStudentStartYear(getDefaultStudentStartYear())
       setNewStudentEndYear(getDefaultStudentEndYear())
+      setNewYearGrade(1)
+      setNewYearGradeFrom(getYearGradeDates(1).from)
+      setNewYearGradeTo(getYearGradeDates(1).to)
       setNewMentorId("")
       setNewCompany("")
       setNewDistrict("")
@@ -1281,15 +1467,19 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
             {activeTab === "attendance" ? (
               <UserCheck className="h-5 w-5 text-primary" />
+            ) : activeTab === "modules" ? (
+              <Library className="h-5 w-5 text-primary" />
             ) : (
               <GraduationCap className="h-5 w-5 text-primary" />
             )}
-            {activeTab === "attendance" ? "Prezenca" : "Studentë"}
+            {activeTab === "attendance" ? "Prezenca" : activeTab === "modules" ? "Modulet e Studentëve" : "Studentë"}
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {activeTab === "attendance"
               ? "Menaxhimi i prezencës dhe skanimit QR për studentët"
-              : "Menaxhimi i studentëve dhe orarit të stazhit"}
+              : activeTab === "modules"
+                ? "Menaxhimi i moduleve të trajnimit për studentët"
+                : "Menaxhimi i studentëve dhe orarit të stazhit"}
           </p>
         </div>
         {isAdmin && activeTab === "students" && (
@@ -1297,10 +1487,26 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
             <UserPlus className="h-4 w-4" /> Shto Student
           </Button>
         )}
+        {isAdmin && activeTab === "modules" && (
+          <Button size="sm" className="gap-2 shrink-0" onClick={() => setShowAddModuleForm(true)}>
+            <Plus className="h-4 w-4" /> Shto Modul
+          </Button>
+        )}
       </div>
 
       {!forcedTab && (
-        <div className="mb-6 grid w-full grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1.5 sm:w-fit">
+        <div className="mb-6 grid w-full grid-cols-3 gap-2 rounded-2xl border border-border bg-card p-1.5 sm:w-fit">
+          <button
+            onClick={() => setActiveTab("modules")}
+            className={cn(
+              "rounded-xl px-3 py-2 text-sm font-medium transition-all",
+              activeTab === "modules"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            Modulet
+          </button>
           <button
             onClick={() => setActiveTab("students")}
             className={cn(
@@ -1425,50 +1631,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+355 69 123 4567" />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label>Viti Fillimit *</Label>
-                  <select
-                    value={newStudentStartYear}
-                    onChange={(e) => {
-                      const nextStartYear = e.target.value
-                      const nextStartYearNumber = parseStudentYear(nextStartYear)
-                      setNewStudentStartYear(nextStartYear)
-                      if (nextStartYearNumber && newStudentEndYearNumber && nextStartYearNumber > newStudentEndYearNumber) {
-                        setNewStudentEndYear(nextStartYear)
-                      }
-                    }}
-                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Zgjidh vitin e fillimit</option>
-                    {newStartYearOptions.map((year) => (
-                      <option key={`new-start-${year}`} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Viti Mbarimit *</Label>
-                  <select
-                    value={newStudentEndYear}
-                    onChange={(e) => {
-                      const nextEndYear = e.target.value
-                      const nextEndYearNumber = parseStudentYear(nextEndYear)
-                      setNewStudentEndYear(nextEndYear)
-                      if (nextEndYearNumber && newStudentStartYearNumber && nextEndYearNumber < newStudentStartYearNumber) {
-                        setNewStudentStartYear(nextEndYear)
-                      }
-                    }}
-                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Zgjidh vitin e mbarimit</option>
-                    {newEndYearOptions.map((year) => (
-                      <option key={`new-end-${year}`} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-2">
                   <Label>Mentori *</Label>
                   <select
                     value={newMentorId}
@@ -1492,6 +1654,74 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <Input value={newDistrict} onChange={(e) => setNewDistrict(e.target.value)} placeholder="Tiranë" />
                 </div>
               </div>
+
+              {/* Year Grade Section */}
+              <div className="mt-5 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                <h4 className="text-sm font-semibold text-foreground mb-3">Viti i Studimit *</h4>
+                <div className="flex flex-wrap gap-3 mb-4">
+                  {([1, 2, 3] as YearGrade[]).map((grade) => {
+                    const dates = getYearGradeDates(grade)
+                    const selected = newYearGrade === grade
+                    return (
+                      <button
+                        key={grade}
+                        type="button"
+                        onClick={() => {
+                          setNewYearGrade(grade)
+                          const d = getYearGradeDates(grade)
+                          setNewYearGradeFrom(d.from)
+                          setNewYearGradeTo(d.to)
+                          const years = getYearGradeStartEndYears(grade)
+                          setNewStudentStartYear(String(years.startYear))
+                          setNewStudentEndYear(String(years.endYear))
+                        }}
+                        className={cn(
+                          "flex-1 min-w-[160px] rounded-xl border-2 p-3 text-left transition-all",
+                          selected
+                            ? "border-primary bg-primary/10 shadow-sm"
+                            : "border-border bg-card hover:border-primary/40 hover:bg-muted/30"
+                        )}
+                      >
+                        <p className={cn("text-sm font-semibold", selected ? "text-primary" : "text-foreground")}>
+                          {formatYearGradeLabel(grade)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {dates.fromLabel} – {dates.toLabel}
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs">Vlefshmëria Nga</Label>
+                    <Input
+                      type="date"
+                      value={newYearGradeFrom}
+                      onChange={(e) => setNewYearGradeFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label className="text-xs">Vlefshmëria Deri</Label>
+                    <Input
+                      type="date"
+                      value={newYearGradeTo}
+                      onChange={(e) => setNewYearGradeTo(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 px-3 py-2.5">
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    <strong>Shënim:</strong> Studenti do të jetë i vlefshëm nga{" "}
+                    <strong>{newYearGradeFrom ? format(parseISO(newYearGradeFrom), "dd MMM yyyy") : "—"}</strong> deri më{" "}
+                    <strong>{newYearGradeTo ? format(parseISO(newYearGradeTo), "dd MMM yyyy") : "—"}</strong>.
+                    Pas kësaj periudhe, llogaria e studentit do të skadojë automatikisht.
+                  </p>
+                </div>
+              </div>
+
               {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
               <div className="mt-4 flex justify-end gap-2">
                 <Button
@@ -1810,6 +2040,290 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 />
               </div>
             </>
+          )}
+        </>
+      )}
+
+      {activeTab === "modules" && isAdmin && (
+        <>
+          {showAddModuleForm && (
+            <div className="mb-6 rounded-xl border border-border bg-card p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-base font-semibold text-foreground">Shto Modul të Ri</h3>
+                <button
+                  onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
+                  disabled={moduleSaving}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Year Grade Selection */}
+              <div className="mb-5">
+                <Label className="text-sm font-medium mb-3 block">Modul për vitin e:</Label>
+                <div className="flex flex-wrap gap-3">
+                  {([1, 2, 3] as YearGrade[]).map((grade) => {
+                    const selected = moduleYearGrade === grade
+                    const labels = { 1: "Parë", 2: "Dytë", 3: "Tretë" } as const
+                    return (
+                      <button
+                        key={grade}
+                        type="button"
+                        onClick={() => setModuleYearGrade(grade)}
+                        className={cn(
+                          "relative flex items-center gap-3 rounded-xl border-2 px-5 py-3 transition-all min-w-[140px]",
+                          selected
+                            ? "border-primary bg-primary/10 shadow-sm"
+                            : "border-border bg-card hover:border-primary/40"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors",
+                          selected
+                            ? "border-primary bg-primary"
+                            : "border-muted-foreground/30 bg-transparent"
+                        )}>
+                          {selected && (
+                            <div className="h-2 w-2 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <span className={cn("text-sm font-medium", selected ? "text-primary" : "text-foreground")}>
+                          {labels[grade]}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Topic and Lecturer */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-5">
+                <div className="flex flex-col gap-2">
+                  <Label>Tema *</Label>
+                  <Input
+                    value={moduleTopic}
+                    onChange={(e) => setModuleTopic(e.target.value)}
+                    placeholder="Tema e modulit..."
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Lektori *</Label>
+                  <Input
+                    value={moduleLecturer}
+                    onChange={(e) => setModuleLecturer(e.target.value)}
+                    placeholder="Emri i lektorit..."
+                  />
+                </div>
+              </div>
+
+              {/* Training Materials Upload */}
+              <div className="mb-5">
+                <Label className="text-sm font-medium mb-2 block">Materialet e trajnimit</Label>
+                <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 p-4 text-center">
+                  <input
+                    type="file"
+                    multiple
+                    id="module-file-upload"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setModuleFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="module-file-upload"
+                    className="cursor-pointer inline-flex flex-col items-center gap-2"
+                  >
+                    <Upload className="h-8 w-8 text-muted-foreground/60" />
+                    <span className="text-sm text-muted-foreground">Klikoni për të ngarkuar skedarë</span>
+                    <span className="text-xs text-muted-foreground/60">PDF, Word, PowerPoint, etj.</span>
+                  </label>
+                </div>
+                {moduleFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {moduleFiles.map((file, idx) => (
+                      <div key={`${file.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm text-foreground truncate">{file.name}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            ({(file.size / 1024).toFixed(1)} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setModuleFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          className="rounded-md p-1 text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Student Preview - Expandable List */}
+              <div className="mb-4 rounded-xl border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setModuleStudentPreviewExpanded((v) => !v)}
+                  className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-left"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Studentët e {formatYearGradeLabel(moduleYearGrade)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {moduleStudentPreviewLoading
+                        ? "Duke ngarkuar..."
+                        : `${moduleStudentPreview.length} studentë do të njoftohen`}
+                    </p>
+                  </div>
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", moduleStudentPreviewExpanded && "rotate-90")} />
+                </button>
+                {moduleStudentPreviewExpanded && (
+                  <div className="border-t border-border">
+                    {moduleStudentPreviewLoading ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">Duke ngarkuar studentët...</div>
+                    ) : moduleStudentPreview.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                        Nuk ka studentë aktiv për {formatYearGradeLabel(moduleYearGrade)}.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border max-h-[250px] overflow-y-auto">
+                        {moduleStudentPreview.map((student) => (
+                          <div key={student.studentId} className="flex items-center gap-3 px-4 py-2.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[10px] font-semibold text-blue-500">
+                              {student.firstName[0]}{student.lastName[0]}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{student.firstName} {student.lastName}</p>
+                              <p className="text-xs text-muted-foreground truncate">{student.email}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {moduleError && <p className="text-sm text-destructive mb-3">{moduleError}</p>}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
+                  disabled={moduleSaving}
+                >
+                  Anulo
+                </Button>
+                <Button onClick={handleCreateModule} disabled={moduleSaving}>
+                  {moduleSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Duke krijuar...
+                    </>
+                  ) : (
+                    "Krijo Modulin"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Modules List */}
+          {modulesLoading ? (
+            <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
+              Duke ngarkuar modulet...
+            </div>
+          ) : studentModules.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+              <Library className="mb-3 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Asnjë modul akoma</p>
+              <p className="mt-1 text-xs text-muted-foreground">Shtoni modulin e parë duke klikuar butonin &ldquo;Shto Modul&rdquo;.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {studentModules.map((mod) => (
+                <div key={mod.id} className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn(
+                          "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                          mod.yearGrade === 1
+                            ? "bg-blue-500/10 text-blue-600"
+                            : mod.yearGrade === 2
+                              ? "bg-purple-500/10 text-purple-600"
+                              : "bg-emerald-500/10 text-emerald-600"
+                        )}>
+                          {formatYearGradeLabel(mod.yearGrade)}
+                        </span>
+                        <h3 className="text-base font-semibold text-foreground">{mod.topic}</h3>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span>Lektori: <strong className="text-foreground">{mod.lecturer}</strong></span>
+                        <span>{mod.assignmentCount} studentë</span>
+                        {mod.documents.length > 0 && (
+                          <span>{mod.documents.length} dokument{mod.documents.length > 1 ? "e" : ""}</span>
+                        )}
+                        {mod.createdByName && (
+                          <span>Krijuar nga: {mod.createdByName}</span>
+                        )}
+                        <span>
+                          {format(parseISO(mod.createdAt), "dd MMM yyyy")}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingModuleId(mod.id)}
+                      className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      title="Fshi modulin"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {mod.documents.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {mod.documents.map((doc) => (
+                        <a
+                          key={doc.id || doc.fileName}
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors"
+                        >
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                          {doc.fileName}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {deletingModuleId && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                <h3 className="mb-2 text-base font-semibold text-foreground">Fshi modulin?</h3>
+                <p className="mb-5 text-sm text-muted-foreground">
+                  Ky veprim do të fshijë modulin dhe të gjitha dokumentet e lidhura. Ky veprim nuk mund të zhbëhet.
+                </p>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="ghost" onClick={() => setDeletingModuleId(null)} disabled={isDeletingModule}>Anulo</Button>
+                  <Button variant="destructive" onClick={() => { if (deletingModuleId) void handleDeleteModule(deletingModuleId) }} disabled={isDeletingModule}>
+                    {isDeletingModule ? "Duke fshirë..." : "Po, Fshi"}
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
         </>
       )}

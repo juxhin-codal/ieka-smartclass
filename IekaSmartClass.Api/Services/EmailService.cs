@@ -247,6 +247,42 @@ public class EmailService(
         return SendUserEmailAsync(admin, $"Sesioni u mbyll: {summary.ModuleName} ({summary.SessionDate:dd MMM yyyy})", body, cancellationToken);
     }
 
+    public Task SendStudentModuleNotificationAsync(AppUser student, string moduleTopic, string lecturer, int yearGrade, CancellationToken cancellationToken = default)
+    {
+        var yearLabel = yearGrade switch
+        {
+            1 => "Viti i Parë",
+            2 => "Viti i Dytë",
+            3 => "Viti i Tretë",
+            _ => $"Viti {yearGrade}"
+        };
+
+        var body = $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #1a365d;'>Modul i Ri Trajnimi</h2>
+    <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
+    <p>Një modul i ri trajnimi është shtuar për ju:</p>
+    <table style='width: 100%; border-collapse: collapse; margin: 16px 0;'>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Moduli</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{yearLabel}</td>
+        </tr>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Tema</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(moduleTopic)}</td>
+        </tr>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Lektori</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(lecturer)}</td>
+        </tr>
+    </table>
+    <p>Ju lutem kontrolloni platformën për materialet e trajnimit.</p>
+    <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
+</div>";
+
+        return SendUserEmailAsync(student, $"Modul i ri trajnimi: {moduleTopic} - IEKA SmartClass", body, cancellationToken);
+    }
+
     private Task SendUserEmailAsync(AppUser user, string subject, string body, CancellationToken cancellationToken)
     {
         var recipientName = $"{user.FirstName} {user.LastName}".Trim();

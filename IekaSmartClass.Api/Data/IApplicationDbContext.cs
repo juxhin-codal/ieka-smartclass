@@ -17,6 +17,9 @@ public interface IApplicationDbContext
     DbSet<EventDocument> EventDocuments { get; }
     DbSet<EventFeedback> EventFeedbacks { get; }
     DbSet<UserNotification> UserNotifications { get; }
+    DbSet<StudentModule> StudentModules { get; }
+    DbSet<StudentModuleDocument> StudentModuleDocuments { get; }
+    DbSet<StudentModuleAssignment> StudentModuleAssignments { get; }
     DbSet<SystemConfiguration> SystemConfigurations { get; }
     DatabaseFacade Database { get; }
 

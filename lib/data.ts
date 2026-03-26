@@ -248,6 +248,53 @@ export interface StazhDocument {
   uploadedAt: string
 }
 
+// ─── Student Module types ──────────────────────────────────────────────────
+export interface StudentModuleDocument {
+  id: string
+  fileName: string
+  fileUrl: string
+  relativePath: string
+  sizeBytes: number
+  uploadedAt: string
+}
+
+export interface StudentModuleAssignment {
+  studentId: string
+  firstName: string
+  lastName: string
+  email: string
+  assignedAt: string
+}
+
+export interface StudentModuleResponse {
+  id: string
+  yearGrade: number
+  topic: string
+  lecturer: string
+  createdAt: string
+  createdByName?: string | null
+  documents: StudentModuleDocument[]
+  assignmentCount: number
+}
+
+export interface StudentModuleDetailResponse {
+  id: string
+  yearGrade: number
+  topic: string
+  lecturer: string
+  createdAt: string
+  createdByName?: string | null
+  documents: StudentModuleDocument[]
+  assignments: StudentModuleAssignment[]
+}
+
+export interface StudentModuleStudentItem {
+  studentId: string
+  firstName: string
+  lastName: string
+  email: string
+}
+
 // ─── Albanian-style name pools ─────────────────────────────────────────────
 const firstNames = ["Artan", "Sonila", "Blerina", "Gentian", "Mirela", "Alban", "Erjona", "Dritan", "Klaudia", "Shpend", "Anila", "Besnik", "Dorina", "Fatos", "Gerta", "Ilir", "Jonida", "Klejdi", "Lindita", "Majlinda"]
 const lastNames = ["Hoxha", "Gashi", "Krasniqi", "Berisha", "Shehi", "Deda", "Qosja", "Malaj", "Prendi", "Tafa", "Leka", "Muka", "Nushi", "Osmani", "Prifti", "Rama", "Sefa", "Topi", "Veli", "Zeqiri"]

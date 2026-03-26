@@ -23,6 +23,9 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
     public DbSet<StazhDate> StazhDates => Set<StazhDate>();
     public DbSet<StazhDocument> StazhDocuments => Set<StazhDocument>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+    public DbSet<StudentModule> StudentModules => Set<StudentModule>();
+    public DbSet<StudentModuleDocument> StudentModuleDocuments => Set<StudentModuleDocument>();
+    public DbSet<StudentModuleAssignment> StudentModuleAssignments => Set<StudentModuleAssignment>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -166,6 +169,50 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             .WithMany(s => s.Dates)
             .HasForeignKey(d => d.StazhId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // StudentModule relationships
+        builder.Entity<StudentModule>(entity =>
+        {
+            entity.Property(x => x.Topic).HasMaxLength(500);
+            entity.Property(x => x.Lecturer).HasMaxLength(200);
+            entity.HasIndex(x => x.YearGrade);
+            entity.HasIndex(x => x.CreatedAt);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<StudentModuleDocument>(entity =>
+        {
+            entity.Property(x => x.FileName).HasMaxLength(300);
+            entity.Property(x => x.FileUrl).HasMaxLength(1000);
+            entity.Property(x => x.RelativePath).HasMaxLength(1000);
+            entity.HasIndex(x => x.StudentModuleId);
+
+            entity.HasOne(x => x.StudentModule)
+                .WithMany(m => m.Documents)
+                .HasForeignKey(x => x.StudentModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<StudentModuleAssignment>(entity =>
+        {
+            entity.HasIndex(x => x.StudentModuleId);
+            entity.HasIndex(x => x.StudentId);
+            entity.HasIndex(x => new { x.StudentModuleId, x.StudentId }).IsUnique();
+
+            entity.HasOne(x => x.StudentModule)
+                .WithMany(m => m.Assignments)
+                .HasForeignKey(x => x.StudentModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
 
         builder.Entity<StazhDocument>()
             .HasOne(d => d.Stazh)
