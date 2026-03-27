@@ -29,6 +29,7 @@ public class StudentModuleService(
     public async Task<IReadOnlyList<StudentModule>> GetModulesAsync(CancellationToken cancellationToken = default)
     {
         return await _db.StudentModules
+            .AsNoTracking()
             .Include(m => m.Documents)
             .Include(m => m.Assignments)
             .Include(m => m.CreatedByUser)
@@ -39,6 +40,7 @@ public class StudentModuleService(
     public async Task<StudentModule?> GetModuleByIdAsync(Guid moduleId, CancellationToken cancellationToken = default)
     {
         return await _db.StudentModules
+            .AsNoTracking()
             .Include(m => m.Documents)
             .Include(m => m.Assignments)
                 .ThenInclude(a => a.Student)
@@ -54,6 +56,27 @@ public class StudentModuleService(
 
         // Find all active students that match the year grade
         var matchingStudents = await GetActiveStudentsByYearGradeAsync(input.YearGrade, cancellationToken);
+
+        // Apply exclusions
+        if (input.ExcludedStudentIds is { Count: > 0 })
+        {
+            var excludeSet = input.ExcludedStudentIds.ToHashSet();
+            matchingStudents = matchingStudents.Where(s => !excludeSet.Contains(s.Id)).ToList();
+        }
+
+        // Add additional students (from other years)
+        if (input.AdditionalStudentIds is { Count: > 0 })
+        {
+            var existingIds = matchingStudents.Select(s => s.Id).ToHashSet();
+            var additionalIds = input.AdditionalStudentIds.Where(id => !existingIds.Contains(id)).ToList();
+            if (additionalIds.Count > 0)
+            {
+                var additionalStudents = await _db.Users
+                    .Where(u => additionalIds.Contains(u.Id) && u.Role == "Student" && u.IsActive)
+                    .ToListAsync(cancellationToken);
+                matchingStudents.AddRange(additionalStudents);
+            }
+        }
 
         foreach (var student in matchingStudents)
         {
@@ -111,6 +134,16 @@ public class StudentModuleService(
         return students.Select(s => new StudentModuleStudentItem(s.Id, s.FirstName, s.LastName, s.Email ?? string.Empty)).ToList();
     }
 
+    public async Task<IReadOnlyList<StudentModuleStudentItem>> GetAllActiveStudentsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _db.Users
+            .AsNoTracking()
+            .Where(u => u.Role == "Student" && u.IsActive)
+            .OrderBy(u => u.FirstName).ThenBy(u => u.LastName)
+            .Select(s => new StudentModuleStudentItem(s.Id, s.FirstName, s.LastName, s.Email ?? string.Empty))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<string> GenerateModuleQrTokenAsync(Guid moduleId, CancellationToken cancellationToken = default)
     {
         var module = await _db.StudentModules.FindAsync([moduleId], cancellationToken)
@@ -144,6 +177,7 @@ public class StudentModuleService(
     public async Task<IReadOnlyList<StudentModule>> GetMyModulesAsync(Guid studentId, CancellationToken cancellationToken = default)
     {
         return await _db.StudentModules
+            .AsNoTracking()
             .Include(m => m.Documents)
             .Include(m => m.Assignments)
             .Where(m => m.Assignments.Any(a => a.StudentId == studentId))
@@ -355,37 +389,29 @@ public class StudentModuleService(
     {
         var now = DateTime.UtcNow;
 
-        var activeStudents = await _db.Users
-            .Where(u => u.Role == "Student" && u.IsActive && u.StudentStartYear != null)
-            .ToListAsync(cancellationToken);
+        var query = _db.Users
+            .AsNoTracking()
+            .Where(u => u.Role == "Student" && u.IsActive && u.StudentStartYear != null);
 
-        return activeStudents.Where(s =>
+        // Push year-grade filtering into SQL so DB returns only matching rows
+        query = yearGrade switch
         {
-            var startYear = s.StudentStartYear!.Value;
-            int gradeStartYear;
-            int gradeEndYear;
+            1 => query.Where(u =>
+                now >= new DateTime(u.StudentStartYear!.Value, 9, 1) &&
+                now < new DateTime(u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1, 9, 1)),
 
-            switch (yearGrade)
-            {
-                case 1:
-                    gradeStartYear = startYear;
-                    gradeEndYear = s.StudentYear2StartYear ?? startYear + 1;
-                    break;
-                case 2:
-                    gradeStartYear = s.StudentYear2StartYear ?? startYear + 1;
-                    gradeEndYear = s.StudentYear3StartYear ?? (s.StudentYear2StartYear ?? startYear + 1) + 1;
-                    break;
-                case 3:
-                    gradeStartYear = s.StudentYear3StartYear ?? startYear + 2;
-                    gradeEndYear = gradeStartYear + 1;
-                    break;
-                default:
-                    return false;
-            }
+            2 => query.Where(u =>
+                now >= new DateTime(u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1, 9, 1) &&
+                now < new DateTime(
+                    u.StudentYear3StartYear ?? (u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1) + 1, 9, 1)),
 
-            var gradeStart = new DateTime(gradeStartYear, 9, 1, 0, 0, 0, DateTimeKind.Utc);
-            var gradeEnd = new DateTime(gradeEndYear, 9, 1, 0, 0, 0, DateTimeKind.Utc);
-            return now >= gradeStart && now < gradeEnd;
-        }).ToList();
+            3 => query.Where(u =>
+                now >= new DateTime(u.StudentYear3StartYear ?? u.StudentStartYear!.Value + 2, 9, 1) &&
+                now < new DateTime((u.StudentYear3StartYear ?? u.StudentStartYear!.Value + 2) + 1, 9, 1)),
+
+            _ => query.Where(_ => false) // invalid year grade returns nothing
+        };
+
+        return await query.ToListAsync(cancellationToken);
     }
 }

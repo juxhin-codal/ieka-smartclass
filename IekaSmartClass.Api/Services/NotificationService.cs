@@ -255,25 +255,38 @@ public class NotificationService(
                 x.Date.Date <= localNow.Date.AddDays(2))
             .ToListAsync(cancellationToken);
 
+        // Filter to only dates within the 23-25h reminder window
+        var eligibleDates = new List<EventDate>();
         foreach (var sessionDate in candidateDates)
         {
             var startLocal = TryGetSessionStartLocal(sessionDate);
-            if (!startLocal.HasValue)
-            {
-                continue;
-            }
+            if (!startLocal.HasValue) continue;
 
             var hoursUntil = (startLocal.Value - localNow).TotalHours;
-            if (hoursUntil <= 0 || hoursUntil < 23 || hoursUntil > 25)
+            if (hoursUntil > 0 && hoursUntil >= 23 && hoursUntil <= 25)
             {
-                continue;
+                eligibleDates.Add(sessionDate);
             }
+        }
 
-            var participants = await _dbContext.Participants
-                .AsNoTracking()
-                .Include(x => x.User)
-                .Where(x => x.DateId == sessionDate.Id && x.Status == "registered")
-                .ToListAsync(cancellationToken);
+        if (eligibleDates.Count == 0) return;
+
+        // Load ALL participants for ALL eligible dates in ONE query (fixes N+1)
+        var eligibleDateIds = eligibleDates.Select(d => d.Id).ToList();
+        var allParticipants = await _dbContext.Participants
+            .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => eligibleDateIds.Contains(x.DateId) && x.Status == "registered")
+            .ToListAsync(cancellationToken);
+
+        var participantsByDate = allParticipants
+            .GroupBy(x => x.DateId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var sessionDate in eligibleDates)
+        {
+            if (!participantsByDate.TryGetValue(sessionDate.Id, out var participants))
+                continue;
 
             foreach (var participant in participants)
             {

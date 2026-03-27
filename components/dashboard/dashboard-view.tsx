@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useEffect } from "react"
 import { useEvents } from "@/lib/events-context"
 import { useAuth } from "@/lib/auth-context"
+import { fetchApi } from "@/lib/api-client"
 import {
   BookOpen, Users, UserCheck, BarChart3, Clock, AlertCircle, TrendingUp, CalendarRange, GraduationCap, Handshake,
 } from "lucide-react"
@@ -11,6 +12,12 @@ export function DashboardView() {
   const { events, users } = useEvents()
   const { user } = useAuth()
   const isLecturer = user?.role === "Lecturer"
+
+  // Trigger notification processing once on dashboard load (replaces background scheduler)
+  useEffect(() => {
+    if (!user) return
+    fetchApi("/Notifications/process", { method: "POST" }).catch(() => {})
+  }, [user])
 
   const stats = useMemo(() => {
     const upcoming = events.filter((e) => e.status === "upcoming")

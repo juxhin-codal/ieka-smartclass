@@ -5,8 +5,11 @@ using System.Text.RegularExpressions;
 using IekaSmartClass.Api.Data.Entities;
 using IekaSmartClass.Api.Services.Interface;
 using IekaSmartClass.Api.Utilities.Settings;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using MimeKit;
 
 namespace IekaSmartClass.Api.Services;
 
@@ -309,58 +312,70 @@ public class EmailService(
             throw new InvalidOperationException("SMTP from address is not configured.");
         }
 
-        using var client = new SmtpClient(smtp.Host, smtp.Port)
-        {
-            EnableSsl = smtp.UseSsl,
-            DeliveryMethod = SmtpDeliveryMethod.Network,
-            UseDefaultCredentials = false,
-            Credentials = new NetworkCredential(smtp.Username, smtp.Password)
-        };
+        var fromName = string.IsNullOrWhiteSpace(smtp.FromName) ? _settings.AppName : smtp.FromName;
 
-        using var message = new MailMessage
-        {
-            From = new MailAddress(fromAddress, string.IsNullOrWhiteSpace(smtp.FromName) ? _settings.AppName : smtp.FromName),
-            Subject = subject
-        };
-
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(fromName, fromAddress));
         foreach (var recipientEmail in recipientEmails)
         {
-            message.To.Add(new MailAddress(recipientEmail, recipientName));
+            message.To.Add(new MailboxAddress(recipientName, recipientEmail));
         }
-        var logoHtmlView = CreateHtmlViewWithInlineLogo(body);
+        message.Subject = subject;
 
-        if (logoHtmlView is not null)
+        var logoResource = TryLoadInlineLogoResource();
+        var bodyBuilder = new BodyBuilder();
+
+        if (logoResource is not null)
         {
-            var plainTextBody = BuildPlainTextBody(body);
-            message.Body = plainTextBody;
-            message.IsBodyHtml = false;
-            message.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(plainTextBody, null, MediaTypeNames.Text.Plain));
-            message.AlternateViews.Add(logoHtmlView);
+            bodyBuilder.TextBody = BuildPlainTextBody(body);
+            var linkedResource = bodyBuilder.LinkedResources.Add(
+                InlineLogoContentId,
+                logoResource.Value.bytes,
+                MimeKit.ContentType.Parse(logoResource.Value.mimeType));
+            linkedResource.ContentId = InlineLogoContentId;
+            bodyBuilder.HtmlBody = body;
         }
         else
         {
-            var fallbackBody = body;
+            var htmlBody = body;
             if (body.Contains($"cid:{InlineLogoContentId}", StringComparison.OrdinalIgnoreCase))
             {
-                fallbackBody = body.Replace(
+                htmlBody = body.Replace(
                     $"cid:{InlineLogoContentId}",
                     BuildPublicUri("/logo-transparent.png"),
                     StringComparison.OrdinalIgnoreCase);
             }
-
-            message.Body = fallbackBody;
-            message.IsBodyHtml = true;
+            bodyBuilder.HtmlBody = htmlBody;
         }
 
+        message.Body = bodyBuilder.ToMessageBody();
+
+        // MailKit supports implicit SSL (port 465) via SecureSocketOptions.SslOnConnect
+        var secureOption = smtp.Port == 465
+            ? SecureSocketOptions.SslOnConnect
+            : SecureSocketOptions.StartTls;
+
+        using var client = new MailKit.Net.Smtp.SmtpClient();
+        if (_hostEnvironment.IsDevelopment())
+        {
+            client.ServerCertificateValidationCallback = (_, _, _, _) => true;
+        }
         try
         {
-            await client.SendMailAsync(message, cancellationToken);
+            await client.ConnectAsync(smtp.Host.Trim(), smtp.Port, secureOption, cancellationToken);
+            await client.AuthenticateAsync(smtp.Username, smtp.Password, cancellationToken);
+            await client.SendAsync(message, cancellationToken);
             _logger.LogInformation("Email sent to {Recipients}", string.Join(", ", recipientEmails));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send email to {Recipients}", string.Join(", ", recipientEmails));
             throw;
+        }
+        finally
+        {
+            if (client.IsConnected)
+                await client.DisconnectAsync(true, cancellationToken);
         }
     }
 
@@ -513,6 +528,22 @@ public class EmailService(
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Could not attach email logo from {LogoPath}", logoPath);
+            return null;
+        }
+    }
+
+    private (byte[] bytes, string mimeType)? TryLoadInlineLogoResource()
+    {
+        if (!TryResolveEmailLogoPath(out var logoPath))
+            return null;
+
+        try
+        {
+            return (File.ReadAllBytes(logoPath), "image/png");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not load email logo from {LogoPath}", logoPath);
             return null;
         }
     }

@@ -45,13 +45,19 @@ export function NotificationCenter() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
     const ref = useRef<HTMLDivElement>(null)
+    const lastFetchRef = useRef<number>(0)
 
-    const loadNotifications = useCallback(async (showLoader = false) => {
+    const loadNotifications = useCallback(async (showLoader = false, force = false) => {
         if (!user) {
             setNotifications([])
             setUnreadCount(0)
             return
         }
+
+        // Skip if fetched within the last 60 seconds (unless forced)
+        const now = Date.now()
+        if (!force && now - lastFetchRef.current < 60_000) return
+        lastFetchRef.current = now
 
         if (showLoader) {
             setLoading(true)
@@ -89,17 +95,11 @@ export function NotificationCenter() {
     useEffect(() => {
         if (!user) return
         void loadNotifications(true)
-
-        const intervalId = window.setInterval(() => {
-            void loadNotifications(false)
-        }, 60000)
-
-        return () => window.clearInterval(intervalId)
     }, [user, loadNotifications])
 
     useEffect(() => {
         if (open) {
-            void loadNotifications(true)
+            void loadNotifications(true, true)
         }
     }, [open, loadNotifications])
 

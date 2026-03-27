@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import {
+  BookOpen,
   CalendarDays,
+  ChevronRight,
   Clock3,
   Download,
   FileText,
@@ -18,6 +20,7 @@ import type {
   AppUser,
   StazhDocument,
   StazhItem,
+  StudentMyModuleResponse,
   StudentTrainingCalendarResponse,
   StudentTrainingSession,
   StudentTrainingStazh,
@@ -191,16 +194,22 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
   const [sessions, setSessions] = useState<StudentTrainingSession[]>([])
   const [stazhet, setStazhet] = useState<StazhItem[]>([])
   const [feedbackRows, setFeedbackRows] = useState<StudentTrainingStazh[]>([])
+  const [studentModules, setStudentModules] = useState<StudentMyModuleResponse[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState("")
+  const [modulesExpanded, setModulesExpanded] = useState(false)
+  const [sessionsExpanded, setSessionsExpanded] = useState(false)
+  const [docsExpanded, setDocsExpanded] = useState(false)
+  const [feedbackExpanded, setFeedbackExpanded] = useState(false)
 
   useEffect(() => {
     if (!student) {
       setSessions([])
       setStazhet([])
       setFeedbackRows([])
+      setStudentModules([])
       setError("")
       setDownloadError("")
       setDownloadingDocId(null)
@@ -214,10 +223,11 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
       setError("")
       setDownloadError("")
       try {
-        const [calendarResponse, stazhResponse, feedbackResponse] = await Promise.all([
+        const [calendarResponse, stazhResponse, feedbackResponse, modulesResponse] = await Promise.all([
           fetchApi(`/StudentTraining/students/${student.id}/schedule`) as Promise<StudentTrainingCalendarResponse>,
           fetchApi(`/Stazh/student/${student.id}`) as Promise<StazhItem[]>,
           fetchApi(`/StudentTraining/students/${student.id}/feedback`) as Promise<StudentTrainingStazh[]>,
+          fetchApi(`/StudentModules/student/${student.id}/modules`) as Promise<StudentMyModuleResponse[]>,
         ])
 
         if (cancelled) return
@@ -237,11 +247,17 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
             `${b.endedAt ?? b.startedAt}`.localeCompare(`${a.endedAt ?? a.startedAt}`)
           )
         )
+        setStudentModules(
+          [...(modulesResponse ?? [])].sort((a, b) =>
+            (b.scheduledDate ?? b.createdAt).localeCompare(a.scheduledDate ?? a.createdAt)
+          )
+        )
       } catch (e: any) {
         if (!cancelled) {
           setSessions([])
           setStazhet([])
           setFeedbackRows([])
+          setStudentModules([])
           setError(e?.message ?? "Gabim gjatë ngarkimit të historikut të studentit.")
         }
       } finally {
@@ -409,7 +425,7 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
                 <StatCard label="Ditë prezence" value={String(attendedDayCount)} helper="Ditë me pjesëmarrje të konfirmuar" />
                 <StatCard label="Orë prezence" value={formatDuration(attendedMinutes)} helper={`${attendedSessions.length} seanca të konfirmuara`} />
                 <StatCard label="Dokumente studenti" value={String(studentDocuments.length)} helper="Dokumente të ngarkuara nga studenti" />
-                <StatCard label="Vlerësime finale" value={String(feedbackRows.length)} helper={finalFeedbackHelper} />
+                <StatCard label="Module" value={String(studentModules.length)} helper={`${studentModules.filter(m => m.attended).length} me prezencë`} />
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -448,27 +464,94 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
                         {sessionHistoryStatuses.filter((status) => status.key === "pending").length}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-card px-3 py-2">
-                      <span>Seanca pa prezencë</span>
-                      <span className="font-medium text-foreground">{sessionsWithoutAttendanceCount}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-card px-3 py-2">
-                      <span>Seanca të konfirmuara</span>
-                      <span className="font-medium text-foreground">{attendedSessions.length}</span>
-                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <UserCheck className="h-4 w-4 text-primary" />
-                  Historiku i seancave të stazhit
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Ditët dhe orët e planifikuara, me statusin e pjesëmarrjes për secilën seancë.
-                </p>
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setModulesExpanded(v => !v)}
+                  className="flex w-full items-center justify-between p-4 text-left"
+                >
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <BookOpen className="h-4 w-4 text-primary" />
+                      Modulet e caktuara
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {studentModules.length} module • {studentModules.filter(m => m.attended).length} me prezencë
+                    </p>
+                  </div>
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", modulesExpanded && "rotate-90")} />
+                </button>
+                {modulesExpanded && (
+                  <div className="border-t border-border px-4 pb-4">
+                {studentModules.length === 0 ? (
+                  <p className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground text-center">
+                    Nuk ka module të caktuara për këtë student.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-2">
+                    {studentModules.map((mod) => (
+                      <div key={mod.id} className="rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground">{mod.topic}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Lektori: {mod.lecturer} • Viti {mod.yearGrade}
+                              {mod.location ? ` • ${mod.location}` : ""}
+                            </p>
+                            {mod.scheduledDate ? (
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                <CalendarDays className="inline h-3 w-3 mr-0.5 -mt-0.5" />
+                                {formatDateTime(mod.scheduledDate)}
+                              </p>
+                            ) : null}
+                          </div>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium",
+                              mod.attended
+                                ? "bg-green-500/10 text-green-600"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            {mod.attended ? "Prezent" : "Pa prezencë"}
+                          </span>
+                        </div>
+                        {mod.attended && mod.attendedAt ? (
+                          <p className="mt-1.5 text-[11px] text-muted-foreground">
+                            Prezenca u regjistrua më {formatDateTime(mod.attendedAt)}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                  </div>
+                )}
+              </div>
 
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSessionsExpanded(v => !v)}
+                  className="flex w-full items-center justify-between p-4 text-left"
+                >
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <UserCheck className="h-4 w-4 text-primary" />
+                      Historiku i seancave të stazhit
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {sessions.length} seanca • {attendedSessions.length} të konfirmuara
+                    </p>
+                  </div>
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", sessionsExpanded && "rotate-90")} />
+                </button>
+                {sessionsExpanded && (
+                  <div className="border-t border-border px-4 pb-4">
                 {sessions.length === 0 ? (
                   <p className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground text-center">
                     Nuk ka seanca të regjistruara për këtë student.
@@ -508,13 +591,29 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
                     })}
                   </div>
                 )}
+                  </div>
+                )}
               </div>
 
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <FolderOpen className="h-4 w-4 text-primary" />
-                  Dokumente të ngarkuara nga studenti
-                </h3>
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setDocsExpanded(v => !v)}
+                  className="flex w-full items-center justify-between p-4 text-left"
+                >
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <FolderOpen className="h-4 w-4 text-primary" />
+                      Dokumente të ngarkuara nga studenti
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {studentDocuments.length} dokumente
+                    </p>
+                  </div>
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", docsExpanded && "rotate-90")} />
+                </button>
+                {docsExpanded && (
+                  <div className="border-t border-border px-4 pb-4">
                 {downloadError ? (
                   <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
                     {downloadError}
@@ -554,13 +653,29 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
                     ))}
                   </div>
                 )}
+                  </div>
+                )}
               </div>
 
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <MessageSquareText className="h-4 w-4 text-primary" />
-                  Feedback i mbylljes së stazhit
-                </h3>
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackExpanded(v => !v)}
+                  className="flex w-full items-center justify-between p-4 text-left"
+                >
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <MessageSquareText className="h-4 w-4 text-primary" />
+                      Feedback i mbylljes së stazhit
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {feedbackRows.length} feedback
+                    </p>
+                  </div>
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", feedbackExpanded && "rotate-90")} />
+                </button>
+                {feedbackExpanded && (
+                  <div className="border-t border-border px-4 pb-4">
                 {feedbackRows.length === 0 ? (
                   <p className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground text-center">
                     Nuk ka feedback të mbyllur për këtë student.
@@ -605,6 +720,8 @@ export function StudentHistoryModal({ student, mentorName = "—", onClose }: St
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
                   </div>
                 )}
               </div>

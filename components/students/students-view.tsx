@@ -517,10 +517,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [moduleStudentPreview, setModuleStudentPreview] = useState<StudentModuleStudentItem[]>([])
   const [moduleStudentPreviewLoading, setModuleStudentPreviewLoading] = useState(false)
   const [moduleStudentPreviewExpanded, setModuleStudentPreviewExpanded] = useState(false)
+  const [moduleExcludedStudentIds, setModuleExcludedStudentIds] = useState<Set<string>>(new Set())
+  const [moduleAdditionalStudents, setModuleAdditionalStudents] = useState<StudentModuleStudentItem[]>([])
+  const [allActiveStudents, setAllActiveStudents] = useState<StudentModuleStudentItem[]>([])
+  const [allActiveStudentsLoading, setAllActiveStudentsLoading] = useState(false)
+  const [addStudentSearch, setAddStudentSearch] = useState("")
+  const [showAddStudentDropdown, setShowAddStudentDropdown] = useState(false)
+  const addStudentDropdownRef = useRef<HTMLDivElement>(null)
   const [deletingModuleId, setDeletingModuleId] = useState<string | null>(null)
   const [isDeletingModule, setIsDeletingModule] = useState(false)
   const [selectedModuleDetail, setSelectedModuleDetail] = useState<StudentModuleDetailResponse | null>(null)
   const [moduleDetailLoading, setModuleDetailLoading] = useState(false)
+  const [moduleDetailStudentsExpanded, setModuleDetailStudentsExpanded] = useState(false)
   const [moduleQrToken, setModuleQrToken] = useState<string | null>(null)
   const [moduleQrLoading, setModuleQrLoading] = useState(false)
   const [moduleQrError, setModuleQrError] = useState("")
@@ -667,6 +675,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
     let isCancelled = false
     setModuleStudentPreviewLoading(true)
+    setModuleExcludedStudentIds(new Set())
+    setModuleAdditionalStudents([])
+    setAddStudentSearch("")
+    setShowAddStudentDropdown(false)
 
     const run = async () => {
       try {
@@ -682,6 +694,40 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     void run()
     return () => { isCancelled = true }
   }, [showAddModuleForm, moduleYearGrade])
+
+  // Load all active students when form opens (for add dropdown)
+  useEffect(() => {
+    if (!showAddModuleForm) return
+
+    let isCancelled = false
+    setAllActiveStudentsLoading(true)
+
+    const run = async () => {
+      try {
+        const response = (await fetchApi("/StudentModules/all-active-students")) as StudentModuleStudentItem[]
+        if (!isCancelled) setAllActiveStudents(response)
+      } catch {
+        if (!isCancelled) setAllActiveStudents([])
+      } finally {
+        if (!isCancelled) setAllActiveStudentsLoading(false)
+      }
+    }
+
+    void run()
+    return () => { isCancelled = true }
+  }, [showAddModuleForm])
+
+  // Close add-student dropdown on click outside
+  useEffect(() => {
+    if (!showAddStudentDropdown) return
+    const handler = (e: MouseEvent) => {
+      if (addStudentDropdownRef.current && !addStudentDropdownRef.current.contains(e.target as Node)) {
+        setShowAddStudentDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [showAddStudentDropdown])
 
   async function handleCreateModule() {
     if (moduleSaving) return
@@ -707,6 +753,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           lecturer: moduleLecturer.trim(),
           scheduledDate: moduleScheduledDate ? (moduleScheduledTime ? `${moduleScheduledDate}T${moduleScheduledTime}` : moduleScheduledDate) : null,
           location: moduleLocation.trim() || null,
+          excludedStudentIds: moduleExcludedStudentIds.size > 0 ? Array.from(moduleExcludedStudentIds) : null,
+          additionalStudentIds: moduleAdditionalStudents.length > 0 ? moduleAdditionalStudents.map(s => s.studentId) : null,
         }),
       })) as { id: string }
 
@@ -729,6 +777,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setModuleFiles([])
       setModuleYearGrade(1)
       setModuleError("")
+      setModuleExcludedStudentIds(new Set())
+      setModuleAdditionalStudents([])
+      setAddStudentSearch("")
+      setShowAddStudentDropdown(false)
       setShowAddModuleForm(false)
       await loadStudentModules()
     } catch (e: any) {
@@ -2477,7 +2529,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {moduleStudentPreviewLoading
                         ? "Duke ngarkuar..."
-                        : `${moduleStudentPreview.length} studentë do të njoftohen`}
+                        : `${moduleStudentPreview.filter(s => !moduleExcludedStudentIds.has(s.studentId)).length + moduleAdditionalStudents.length} studentë do të njoftohen`}
                     </p>
                   </div>
                   <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", moduleStudentPreviewExpanded && "rotate-90")} />
@@ -2486,25 +2538,130 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <div className="border-t border-border">
                     {moduleStudentPreviewLoading ? (
                       <div className="px-4 py-3 text-sm text-muted-foreground">Duke ngarkuar studentët...</div>
-                    ) : moduleStudentPreview.length === 0 ? (
+                    ) : moduleStudentPreview.length === 0 && moduleAdditionalStudents.length === 0 ? (
                       <div className="px-4 py-3 text-sm text-muted-foreground">
                         Nuk ka studentë aktiv për {formatYearGradeLabel(moduleYearGrade)}.
                       </div>
                     ) : (
                       <div className="divide-y divide-border max-h-[250px] overflow-y-auto">
-                        {moduleStudentPreview.map((student) => (
-                          <div key={student.studentId} className="flex items-center gap-3 px-4 py-2.5">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[10px] font-semibold text-blue-500">
+                        {moduleStudentPreview.map((student) => {
+                          const isExcluded = moduleExcludedStudentIds.has(student.studentId)
+                          return (
+                            <div key={student.studentId} className={cn("flex items-center gap-3 px-4 py-2.5", isExcluded && "opacity-40")}>
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[10px] font-semibold text-blue-500">
+                                {student.firstName[0]}{student.lastName[0]}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className={cn("text-sm font-medium text-foreground truncate", isExcluded && "line-through")}>{student.firstName} {student.lastName}</p>
+                                <p className="text-xs text-muted-foreground truncate">{student.email}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setModuleExcludedStudentIds(prev => {
+                                    const next = new Set(prev)
+                                    if (next.has(student.studentId)) next.delete(student.studentId)
+                                    else next.add(student.studentId)
+                                    return next
+                                  })
+                                }}
+                                className={cn(
+                                  "shrink-0 rounded-md p-1 transition-colors",
+                                  isExcluded ? "text-green-500 hover:bg-green-500/10" : "text-red-400 hover:bg-red-500/10"
+                                )}
+                                title={isExcluded ? "Rikthe studentin" : "Hiq studentin"}
+                              >
+                                {isExcluded ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                              </button>
+                            </div>
+                          )
+                        })}
+                        {/* Additional students from other years */}
+                        {moduleAdditionalStudents.map((student) => (
+                          <div key={student.studentId} className="flex items-center gap-3 px-4 py-2.5 bg-green-500/5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-500/10 text-[10px] font-semibold text-green-500">
                               {student.firstName[0]}{student.lastName[0]}
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-foreground truncate">{student.firstName} {student.lastName}</p>
                               <p className="text-xs text-muted-foreground truncate">{student.email}</p>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => setModuleAdditionalStudents(prev => prev.filter(s => s.studentId !== student.studentId))}
+                              className="shrink-0 rounded-md p-1 text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Hiq studentin"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
                           </div>
                         ))}
                       </div>
                     )}
+                    {/* Add student from other years */}
+                    <div className="border-t border-border px-4 py-3">
+                      <div className="relative" ref={addStudentDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => { setShowAddStudentDropdown(v => !v); setAddStudentSearch("") }}
+                          className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                          Shto Student
+                        </button>
+                        {showAddStudentDropdown && (
+                          <div className="absolute left-0 bottom-full mb-1 w-72 rounded-lg border border-border bg-popover shadow-lg z-50">
+                            <div className="p-2">
+                              <Input
+                                placeholder="Kërko student..."
+                                value={addStudentSearch}
+                                onChange={e => setAddStudentSearch(e.target.value)}
+                                className="h-8 text-xs"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="max-h-[200px] overflow-y-auto">
+                              {allActiveStudentsLoading ? (
+                                <div className="px-3 py-2 text-xs text-muted-foreground">Duke ngarkuar...</div>
+                              ) : (() => {
+                                const yearStudentIds = new Set(moduleStudentPreview.map(s => s.studentId))
+                                const additionalIds = new Set(moduleAdditionalStudents.map(s => s.studentId))
+                                const searchLower = addStudentSearch.toLowerCase()
+                                const filtered = allActiveStudents.filter(s =>
+                                  !yearStudentIds.has(s.studentId) &&
+                                  !additionalIds.has(s.studentId) &&
+                                  (searchLower === "" || `${s.firstName} ${s.lastName} ${s.email}`.toLowerCase().includes(searchLower))
+                                )
+                                return filtered.length === 0 ? (
+                                  <div className="px-3 py-2 text-xs text-muted-foreground">Nuk u gjet asnjë student.</div>
+                                ) : (
+                                  filtered.slice(0, 20).map(student => (
+                                    <button
+                                      key={student.studentId}
+                                      type="button"
+                                      onClick={() => {
+                                        setModuleAdditionalStudents(prev => [...prev, student])
+                                        setAddStudentSearch("")
+                                        setShowAddStudentDropdown(false)
+                                      }}
+                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                                    >
+                                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[9px] font-semibold text-blue-500">
+                                        {student.firstName[0]}{student.lastName[0]}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-medium text-foreground truncate">{student.firstName} {student.lastName}</p>
+                                        <p className="text-[10px] text-muted-foreground truncate">{student.email}</p>
+                                      </div>
+                                    </button>
+                                  ))
+                                )
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2834,105 +2991,115 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </div>
                     </div>
 
-                    {/* QR Code Section */}
-                    <div className="border-b border-border px-5 py-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-foreground">Kodi QR i Prezencës</p>
-                        {!moduleQrToken && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleGenerateModuleQr(selectedModuleDetail.id)}
-                            disabled={moduleQrLoading}
-                          >
-                            {moduleQrLoading ? (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <QrCode className="mr-1.5 h-3.5 w-3.5" />
-                            )}
-                            Shfaq QR
-                          </Button>
+                    {/* QR Code & Documents */}
+                    <div className="px-5 py-4 space-y-3">
+                      {/* QR Code Card */}
+                      <div className="rounded-xl border border-border overflow-hidden">
+                        <div className="flex items-center justify-between bg-muted/30 px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <QrCode className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">Kodi QR i Prezencës</p>
+                          </div>
+                          {!moduleQrToken && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => handleGenerateModuleQr(selectedModuleDetail.id)}
+                              disabled={moduleQrLoading}
+                            >
+                              {moduleQrLoading ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              ) : null}
+                              {moduleQrLoading ? "Duke gjeneruar..." : "Shfaq QR"}
+                            </Button>
+                          )}
+                        </div>
+                        {moduleQrError && (
+                          <p className="mx-4 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                            {moduleQrError}
+                          </p>
+                        )}
+                        {moduleQrToken && (
+                          <div className="flex flex-col items-center gap-3 border-t border-border bg-white p-6">
+                            <QRCodeCanvas id="module-detail-qr" value={`IEKA-SM:${moduleQrToken}`} size={220} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
+                            <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për të konfirmuar prezencën</p>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePrintQr("module-detail-qr", selectedModuleDetail.topic)}>
+                                <Printer className="mr-1 h-3 w-3" />
+                                Printo
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDownloadQr("module-detail-qr", `QR-${selectedModuleDetail.topic}-Viti${selectedModuleDetail.yearGrade}${selectedModuleDetail.scheduledDate ? `-${format(parseISO(selectedModuleDetail.scheduledDate), "dd-MM-yyyy")}` : ""}.png`)}>
+                                <Download className="mr-1 h-3 w-3" />
+                                Shkarko
+                              </Button>
+                            </div>
+                          </div>
                         )}
                       </div>
-                      {moduleQrError && (
-                        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive mb-3">
-                          {moduleQrError}
-                        </p>
-                      )}
-                      {moduleQrToken && (
-                        <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-white p-6">
-                          <QRCodeCanvas id="module-detail-qr" value={`IEKA-SM:${moduleQrToken}`} size={220} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
-                          <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për të konfirmuar prezencën</p>
+
+                      {/* Documents Card */}
+                      <div className="rounded-xl border border-border overflow-hidden">
+                        <div className="flex items-center justify-between bg-muted/30 px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePrintQr("module-detail-qr", selectedModuleDetail.topic)}>
-                              <Printer className="mr-1 h-3 w-3" />
-                              Printo
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDownloadQr("module-detail-qr", `QR-${selectedModuleDetail.topic}-Viti${selectedModuleDetail.yearGrade}${selectedModuleDetail.scheduledDate ? `-${format(parseISO(selectedModuleDetail.scheduledDate), "dd-MM-yyyy")}` : ""}.png`)}>
-                              <Download className="mr-1 h-3 w-3" />
-                              Shkarko
+                            <FileText className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">
+                              Dokumente {selectedModuleDetail.documents.length > 0 && <span className="text-muted-foreground font-normal">({selectedModuleDetail.documents.length})</span>}
+                            </p>
+                          </div>
+                          <div>
+                            <input
+                              type="file"
+                              multiple
+                              id="module-detail-file-upload"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files.length > 0) {
+                                  handleUploadNewDocs(Array.from(e.target.files))
+                                  e.target.value = ""
+                                }
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => document.getElementById("module-detail-file-upload")?.click()}
+                              disabled={uploadingDocs}
+                            >
+                              {uploadingDocs ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Plus className="mr-1 h-3 w-3" />}
+                              {uploadingDocs ? "Duke ngarkuar..." : "Shto"}
                             </Button>
                           </div>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Documents */}
-                    <div className="border-b border-border px-5 py-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-foreground">
-                          Dokumente {selectedModuleDetail.documents.length > 0 && <span className="text-muted-foreground font-normal">({selectedModuleDetail.documents.length})</span>}
-                        </p>
-                        <div>
-                          <input
-                            type="file"
-                            multiple
-                            id="module-detail-file-upload"
-                            className="hidden"
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files.length > 0) {
-                                handleUploadNewDocs(Array.from(e.target.files))
-                                e.target.value = ""
-                              }
-                            }}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => document.getElementById("module-detail-file-upload")?.click()}
-                            disabled={uploadingDocs}
-                          >
-                            {uploadingDocs ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Plus className="mr-1 h-3 w-3" />}
-                            {uploadingDocs ? "Duke ngarkuar..." : "Shto"}
-                          </Button>
-                        </div>
+                        {selectedModuleDetail.documents.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
+                            {selectedModuleDetail.documents.map((doc) => (
+                              <div key={doc.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
+                                  className="inline-flex items-center gap-1.5 hover:underline"
+                                >
+                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                  {doc.fileName}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeletingDocId(doc.id)}
+                                  className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="border-t border-border px-4 py-4 text-center">
+                            <p className="text-xs text-muted-foreground">Asnjë dokument i ngarkuar.</p>
+                          </div>
+                        )}
                       </div>
-                      {selectedModuleDetail.documents.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedModuleDetail.documents.map((doc) => (
-                            <div key={doc.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
-                                className="inline-flex items-center gap-1.5 hover:underline"
-                              >
-                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                {doc.fileName}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeletingDocId(doc.id)}
-                                className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Asnjë dokument i ngarkuar.</p>
-                      )}
                     </div>
 
                     {/* Delete Document Confirmation */}
@@ -2952,45 +3119,63 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     )}
 
                     {/* Student Presence Table */}
-                    <div className="px-5 py-4">
-                      <p className="text-sm font-semibold text-foreground mb-3">
-                        Studentët ({selectedModuleDetail.assignments.length})
-                      </p>
-                      {selectedModuleDetail.assignments.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Asnjë student i caktuar në këtë modul.</p>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-border text-xs text-muted-foreground">
-                                <th className="py-2 pr-3 text-left font-medium">Emri</th>
-                                <th className="py-2 pr-3 text-left font-medium">Email</th>
-                                <th className="py-2 text-left font-medium">Prezenca</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedModuleDetail.assignments.map((a) => (
-                                <tr key={a.studentId} className="border-b border-border/50">
-                                  <td className="py-2.5 pr-3 font-medium text-foreground">{a.firstName} {a.lastName}</td>
-                                  <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
-                                  <td className="py-2.5">
-                                    {a.attendedAt ? (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600">
-                                        <CheckCircle2 className="h-3 w-3" />
-                                        Prezent
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                                        Mungon
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                    <div className="px-5 pb-4">
+                      <div className="rounded-xl border border-border overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setModuleDetailStudentsExpanded(v => !v)}
+                          className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <UserCheck className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">
+                              Studentët ({selectedModuleDetail.assignments.length})
+                            </p>
+                          </div>
+                          <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", moduleDetailStudentsExpanded && "rotate-90")} />
+                        </button>
+                        {moduleDetailStudentsExpanded && (
+                          <div className="border-t border-border">
+                            {selectedModuleDetail.assignments.length === 0 ? (
+                              <div className="px-4 py-4 text-center">
+                                <p className="text-xs text-muted-foreground">Asnjë student i caktuar në këtë modul.</p>
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto px-4 py-3">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b border-border text-xs text-muted-foreground">
+                                      <th className="py-2 pr-3 text-left font-medium">Emri</th>
+                                      <th className="py-2 pr-3 text-left font-medium">Email</th>
+                                      <th className="py-2 text-left font-medium">Prezenca</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {selectedModuleDetail.assignments.map((a) => (
+                                      <tr key={a.studentId} className="border-b border-border/50 last:border-0">
+                                        <td className="py-2.5 pr-3 font-medium text-foreground">{a.firstName} {a.lastName}</td>
+                                        <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
+                                        <td className="py-2.5">
+                                          {a.attendedAt ? (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600">
+                                              <CheckCircle2 className="h-3 w-3" />
+                                              Prezent
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                                              Mungon
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

@@ -55,6 +55,8 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             entity.HasIndex(u => u.MemberRegistryNumber).IsUnique();
             entity.HasIndex(u => u.MentorId);
             entity.HasIndex(u => u.StudentTrackingNumber);
+            entity.HasIndex(u => new { u.Role, u.IsActive });
+            entity.HasIndex(u => new { u.Role, u.IsActive, u.StudentStartYear });
 
             entity.HasOne<AppUser>()
                 .WithMany()

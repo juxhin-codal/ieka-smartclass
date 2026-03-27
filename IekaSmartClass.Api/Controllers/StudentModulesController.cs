@@ -82,7 +82,7 @@ public class StudentModulesController(
         try
         {
             var module = await _studentModuleService.CreateModuleAsync(
-                new CreateStudentModuleInput(request.YearGrade, request.Topic, request.Lecturer, request.ScheduledDate, request.Location),
+                new CreateStudentModuleInput(request.YearGrade, request.Topic, request.Lecturer, request.ScheduledDate, request.Location, request.ExcludedStudentIds, request.AdditionalStudentIds),
                 context.UserId.Value,
                 cancellationToken);
 
@@ -219,6 +219,14 @@ public class StudentModulesController(
         return Ok(students);
     }
 
+    [HttpGet("all-active-students")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAllActiveStudents(CancellationToken cancellationToken)
+    {
+        var students = await _studentModuleService.GetAllActiveStudentsAsync(cancellationToken);
+        return Ok(students);
+    }
+
     [HttpGet("{moduleId:guid}/qr")]
     [Authorize(Roles = "Admin,Mentor")]
     public async Task<IActionResult> GenerateQr(Guid moduleId, CancellationToken cancellationToken)
@@ -266,6 +274,28 @@ public class StudentModulesController(
         }
     }
 
+    [HttpGet("student/{studentId:guid}/modules")]
+    [Authorize(Roles = "Admin,Mentor")]
+    public async Task<IActionResult> GetStudentModules(Guid studentId, CancellationToken cancellationToken)
+    {
+        var modules = await _studentModuleService.GetMyModulesAsync(studentId, cancellationToken);
+        return Ok(modules.Select(m =>
+        {
+            var assignment = m.Assignments.FirstOrDefault(a => a.StudentId == studentId);
+            return new StudentMyModuleResponse(
+                m.Id,
+                m.YearGrade,
+                m.Topic,
+                m.Lecturer,
+                m.ScheduledDate?.ToString("o"),
+                m.Location,
+                m.CreatedAt.ToString("o"),
+                m.Documents.Count,
+                assignment?.AttendedAt != null,
+                assignment?.AttendedAt?.ToString("o"));
+        }));
+    }
+
     [HttpGet("my-modules")]
     [Authorize(Roles = "Student")]
     public async Task<IActionResult> GetMyModules(
@@ -293,7 +323,7 @@ public class StudentModulesController(
     }
 }
 
-public record CreateStudentModuleRequest(int YearGrade, string Topic, string Lecturer, DateTime? ScheduledDate = null, string? Location = null);
+public record CreateStudentModuleRequest(int YearGrade, string Topic, string Lecturer, DateTime? ScheduledDate = null, string? Location = null, List<Guid>? ExcludedStudentIds = null, List<Guid>? AdditionalStudentIds = null);
 
 public record StudentModuleResponse(
     Guid Id,

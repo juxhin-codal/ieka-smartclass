@@ -64,6 +64,15 @@ public class NotificationsController(
         return NoContent();
     }
 
+    [HttpPost("process")]
+    [Authorize(Roles = "Admin,Mentor,Lecturer,Member,Student")]
+    public async Task<IActionResult> ProcessNotifications(CancellationToken cancellationToken = default)
+    {
+        if (_requestContext.UserId is null) return Unauthorized();
+        await _notificationService.ProcessScheduledNotificationsAsync(DateTime.UtcNow, cancellationToken);
+        return NoContent();
+    }
+
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken = default)
     {

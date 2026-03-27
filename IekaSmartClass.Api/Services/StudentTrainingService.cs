@@ -18,7 +18,8 @@ public class StudentTrainingService(
     IApplicationDbContext dbContext,
     IEmailService emailService,
     IOptions<JwtSettings> jwtOptions,
-    IOptions<EmailSettings> emailOptions) : IStudentTrainingService
+    IOptions<EmailSettings> emailOptions,
+    ILogger<StudentTrainingService> logger) : IStudentTrainingService
 {
     private static readonly TimeZoneInfo AppTimeZone = ResolveAppTimeZone();
     private readonly IRepository<StudentTrainingSession> _sessionRepository = sessionRepository;
@@ -26,6 +27,7 @@ public class StudentTrainingService(
     private readonly IRepository<StudentTrainingStazh> _stazhRepository = stazhRepository;
     private readonly IApplicationDbContext _dbContext = dbContext;
     private readonly IEmailService _emailService = emailService;
+    private readonly ILogger<StudentTrainingService> _logger = logger;
     private readonly byte[] _qrSigningKey = Encoding.UTF8.GetBytes(string.IsNullOrWhiteSpace(jwtOptions.Value.Secret)
         ? "ieka-default-training-qr-signing-secret"
         : jwtOptions.Value.Secret);
@@ -198,7 +200,15 @@ public class StudentTrainingService(
 
         if (!string.IsNullOrWhiteSpace(student.Email))
         {
-            await _emailService.SendStudentTrainingScheduleAsync(student, mentor, upcomingForEmail, cancellationToken);
+            try
+            {
+                await _emailService.SendStudentTrainingScheduleAsync(student, mentor, upcomingForEmail, CancellationToken.None);
+                _logger.LogInformation("Training schedule email sent to student {StudentId}", student.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send training schedule email to student {StudentId}", student.Id);
+            }
         }
 
         return await GetStudentScheduleAsync(student.Id, actorUserId, actorRole, cancellationToken);
@@ -299,12 +309,22 @@ public class StudentTrainingService(
 
             if (!string.IsNullOrWhiteSpace(session.Student.Email))
             {
-                await _emailService.SendStudentTrainingAttendanceRejectedAsync(
-                    session.Student,
-                    session.Mentor,
-                    new TrainingScheduleEmailItem(session.ScheduledDate, session.StartTime, session.EndTime, session.Notes),
-                    session.RejectionReason,
-                    cancellationToken);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _emailService.SendStudentTrainingAttendanceRejectedAsync(
+                            session.Student,
+                            session.Mentor,
+                            new TrainingScheduleEmailItem(session.ScheduledDate, session.StartTime, session.EndTime, session.Notes),
+                            session.RejectionReason,
+                            CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to send rejection email to student {StudentId}", session.StudentId);
+                    }
+                });
             }
         }
         else
@@ -540,12 +560,22 @@ public class StudentTrainingService(
                 ["token"] = feedbackToken
             });
 
-            await _emailService.SendStudentTrainingFeedbackRequestAsync(
-                student,
-                mentor,
-                new StudentTrainingStazhEmailItem(stazh.StartedAt, stazh.EndedAt, mentorFeedbackRating, mentorFeedbackComment),
-                actionLink,
-                cancellationToken);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _emailService.SendStudentTrainingFeedbackRequestAsync(
+                        student,
+                        mentor,
+                        new StudentTrainingStazhEmailItem(stazh.StartedAt, stazh.EndedAt, mentorFeedbackRating, mentorFeedbackComment),
+                        actionLink,
+                        CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send feedback request email to student {StudentId}", student.Id);
+                }
+            });
         }
 
         return stazh;
