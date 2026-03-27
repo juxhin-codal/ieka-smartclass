@@ -1,0 +1,133 @@
+name: Build & Deploy Azure Web App
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "IekaSmartClass.Api/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "22"
+  BUILD_CONFIGURATION: "Release"
+  PROJECT_PATH: "IekaSmartClass.Api/IekaSmartClass.Api.csproj"
+  PUBLISH_PATH: "./publish"
+  PUBLISH_ZIP_PATH: "./publish.zip"
+  AZURE_WEBAPP_NAME: "iekasmartclass"
+  AZURE_CLIENT_ID: "7bda399f-de83-4198-a493-a4f90f883b20"
+  AZURE_TENANT_ID: "4ddd8201-3ca1-4d79-a7b4-a8156694f934"
+  AZURE_SUBSCRIPTION_ID: "0ba153de-00d0-451f-9d32-420ad85aa727"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Type-check frontend
+        run: npx tsc --noEmit
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Clean API Outputs
+        run: |
+          rm -rf ${{ env.PUBLISH_PATH }}
+          rm -f ${{ env.PUBLISH_ZIP_PATH }}
+          dotnet clean ${{ env.PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }}
+
+      - name: Restore API
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+
+      - name: Build API
+        run: dotnet build ${{ env.PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Publish API
+        run: dotnet publish ${{ env.PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore --no-build --output ${{ env.PUBLISH_PATH }}
+
+      - name: Create deployment zip
+        run: |
+          cd ${{ env.PUBLISH_PATH }}
+          zip -r ../$(basename "${{ env.PUBLISH_ZIP_PATH }}") .
+
+      - name: Install EF Core Tools
+        env:
+          DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+        run: |
+          if [ -z "$DB_CONNECTION_STRING" ]; then
+            echo "DB_CONNECTION_STRING not set. Skipping EF Core tools install."
+            exit 0
+          fi
+          dotnet tool install --global dotnet-ef --version 10.0.3
+
+      - name: Update Database
+        env:
+          DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+        run: |
+          if [ -z "$DB_CONNECTION_STRING" ]; then
+            echo "DB_CONNECTION_STRING not set. Skipping database update."
+            exit 0
+          fi
+          if ! dotnet ef database update \
+            --project ${{ env.PROJECT_PATH }} \
+            --startup-project ${{ env.PROJECT_PATH }} \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            --connection "$DB_CONNECTION_STRING"; then
+            echo "Database update failed. Continuing deployment."
+          fi
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve Azure Resource Group
+        run: |
+          RESOURCE_GROUP=$(az resource list \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --resource-type "Microsoft.Web/sites" \
+            --query "[0].resourceGroup" \
+            -o tsv)
+          if [ -z "$RESOURCE_GROUP" ]; then
+            echo "Resource group not found for ${{ env.AZURE_WEBAPP_NAME }}."
+            exit 1
+          fi
+          echo "AZURE_RESOURCE_GROUP=$RESOURCE_GROUP" >> "$GITHUB_ENV"
+
+      - name: Enable Run From Package
+        run: |
+          az webapp config appsettings set \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --settings WEBSITE_RUN_FROM_PACKAGE=1 SCM_DO_BUILD_DURING_DEPLOYMENT=false
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: ${{ env.PUBLISH_ZIP_PATH }}
+
+      - name: Restart Azure Web App
+        run: az webapp restart --name "${{ env.AZURE_WEBAPP_NAME }}" --resource-group "$AZURE_RESOURCE_GROUP"
