@@ -332,12 +332,13 @@ public class MembersService(
 
         try
         {
-            await emailService.SendPasswordResetLinkAsync(user, resetCode, cancellationToken);
+            await emailService.SendPasswordResetLinkAsync(user, resetCode, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Password reset email could not be sent to member {MemberId}.", user.Id);
-            throw new InvalidOperationException("Email-i i resetimit nuk mund të dërgohej.");
+            logger.LogWarning(ex, "Password reset email could not be sent to member {MemberId}. Reset code was saved — email will work once SMTP is reachable.", user.Id);
+            // Don't throw — the reset code is already saved in the database.
+            // Email delivery failure should not block the API response.
         }
     }
 

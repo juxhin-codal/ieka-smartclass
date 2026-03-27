@@ -41,7 +41,7 @@ public class StudentTrainingService(
 
         if (IsAdmin(actorRole))
         {
-            studentsQuery = _userRepository.Query().Where(x => x.Role == "Student");
+            studentsQuery = _userRepository.Query().AsNoTracking().Where(x => x.Role == "Student");
             if (requestedMentorId.HasValue)
             {
                 studentsQuery = studentsQuery.Where(x => x.MentorId == requestedMentorId.Value);
@@ -111,6 +111,7 @@ public class StudentTrainingService(
         EnsureCanReadStudentSchedule(student, actorUserId, actorRole);
 
         var query = _sessionRepository.Query()
+            .AsNoTracking()
             .Include(x => x.Student)
             .Include(x => x.Mentor)
             .Where(x => x.StudentId == studentId);
@@ -231,6 +232,7 @@ public class StudentTrainingService(
         var nowUtc = DateTime.UtcNow;
 
         var baseQuery = _sessionRepository.Query()
+            .AsNoTracking()
             .Include(x => x.Student)
             .Include(x => x.Mentor)
             .Where(x => x.Student.IsActive

@@ -16,7 +16,7 @@ public class ReportsService(
 
     public async Task<DashboardStats> GetDashboardStatsAsync()
     {
-        var users = await _userRepository.Query().Where(u => u.IsActive).ToListAsync();
+        var users = await _userRepository.Query().AsNoTracking().Where(u => u.IsActive).ToListAsync();
         var totalMembers = users.Count;
         var totalEvents = await _eventRepository.Query().CountAsync();
         
