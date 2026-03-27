@@ -25,7 +25,9 @@ public interface IMembersService
         int? studentStartYear = null,
         int? studentEndYear = null,
         string? company = null,
-        string? district = null);
+        string? district = null,
+        int? studentYear2StartYear = null,
+        int? studentYear3StartYear = null);
     Task AddMembersBulkAsync(IEnumerable<AppUser> members);
     Task UpdateMemberAsync(
         Guid id,
@@ -45,7 +47,9 @@ public interface IMembersService
         int? studentStartYear = null,
         int? studentEndYear = null,
         string? company = null,
-        string? district = null);
+        string? district = null,
+        int? studentYear2StartYear = null,
+        int? studentYear3StartYear = null);
     Task SendPasswordResetEmailAsync(Guid id, CancellationToken cancellationToken = default);
     Task UpdateMemberCpdAsync(Guid id, int addHours);
     Task DeactivateMemberAsync(Guid id);

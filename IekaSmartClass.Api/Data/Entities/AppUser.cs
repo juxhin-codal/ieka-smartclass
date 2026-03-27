@@ -25,6 +25,8 @@ public class AppUser : IdentityUser<Guid>
     public string? StudentNumber { get; private set; }
     public int? StudentStartYear { get; private set; }
     public int? StudentEndYear { get; private set; }
+    public int? StudentYear2StartYear { get; private set; }
+    public int? StudentYear3StartYear { get; private set; }
     public string? Company { get; private set; }
     public string? District { get; private set; }
     public int? YearlyPaymentPaidYear { get; private set; }
@@ -136,7 +138,9 @@ public class AppUser : IdentityUser<Guid>
         int? studentStartYear,
         int? studentEndYear,
         string? company,
-        string? district)
+        string? district,
+        int? studentYear2StartYear = null,
+        int? studentYear3StartYear = null)
     {
         UpdateProfile(firstName, lastName, email, phone);
         Email2 = NormalizeOptionalValue(email2);
@@ -146,7 +150,7 @@ public class AppUser : IdentityUser<Guid>
         IsActive = isActive;
         MentorId = string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase) ? mentorId : null;
         StudentValidUntilUtc = string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase) ? studentValidUntilUtc : null;
-        SetStudentProfile(role, studentTrackingNumber, studentNumber, studentStartYear, studentEndYear, company, district);
+        SetStudentProfile(role, studentTrackingNumber, studentNumber, studentStartYear, studentEndYear, company, district, studentYear2StartYear, studentYear3StartYear);
         if (isActive || role != "Member")
         {
             YearlyPaymentPaidYear = null;
@@ -208,7 +212,9 @@ public class AppUser : IdentityUser<Guid>
         int? studentStartYear,
         int? studentEndYear,
         string? company,
-        string? district)
+        string? district,
+        int? studentYear2StartYear = null,
+        int? studentYear3StartYear = null)
     {
         if (!string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase))
         {
@@ -216,6 +222,8 @@ public class AppUser : IdentityUser<Guid>
             StudentNumber = null;
             StudentStartYear = null;
             StudentEndYear = null;
+            StudentYear2StartYear = null;
+            StudentYear3StartYear = null;
             Company = null;
             District = null;
             return;
@@ -225,6 +233,8 @@ public class AppUser : IdentityUser<Guid>
         StudentNumber = NormalizeOptionalValue(studentNumber)?.ToUpperInvariant();
         StudentStartYear = studentStartYear;
         StudentEndYear = studentEndYear;
+        StudentYear2StartYear = studentYear2StartYear;
+        StudentYear3StartYear = studentYear3StartYear;
         Company = NormalizeOptionalValue(company);
         District = NormalizeOptionalValue(district);
     }

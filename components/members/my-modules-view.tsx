@@ -365,7 +365,7 @@ function BookingCard({
                         {/* When quiz exists but not yet started by lecturer */}
                         {hasQuiz && !isPast && !quizLive && (
                             <span className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
-                                <Clock className="h-3.5 w-3.5" /> Quiz — duke pritur ligjëruesin
+                                <Clock className="h-3.5 w-3.5" /> Quiz — duke pritur lektorin
                             </span>
                         )}
                         {/* Post-training survey — shown after past events */}

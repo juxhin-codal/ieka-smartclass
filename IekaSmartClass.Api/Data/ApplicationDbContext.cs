@@ -175,8 +175,10 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
         {
             entity.Property(x => x.Topic).HasMaxLength(500);
             entity.Property(x => x.Lecturer).HasMaxLength(200);
+            entity.Property(x => x.Location).HasMaxLength(500);
             entity.HasIndex(x => x.YearGrade);
             entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.ScheduledDate);
 
             entity.HasOne(x => x.CreatedByUser)
                 .WithMany()
@@ -246,12 +248,12 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             new
             {
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                FirstName = "Admin",
-                LastName = "System",
-                Email = "admin@ieka.al",
-                NormalizedEmail = "ADMIN@IEKA.AL",
-                UserName = "admin@ieka.al",
-                NormalizedUserName = "ADMIN@IEKA.AL",
+                FirstName = "Artan",
+                LastName = "Xhiani",
+                Email = "artan.xhiani@ieka.al",
+                NormalizedEmail = "ARTAN.XHIANI@IEKA.AL",
+                UserName = "artan.xhiani@ieka.al",
+                NormalizedUserName = "ARTAN.XHIANI@IEKA.AL",
                 PhoneNumber = (string?)null,
                 MemberRegistryNumber = "admin001",
                 Role = "Admin",

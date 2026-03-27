@@ -4,6 +4,7 @@ using IekaSmartClass.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IekaSmartClass.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260326232829_AddStudentModule")]
+    partial class AddStudentModule
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -183,12 +186,6 @@ namespace IekaSmartClass.Api.Migrations
 
                     b.Property<DateTime?>("StudentValidUntilUtc")
                         .HasColumnType("datetime2");
-
-                    b.Property<int?>("StudentYear2StartYear")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StudentYear3StartYear")
-                        .HasColumnType("int");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
@@ -698,13 +695,6 @@ namespace IekaSmartClass.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("Location")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("ScheduledDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("Topic")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -719,8 +709,6 @@ namespace IekaSmartClass.Api.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
-                    b.HasIndex("ScheduledDate");
-
                     b.HasIndex("YearGrade");
 
                     b.ToTable("StudentModules");
@@ -733,9 +721,6 @@ namespace IekaSmartClass.Api.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("AttendedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<Guid>("StudentId")

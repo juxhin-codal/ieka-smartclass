@@ -32,30 +32,26 @@ export function AdminPasswordResetCard({ userId, userLabel }: AdminPasswordReset
   }
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 px-4 py-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-foreground">Reseto fjalëkalimin</p>
-          <p className="text-xs text-muted-foreground">
-            Admini mund t'i dërgojë këtij përdoruesi një email për rivendosjen e fjalëkalimit.
+    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-foreground">Reseto fjalëkalimin</p>
+          <p className="text-[11px] text-muted-foreground">
+            Ju mund t'i dërgojni këtij përdoruesi një email për rivendosjen e fjalëkalimit.
           </p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={handleResetPassword} disabled={saving}>
+        <Button type="button" variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={handleResetPassword} disabled={saving}>
           {saving ? "Duke dërguar..." : "Dërgo Email Resetimi"}
         </Button>
       </div>
 
       {success ? (
-        <p className="mt-3 rounded-md border border-green-500/20 bg-green-500/5 px-3 py-2 text-xs text-green-600">
+        <p className="mt-2 rounded-md border border-green-500/20 bg-green-500/5 px-3 py-1.5 text-xs text-green-600">
           {success}
         </p>
       ) : null}
 
-      <p className="mt-3 text-[11px] text-muted-foreground">
-        Përdoruesi do të marrë një email me linkun për të vendosur vetë fjalëkalimin e ri.
-      </p>
-
-      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
     </div>
   )
 }

@@ -61,7 +61,9 @@ public class MembersController(IMembersService membersService) : ControllerBase
             request.StudentStartYear,
             request.StudentEndYear,
             request.Company,
-            request.District);
+            request.District,
+            request.StudentYear2StartYear,
+            request.StudentYear3StartYear);
 
         return CreatedAtAction(
             nameof(GetMember),
@@ -93,7 +95,9 @@ public class MembersController(IMembersService membersService) : ControllerBase
             request.StudentStartYear,
             request.StudentEndYear,
             request.Company,
-            request.District);
+            request.District,
+            request.StudentYear2StartYear,
+            request.StudentYear3StartYear);
         return NoContent();
     }
 
@@ -157,6 +161,8 @@ public class MembersController(IMembersService membersService) : ControllerBase
             user.StudentNumber,
             user.StudentStartYear,
             user.StudentEndYear,
+            user.StudentYear2StartYear,
+            user.StudentYear3StartYear,
             user.Company,
             user.District);
     }
@@ -179,7 +185,9 @@ public record AddMemberRequest(
     int? StudentStartYear = null,
     int? StudentEndYear = null,
     string? Company = null,
-    string? District = null);
+    string? District = null,
+    int? StudentYear2StartYear = null,
+    int? StudentYear3StartYear = null);
 public record UpdateMemberRequest(
     string FirstName,
     string LastName,
@@ -197,7 +205,9 @@ public record UpdateMemberRequest(
     int? StudentStartYear = null,
     int? StudentEndYear = null,
     string? Company = null,
-    string? District = null);
+    string? District = null,
+    int? StudentYear2StartYear = null,
+    int? StudentYear3StartYear = null);
 public record ResetMemberPasswordRequest();
 public record SetYearlyPaymentRequest(bool IsPaid);
 public record MemberStatusResponse(bool Success, string Message, Guid Id);
@@ -224,5 +234,7 @@ public record MemberResponse(
     string? StudentNumber,
     int? StudentStartYear,
     int? StudentEndYear,
+    int? StudentYear2StartYear,
+    int? StudentYear3StartYear,
     string? Company,
     string? District);

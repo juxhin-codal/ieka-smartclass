@@ -272,6 +272,8 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           studentNumber: user.studentNumber ?? null,
           studentStartYear: user.studentStartYear ?? null,
           studentEndYear: user.studentEndYear ?? null,
+          studentYear2StartYear: user.studentYear2StartYear ?? null,
+          studentYear3StartYear: user.studentYear3StartYear ?? null,
           company: user.company ?? null,
           district: user.district ?? null,
         })
@@ -304,6 +306,8 @@ export function EventsProvider({ children }: { children: ReactNode }) {
             studentNumber: u.studentNumber ?? null,
             studentStartYear: u.studentStartYear ?? null,
             studentEndYear: u.studentEndYear ?? null,
+            studentYear2StartYear: u.studentYear2StartYear ?? null,
+            studentYear3StartYear: u.studentYear3StartYear ?? null,
             company: u.company ?? null,
             district: u.district ?? null,
           })
@@ -333,6 +337,8 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           studentNumber: updates.studentNumber ?? null,
           studentStartYear: updates.studentStartYear ?? null,
           studentEndYear: updates.studentEndYear ?? null,
+          studentYear2StartYear: updates.studentYear2StartYear ?? null,
+          studentYear3StartYear: updates.studentYear3StartYear ?? null,
           company: updates.company ?? null,
           district: updates.district ?? null,
         })

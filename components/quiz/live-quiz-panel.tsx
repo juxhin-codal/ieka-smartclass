@@ -114,7 +114,7 @@ export function LiveQuizPanel({ eventId, eventName, questions, participantCount,
                     style={{ background: "linear-gradient(135deg, #0d2347 0%, #1a3a6b 100%)" }}>
                     <div>
                         <p className="text-xs text-white/60 mb-0.5">{eventName}</p>
-                        <h2 className="text-base font-bold text-white">Live Quiz — Ligjëruesi</h2>
+                        <h2 className="text-base font-bold text-white">Live Quiz — Lektori</h2>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white">

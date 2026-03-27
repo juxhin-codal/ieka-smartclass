@@ -183,7 +183,7 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
                     <div>
                         <h1 className="text-xl font-bold text-foreground">{event.name}</h1>
                         {event.lecturerName && (
-                            <p className="text-sm text-muted-foreground mt-0.5">Ligjëruesi: {event.lecturerName}</p>
+                            <p className="text-sm text-muted-foreground mt-0.5">Lektori: {event.lecturerName}</p>
                         )}
                     </div>
                     <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-bold text-primary">

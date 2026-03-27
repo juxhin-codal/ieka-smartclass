@@ -220,7 +220,7 @@ export function CreateEventForm({ onClose }: CreateEventFormProps) {
             </div>
 
             <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label>Cakto Ligjërues (Opsionale)</Label>
+              <Label>Cakto Lektor (Opsionale)</Label>
               <div className="flex flex-wrap gap-2 rounded-lg border border-border p-3 min-h-[50px] bg-background">
                 {lecturers.map(l => {
                   const isSelected = lecturerIds.includes(l.id)
@@ -235,7 +235,7 @@ export function CreateEventForm({ onClose }: CreateEventFormProps) {
                     </div>
                   )
                 })}
-                {lecturers.length === 0 && <p className="text-sm text-muted-foreground">Nuk ka ligjërues në sistem.</p>}
+                {lecturers.length === 0 && <p className="text-sm text-muted-foreground">Nuk ka lektorë në sistem.</p>}
               </div>
             </div>
           </div>

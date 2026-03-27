@@ -85,6 +85,8 @@ export interface AppUser {
   studentNumber?: string | null
   studentStartYear?: number | null
   studentEndYear?: number | null
+  studentYear2StartYear?: number | null
+  studentYear3StartYear?: number | null
   company?: string | null
   district?: string | null
   cpdHoursCompleted: number
@@ -264,6 +266,7 @@ export interface StudentModuleAssignment {
   lastName: string
   email: string
   assignedAt: string
+  attendedAt?: string | null
 }
 
 export interface StudentModuleResponse {
@@ -271,6 +274,8 @@ export interface StudentModuleResponse {
   yearGrade: number
   topic: string
   lecturer: string
+  scheduledDate?: string | null
+  location?: string | null
   createdAt: string
   createdByName?: string | null
   documents: StudentModuleDocument[]
@@ -282,6 +287,8 @@ export interface StudentModuleDetailResponse {
   yearGrade: number
   topic: string
   lecturer: string
+  scheduledDate?: string | null
+  location?: string | null
   createdAt: string
   createdByName?: string | null
   documents: StudentModuleDocument[]
@@ -293,6 +300,30 @@ export interface StudentModuleStudentItem {
   firstName: string
   lastName: string
   email: string
+}
+
+export interface StudentModuleQrResponse {
+  moduleId: string
+  token: string
+}
+
+export interface StudentMyModuleResponse {
+  id: string
+  yearGrade: number
+  topic: string
+  lecturer: string
+  scheduledDate?: string | null
+  location?: string | null
+  createdAt: string
+  documentCount: number
+  attended: boolean
+  attendedAt?: string | null
+}
+
+export interface ScanModuleAttendanceResponse {
+  moduleId: string
+  studentId: string
+  attendedAt: string
 }
 
 // ─── Albanian-style name pools ─────────────────────────────────────────────

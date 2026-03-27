@@ -72,7 +72,9 @@ public class MembersService(
         int? studentStartYear = null,
         int? studentEndYear = null,
         string? company = null,
-        string? district = null)
+        string? district = null,
+        int? studentYear2StartYear = null,
+        int? studentYear3StartYear = null)
     {
         var trimmedEmail = email.Trim();
         var trimmedEmail2 = NormalizeOptionalEmail(email2);
@@ -98,7 +100,9 @@ public class MembersService(
             studentEndYear,
             firstName,
             company,
-            district);
+            district,
+            studentYear2StartYear,
+            studentYear3StartYear);
         var normalizedRegistry = isStudent
             ? studentProfile.MemberRegistryNumber!
             : registryNumber.Trim().ToUpperInvariant();
@@ -214,7 +218,9 @@ public class MembersService(
         int? studentStartYear = null,
         int? studentEndYear = null,
         string? company = null,
-        string? district = null)
+        string? district = null,
+        int? studentYear2StartYear = null,
+        int? studentYear3StartYear = null)
     {
         var trimmedEmail = email.Trim();
         var trimmedEmail2 = NormalizeOptionalEmail(email2);
@@ -238,7 +244,9 @@ public class MembersService(
             studentEndYear,
             firstName,
             company,
-            district);
+            district,
+            studentYear2StartYear,
+            studentYear3StartYear);
         var normalizedRegistry = string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase)
             ? studentProfile.MemberRegistryNumber!
             : registryNumber.Trim().ToUpperInvariant();
@@ -276,7 +284,9 @@ public class MembersService(
             studentProfile.StudentStartYear,
             studentProfile.StudentEndYear,
             studentProfile.Company,
-            studentProfile.District);
+            studentProfile.District,
+            studentProfile.StudentYear2StartYear,
+            studentProfile.StudentYear3StartYear);
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
@@ -641,7 +651,9 @@ public class MembersService(
         int? studentEndYear,
         string firstName,
         string? company,
-        string? district)
+        string? district,
+        int? studentYear2StartYear = null,
+        int? studentYear3StartYear = null)
     {
         if (!string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase))
         {
@@ -662,24 +674,28 @@ public class MembersService(
             throw new InvalidOperationException("Për studentin duhet të plotësohet Viti Fillimit.");
         }
 
-        if (!studentEndYear.HasValue)
-        {
-            throw new InvalidOperationException("Për studentin duhet të plotësohet Viti Mbarimit.");
-        }
-
         if (studentStartYear.Value < 2000 || studentStartYear.Value > 2100)
         {
             throw new InvalidOperationException("Viti Fillimit nuk është i vlefshëm.");
         }
 
-        if (studentEndYear.Value < 2000 || studentEndYear.Value > 2100)
-        {
-            throw new InvalidOperationException("Viti Mbarimit nuk është i vlefshëm.");
-        }
+        // End year is always start + 3 (3-year program: Year1, Year2, Year3)
+        var computedEndYear = studentStartYear.Value + 3;
 
-        if (studentEndYear.Value < studentStartYear.Value)
+        // Validate per-year overrides if provided
+        var y2Start = studentYear2StartYear;
+        var y3Start = studentYear3StartYear;
+        if (y2Start.HasValue && y2Start.Value <= studentStartYear.Value)
         {
-            throw new InvalidOperationException("Viti Mbarimit nuk mund të jetë më i vogël se Viti Fillimit.");
+            throw new InvalidOperationException("Viti i Dytë duhet të fillojë pas Vitit të Parë.");
+        }
+        if (y3Start.HasValue && y2Start.HasValue && y3Start.Value <= y2Start.Value)
+        {
+            throw new InvalidOperationException("Viti i Tretë duhet të fillojë pas Vitit të Dytë.");
+        }
+        if (y3Start.HasValue && !y2Start.HasValue && y3Start.Value <= studentStartYear.Value + 1)
+        {
+            throw new InvalidOperationException("Viti i Tretë duhet të fillojë pas Vitit të Dytë.");
         }
 
         var normalizedCompany = NormalizeOptionalValue(company);
@@ -689,16 +705,18 @@ public class MembersService(
             normalizedStudentNumber,
             firstName,
             studentStartYear.Value,
-            studentEndYear.Value);
+            computedEndYear);
 
         return new StudentProfileData(
             studentTrackingNumber.Value,
             normalizedStudentNumber,
             studentStartYear.Value,
-            studentEndYear.Value,
+            computedEndYear,
             normalizedCompany,
             normalizedDistrict,
-            generatedMemberRegistryNumber);
+            generatedMemberRegistryNumber,
+            y2Start,
+            y3Start);
     }
 
     private static int? GetKnownStudentTrackingNumber(int? storedTrackingNumber, string? studentNumber, string? memberRegistryNumber)
@@ -862,7 +880,9 @@ public class MembersService(
         int? StudentEndYear,
         string? Company,
         string? District,
-        string? MemberRegistryNumber)
+        string? MemberRegistryNumber,
+        int? StudentYear2StartYear = null,
+        int? StudentYear3StartYear = null)
     {
         public static StudentProfileData Empty { get; } = new(null, null, null, null, null, null, null);
     }

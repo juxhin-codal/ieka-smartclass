@@ -10,12 +10,20 @@ public interface IStudentModuleService
     Task<StudentModuleDocument> AddDocumentAsync(Guid moduleId, string fileName, string fileUrl, string relativePath, long sizeBytes, CancellationToken cancellationToken = default);
     Task DeleteModuleAsync(Guid moduleId, Guid actorUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<StudentModuleStudentItem>> GetStudentsByYearGradeAsync(int yearGrade, CancellationToken cancellationToken = default);
+    Task<string> GenerateModuleQrTokenAsync(Guid moduleId, CancellationToken cancellationToken = default);
+    Task<StudentModuleAssignment> ScanModuleQrAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<StudentModule>> GetMyModulesAsync(Guid studentId, CancellationToken cancellationToken = default);
+    Task UpdateModuleScheduleAsync(Guid moduleId, DateTime? scheduledDate, CancellationToken cancellationToken = default);
+    Task RemoveDocumentAsync(Guid moduleId, Guid documentId, CancellationToken cancellationToken = default);
+    Task NotifyStudentsAsync(Guid moduleId, CancellationToken cancellationToken = default);
 }
 
 public sealed record CreateStudentModuleInput(
     int YearGrade,
     string Topic,
-    string Lecturer);
+    string Lecturer,
+    DateTime? ScheduledDate = null,
+    string? Location = null);
 
 public sealed record StudentModuleStudentItem(
     Guid StudentId,

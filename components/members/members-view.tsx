@@ -54,7 +54,7 @@ const subTabs: {
     },
     {
         key: "lecturer",
-        label: "Ligjërues",
+        label: "Lektor",
         icon: BookOpen,
         accentClassName: "from-violet-500/20 via-violet-500/5 to-transparent",
         iconClassName: "border-violet-500/20 bg-violet-500/12 text-violet-600 dark:text-violet-400",
@@ -356,7 +356,12 @@ export function MembersView() {
                         <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={handleDownload}>
                             <Download className="h-4 w-4" /> <span className="hidden sm:inline">Shkarko</span>
                         </Button>
-                        <Button size="sm" className="gap-2 shrink-0" onClick={() => { setNewIsActive(true); setShowAddForm(true) }}>
+                        <Button size="sm" className="gap-2 shrink-0" onClick={() => {
+                            setNewIsActive(activeSubTab !== "jo-aktiv")
+                            const roleMap: Record<MemberSubTab, string> = { aktiv: "Member", "jo-aktiv": "Member", administrator: "Admin", lecturer: "Lecturer", mentor: "Mentor" }
+                            setNewRole(roleMap[activeSubTab] || "Member")
+                            setShowAddForm(true)
+                        }}>
                             <UserPlus className="h-4 w-4" /> Shto Anëtar
                         </Button>
                     </div>
@@ -422,85 +427,89 @@ export function MembersView() {
                     <p className="mb-4 text-sm text-destructive">{error}</p>
                 )}
 
-                {/* Add Member Form */}
+                {/* Add Member Modal */}
                 {showAddForm && (
-                    <div className="mb-6 rounded-xl border border-border bg-card p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-base font-semibold text-foreground">Shto Anëtar të Ri</h3>
-                            <button onClick={() => { setShowAddForm(false); setError("") }} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="m-reg">Numri i Regjistrit *</Label>
-                                <Input id="m-reg" value={newRegistry} onChange={(e) => setNewRegistry(e.target.value)} placeholder="IEKA-2270" className="font-mono" />
-                                {newRole === "Student" && (
-                                    <p className="text-xs text-muted-foreground">Plotësohet automatikisht nga emri, por mund ta ndryshoni nëse duhet.</p>
-                                )}
+                    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+                        <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+                            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                                <h3 className="text-base font-semibold text-foreground">Shto Anëtar të Ri</h3>
+                                <button onClick={() => { setShowAddForm(false); setError("") }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                                    <X className="h-4 w-4" />
+                                </button>
                             </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="m-fn">Emri *</Label>
-                                <Input id="m-fn" value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="Artan" />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="m-ln">Mbiemri *</Label>
-                                <Input id="m-ln" value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Hoxha" />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="m-email">Email *</Label>
-                                <Input id="m-email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="artan.hoxha@ieka.al" />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="m-email2">Email 2</Label>
-                                <Input id="m-email2" type="email" value={newEmail2} onChange={(e) => setNewEmail2(e.target.value)} placeholder="artan.personal@example.com" />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="m-phone">Telefon</Label>
-                                <Input id="m-phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+355 69 123 4567" />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <Label htmlFor="m-role">Roli *</Label>
-                                <select
-                                    id="m-role"
-                                    value={newRole}
-                                    onChange={(e) => {
-                                        const nextRole = e.target.value
-                                        setNewRole(nextRole)
-                                        if (nextRole !== "Member") {
-                                            setNewIsActive(true)
-                                        }
-                                    }}
-                                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <option value="Member">Anëtar</option>
-                                    <option value="Admin">Administrator</option>
-                                    <option value="Lecturer">Ligjërues</option>
-                                    <option value="Mentor">Mentor</option>
-                                </select>
-                            </div>
-                            {newRole === "Member" && (
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="m-is-active">Statusi *</Label>
-                                    <select
-                                        id="m-is-active"
-                                        value={newIsActive ? "active" : "inactive"}
-                                        onChange={(e) => setNewIsActive(e.target.value === "active")}
-                                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        <option value="active">Anëtar Aktiv</option>
-                                        <option value="inactive">Anëtar Jo Aktiv</option>
-                                    </select>
+                            <div className="flex flex-col gap-4 p-6">
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="m-reg">Numri i Regjistrit *</Label>
+                                        <Input id="m-reg" value={newRegistry} onChange={(e) => setNewRegistry(e.target.value)} placeholder="IEKA-2270" className="font-mono" />
+                                        {newRole === "Student" && (
+                                            <p className="text-xs text-muted-foreground">Plotësohet automatikisht nga emri, por mund ta ndryshoni nëse duhet.</p>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="m-fn">Emri *</Label>
+                                        <Input id="m-fn" value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="Artan" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="m-ln">Mbiemri *</Label>
+                                        <Input id="m-ln" value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Hoxha" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="m-email">Email *</Label>
+                                        <Input id="m-email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="artan.hoxha@ieka.al" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="m-email2">Email 2</Label>
+                                        <Input id="m-email2" type="email" value={newEmail2} onChange={(e) => setNewEmail2(e.target.value)} placeholder="artan.personal@example.com" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="m-phone">Telefon</Label>
+                                        <Input id="m-phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+355 69 123 4567" />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <Label htmlFor="m-role">Roli *</Label>
+                                        <select
+                                            id="m-role"
+                                            value={newRole}
+                                            onChange={(e) => {
+                                                const nextRole = e.target.value
+                                                setNewRole(nextRole)
+                                                if (nextRole !== "Member") {
+                                                    setNewIsActive(true)
+                                                }
+                                            }}
+                                            className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <option value="Member">Anëtar</option>
+                                            <option value="Admin">Administrator</option>
+                                            <option value="Lecturer">Lektor</option>
+                                            <option value="Mentor">Mentor</option>
+                                        </select>
+                                    </div>
+                                    {newRole === "Member" && (
+                                        <div className="flex flex-col gap-2">
+                                            <Label htmlFor="m-is-active">Statusi *</Label>
+                                            <select
+                                                id="m-is-active"
+                                                value={newIsActive ? "active" : "inactive"}
+                                                onChange={(e) => setNewIsActive(e.target.value === "active")}
+                                                className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                <option value="active">Anëtar Aktiv</option>
+                                                <option value="inactive">Anëtar Jo Aktiv</option>
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                        <p className="mt-3 text-xs text-muted-foreground">
-                            Anëtari do krijohet si <strong>në pritje të konfirmimit</strong> dhe do marrë email për konfirmim dhe vendosje fjalëkalimi.
-                        </p>
-                        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-                        <div className="mt-4 flex justify-end gap-2">
-                            <Button variant="ghost" onClick={() => { setShowAddForm(false); setError("") }}>Anulo</Button>
-                            <Button onClick={handleAdd}>Shto Anëtarin</Button>
+                                <p className="text-xs text-muted-foreground">
+                                    Anëtari do krijohet si <strong>në pritje të konfirmimit</strong> dhe do marrë email për konfirmim dhe vendosje fjalëkalimi.
+                                </p>
+                                {error && <p className="text-sm text-destructive">{error}</p>}
+                                <div className="flex justify-end gap-2 border-t border-border pt-4">
+                                    <Button variant="ghost" onClick={() => { setShowAddForm(false); setError("") }}>Anulo</Button>
+                                    <Button onClick={handleAdd}>Shto Anëtarin</Button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

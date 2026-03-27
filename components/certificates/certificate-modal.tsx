@@ -151,8 +151,8 @@ export function CertificateModal({
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 24 }}>
                                 <div style={{ textAlign: "center", flex: 1 }}>
                                     <div style={{ width: 120, height: 1, background: "#ccc", margin: "0 auto 8px" }} />
-                                    <p style={{ fontSize: 11, color: "#666", margin: 0 }}>{lecturerName || "Ligjëruesi"}</p>
-                                    <p style={{ fontSize: 10, color: "#999", margin: 0 }}>Ligjëruesi / Lecturer</p>
+                                    <p style={{ fontSize: 11, color: "#666", margin: 0 }}>{lecturerName || "Lektori"}</p>
+                                    <p style={{ fontSize: 10, color: "#999", margin: 0 }}>Lektori / Lecturer</p>
                                 </div>
                                 <div style={{ textAlign: "center", flex: 1 }}>
                                     <p style={{ fontSize: 11, color: "#1a3a6b", fontWeight: "bold", margin: "0 0 4px" }}>

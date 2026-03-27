@@ -25,7 +25,7 @@ const translations: Record<string, Record<Lang, string>> = {
 
     // Roles
     "role.admin": { sq: "Administrator", en: "Administrator" },
-    "role.lecturer": { sq: "Ligjërues", en: "Lecturer" },
+    "role.lecturer": { sq: "Lektor", en: "Lecturer" },
     "role.member": { sq: "Anëtar", en: "Member" },
     "role.mentor": { sq: "Mentor", en: "Mentor" },
     "role.student": { sq: "Student", en: "Student" },

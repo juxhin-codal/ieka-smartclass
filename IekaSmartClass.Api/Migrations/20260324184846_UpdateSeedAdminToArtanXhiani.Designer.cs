@@ -4,6 +4,7 @@ using IekaSmartClass.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IekaSmartClass.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260324184846_UpdateSeedAdminToArtanXhiani")]
+    partial class UpdateSeedAdminToArtanXhiani
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -183,12 +186,6 @@ namespace IekaSmartClass.Api.Migrations
 
                     b.Property<DateTime?>("StudentValidUntilUtc")
                         .HasColumnType("datetime2");
-
-                    b.Property<int?>("StudentYear2StartYear")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StudentYear3StartYear")
-                        .HasColumnType("int");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
@@ -681,118 +678,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.ToTable("StazhDocuments");
                 });
 
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentModule", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Lecturer")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("ScheduledDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Topic")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("YearGrade")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("ScheduledDate");
-
-                    b.HasIndex("YearGrade");
-
-                    b.ToTable("StudentModules");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentModuleAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("AttendedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("StudentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("StudentModuleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudentId");
-
-                    b.HasIndex("StudentModuleId");
-
-                    b.HasIndex("StudentModuleId", "StudentId")
-                        .IsUnique();
-
-                    b.ToTable("StudentModuleAssignments");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentModuleDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("FileUrl")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("RelativePath")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("StudentModuleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UploadedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudentModuleId");
-
-                    b.ToTable("StudentModuleDocuments");
-                });
-
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentTrainingSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1180,47 +1065,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.Navigation("Stazh");
                 });
 
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentModule", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.AppUser", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("CreatedByUser");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentModuleAssignment", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.AppUser", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.StudentModule", "StudentModule")
-                        .WithMany("Assignments")
-                        .HasForeignKey("StudentModuleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Student");
-
-                    b.Navigation("StudentModule");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentModuleDocument", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.StudentModule", "StudentModule")
-                        .WithMany("Documents")
-                        .HasForeignKey("StudentModuleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("StudentModule");
-                });
-
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentTrainingSession", b =>
                 {
                     b.HasOne("IekaSmartClass.Api.Data.Entities.AppUser", "Mentor")
@@ -1318,13 +1162,6 @@ namespace IekaSmartClass.Api.Migrations
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.Stazh", b =>
                 {
                     b.Navigation("Dates");
-
-                    b.Navigation("Documents");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.StudentModule", b =>
-                {
-                    b.Navigation("Assignments");
 
                     b.Navigation("Documents");
                 });

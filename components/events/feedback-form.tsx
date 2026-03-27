@@ -85,7 +85,7 @@ export function FeedbackForm({ eventId, dateId, open, onClose }: FeedbackFormPro
 
                     {step === 2 && (
                         <div className="space-y-4">
-                            <h3 className="font-medium text-foreground">2. Vlerësimi për Ligjëruesin</h3>
+                            <h3 className="font-medium text-foreground">2. Vlerësimi për Lektorin</h3>
                             <div>
                                 <Label>Vlerësimi (1-5)</Label>
                                 <div className="flex gap-2 mt-2">

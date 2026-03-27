@@ -6,6 +6,8 @@ public class StudentModule
     public int YearGrade { get; private set; } // 1, 2, or 3
     public string Topic { get; private set; } = string.Empty;
     public string Lecturer { get; private set; } = string.Empty;
+    public DateTime? ScheduledDate { get; private set; }
+    public string? Location { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public Guid CreatedByUserId { get; private set; }
 
@@ -15,7 +17,7 @@ public class StudentModule
 
     private StudentModule() { }
 
-    public StudentModule(int yearGrade, string topic, string lecturer, Guid createdByUserId)
+    public StudentModule(int yearGrade, string topic, string lecturer, Guid createdByUserId, DateTime? scheduledDate = null, string? location = null)
     {
         if (yearGrade < 1 || yearGrade > 3)
             throw new ArgumentException("Year grade must be 1, 2, or 3.", nameof(yearGrade));
@@ -28,8 +30,15 @@ public class StudentModule
         YearGrade = yearGrade;
         Topic = topic.Trim();
         Lecturer = lecturer.Trim();
+        ScheduledDate = scheduledDate;
+        Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
         CreatedByUserId = createdByUserId;
         CreatedAt = DateTime.UtcNow;
+    }
+
+    public void UpdateSchedule(DateTime? scheduledDate)
+    {
+        ScheduledDate = scheduledDate;
     }
 }
 
@@ -65,6 +74,7 @@ public class StudentModuleAssignment
     public Guid StudentModuleId { get; private set; }
     public Guid StudentId { get; private set; }
     public DateTime AssignedAt { get; private set; }
+    public DateTime? AttendedAt { get; private set; }
 
     public StudentModule StudentModule { get; private set; } = null!;
     public AppUser Student { get; private set; } = null!;
@@ -77,5 +87,12 @@ public class StudentModuleAssignment
         StudentModuleId = studentModuleId;
         StudentId = studentId;
         AssignedAt = DateTime.UtcNow;
+    }
+
+    public void MarkAttended()
+    {
+        if (AttendedAt is not null)
+            throw new InvalidOperationException("Studenti e ka konfirmuar tashmë prezencën.");
+        AttendedAt = DateTime.UtcNow;
     }
 }

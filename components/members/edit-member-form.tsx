@@ -154,7 +154,7 @@ export function EditMemberForm({ user, onClose }: EditMemberFormProps) {
                             >
                                 <option value="Member">Anëtar</option>
                                 <option value="Admin">Administrator</option>
-                                <option value="Lecturer">Ligjërues</option>
+                                <option value="Lecturer">Lektor</option>
                                 <option value="Mentor">Mentor</option>
                                 <option value="Student">Student</option>
                             </select>

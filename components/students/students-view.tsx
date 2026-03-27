@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { useAuth } from "@/lib/auth-context"
-import { fetchApi } from "@/lib/api-client"
+import { fetchApi, fetchWithAuth } from "@/lib/api-client"
 import { useEvents } from "@/lib/events-context"
 import { AdminPasswordResetCard } from "@/components/admin/admin-password-reset-card"
 import { StudentHistoryModal } from "@/components/students/student-history-modal"
@@ -13,8 +13,12 @@ import type {
   MentorAttendanceQrResponse,
   StudentAttendanceDayResponse,
   StudentAttendanceScanResponse,
+  StudentModuleDetailResponse,
+  StudentModuleQrResponse,
   StudentModuleResponse,
   StudentModuleStudentItem,
+  StudentMyModuleResponse,
+  ScanModuleAttendanceResponse,
   StudentTrainingCalendarResponse,
   StudentTrainingQrResponse,
   StudentTrainingSession,
@@ -57,6 +61,10 @@ import {
   ChevronRight,
   Plus,
   Library,
+  MapPin,
+  Send,
+  Printer,
+  Download,
 } from "lucide-react"
 import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pagination-bar"
 
@@ -153,10 +161,18 @@ function getDefaultStudentStartYear() {
 }
 
 function getDefaultStudentEndYear() {
-  return String(new Date().getFullYear() + 2)
+  return String(new Date().getFullYear() + 3)
 }
 
 type YearGrade = 1 | 2 | 3
+
+function getYearBreakdown(startYear: number) {
+  return [
+    { grade: 1 as YearGrade, label: "Viti i Parë", from: startYear, to: startYear + 1, range: `Shtator ${startYear} – Shtator ${startYear + 1}` },
+    { grade: 2 as YearGrade, label: "Viti i Dytë", from: startYear + 1, to: startYear + 2, range: `Shtator ${startYear + 1} – Shtator ${startYear + 2}` },
+    { grade: 3 as YearGrade, label: "Viti i Tretë", from: startYear + 2, to: startYear + 3, range: `Shtator ${startYear + 2} – Shtator ${startYear + 3}` },
+  ]
+}
 
 function getYearGradeDates(grade: YearGrade) {
   const now = new Date()
@@ -249,7 +265,8 @@ function toStudentValidUntilMonth(studentEndYear: number | null) {
     return null
   }
 
-  return `${studentEndYear}-12`
+  // Student validity ends in September of the end year (start + 3)
+  return `${studentEndYear}-09`
 }
 
 function toDateInputValue(date: Date) {
@@ -414,9 +431,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [newPhone, setNewPhone] = useState("")
   const [newStudentStartYear, setNewStudentStartYear] = useState(getDefaultStudentStartYear())
   const [newStudentEndYear, setNewStudentEndYear] = useState(getDefaultStudentEndYear())
-  const [newYearGrade, setNewYearGrade] = useState<YearGrade>(1)
-  const [newYearGradeFrom, setNewYearGradeFrom] = useState(() => getYearGradeDates(1).from)
-  const [newYearGradeTo, setNewYearGradeTo] = useState(() => getYearGradeDates(1).to)
+  const [newYear2StartYear, setNewYear2StartYear] = useState("")
+  const [newYear3StartYear, setNewYear3StartYear] = useState("")
   const [newMentorId, setNewMentorId] = useState("")
   const [newCompany, setNewCompany] = useState("")
   const [newDistrict, setNewDistrict] = useState("")
@@ -436,6 +452,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [editPhone, setEditPhone] = useState("")
   const [editStudentStartYear, setEditStudentStartYear] = useState("")
   const [editStudentEndYear, setEditStudentEndYear] = useState("")
+  const [editYear2StartYear, setEditYear2StartYear] = useState("")
+  const [editYear3StartYear, setEditYear3StartYear] = useState("")
   const [editMentorId, setEditMentorId] = useState("")
   const [editCompany, setEditCompany] = useState("")
   const [editDistrict, setEditDistrict] = useState("")
@@ -490,14 +508,45 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [moduleYearGrade, setModuleYearGrade] = useState<YearGrade>(1)
   const [moduleTopic, setModuleTopic] = useState("")
   const [moduleLecturer, setModuleLecturer] = useState("")
+  const [moduleScheduledDate, setModuleScheduledDate] = useState("")
+  const [moduleScheduledTime, setModuleScheduledTime] = useState("09:00")
+  const [moduleLocation, setModuleLocation] = useState("")
   const [moduleFiles, setModuleFiles] = useState<File[]>([])
   const [moduleSaving, setModuleSaving] = useState(false)
   const [moduleError, setModuleError] = useState("")
   const [moduleStudentPreview, setModuleStudentPreview] = useState<StudentModuleStudentItem[]>([])
   const [moduleStudentPreviewLoading, setModuleStudentPreviewLoading] = useState(false)
-  const [moduleStudentPreviewExpanded, setModuleStudentPreviewExpanded] = useState(true)
+  const [moduleStudentPreviewExpanded, setModuleStudentPreviewExpanded] = useState(false)
   const [deletingModuleId, setDeletingModuleId] = useState<string | null>(null)
   const [isDeletingModule, setIsDeletingModule] = useState(false)
+  const [selectedModuleDetail, setSelectedModuleDetail] = useState<StudentModuleDetailResponse | null>(null)
+  const [moduleDetailLoading, setModuleDetailLoading] = useState(false)
+  const [moduleQrToken, setModuleQrToken] = useState<string | null>(null)
+  const [moduleQrLoading, setModuleQrLoading] = useState(false)
+  const [moduleQrError, setModuleQrError] = useState("")
+
+  // Module list filters
+  const [moduleYearFilter, setModuleYearFilter] = useState<number | null>(null)
+  const [moduleTimeFilter, setModuleTimeFilter] = useState<"upcoming" | "past" | "all">("upcoming")
+
+  // Module detail edit states
+  const [editingSchedule, setEditingSchedule] = useState(false)
+  const [editScheduleDate, setEditScheduleDate] = useState("")
+  const [editScheduleTime, setEditScheduleTime] = useState("")
+  const [savingSchedule, setSavingSchedule] = useState(false)
+  const [notifyingStudents, setNotifyingStudents] = useState(false)
+  const [notifySuccess, setNotifySuccess] = useState(false)
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false)
+  const [addingDocFiles, setAddingDocFiles] = useState<File[]>([])
+  const [uploadingDocs, setUploadingDocs] = useState(false)
+  const [qrPopupModuleId, setQrPopupModuleId] = useState<string | null>(null)
+  const [qrPopupToken, setQrPopupToken] = useState<string | null>(null)
+  const [qrPopupLoading, setQrPopupLoading] = useState(false)
+  const [qrPopupError, setQrPopupError] = useState("")
+  const [qrPopupModuleName, setQrPopupModuleName] = useState("")
+  const [qrPopupYear, setQrPopupYear] = useState(0)
+  const [qrPopupDate, setQrPopupDate] = useState("")
 
   useEffect(() => {
     if (forcedTab && activeTab !== forcedTab) {
@@ -656,6 +705,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           yearGrade: moduleYearGrade,
           topic: moduleTopic.trim(),
           lecturer: moduleLecturer.trim(),
+          scheduledDate: moduleScheduledDate ? (moduleScheduledTime ? `${moduleScheduledDate}T${moduleScheduledTime}` : moduleScheduledDate) : null,
+          location: moduleLocation.trim() || null,
         }),
       })) as { id: string }
 
@@ -672,6 +723,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       // Reset form
       setModuleTopic("")
       setModuleLecturer("")
+      setModuleScheduledDate("")
+      setModuleScheduledTime("")
+      setModuleLocation("")
       setModuleFiles([])
       setModuleYearGrade(1)
       setModuleError("")
@@ -695,6 +749,168 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     } finally {
       setIsDeletingModule(false)
     }
+  }
+
+  async function openModuleDetail(moduleId: string) {
+    setModuleDetailLoading(true)
+    setSelectedModuleDetail(null)
+    setModuleQrToken(null)
+    setModuleQrError("")
+    setEditingSchedule(false)
+    setAddingDocFiles([])
+    setDeletingDocId(null)
+    setNotifySuccess(false)
+    try {
+      const detail = (await fetchApi(`/StudentModules/${moduleId}`)) as StudentModuleDetailResponse
+      setSelectedModuleDetail(detail)
+    } catch {
+      // silent
+    } finally {
+      setModuleDetailLoading(false)
+    }
+  }
+
+  async function handleGenerateModuleQr(moduleId: string) {
+    setModuleQrLoading(true)
+    setModuleQrError("")
+    try {
+      const result = (await fetchApi(`/StudentModules/${moduleId}/qr`)) as StudentModuleQrResponse
+      setModuleQrToken(result.token)
+    } catch (e: any) {
+      setModuleQrError(e?.message ?? "Gabim gjatë gjenerimit të QR kodit.")
+    } finally {
+      setModuleQrLoading(false)
+    }
+  }
+
+  async function handleUpdateSchedule() {
+    if (!selectedModuleDetail) return
+    setSavingSchedule(true)
+    try {
+      const scheduledDate = editScheduleDate
+        ? editScheduleTime ? `${editScheduleDate}T${editScheduleTime}` : editScheduleDate
+        : null
+      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/schedule`, {
+        method: "PUT",
+        body: JSON.stringify({ scheduledDate }),
+      })
+      // Auto-notify students about the schedule change
+      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/notify`, { method: "POST" }).catch(() => {})
+      setEditingSchedule(false)
+      openModuleDetail(selectedModuleDetail.id)
+      loadStudentModules()
+    } catch (e: any) {
+      alert(e?.message ?? "Gabim gjatë ruajtjes.")
+    } finally {
+      setSavingSchedule(false)
+    }
+  }
+
+  async function handleNotifyStudents() {
+    if (!selectedModuleDetail) return
+    setNotifyingStudents(true)
+    try {
+      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/notify`, { method: "POST" })
+      setNotifySuccess(true)
+      setTimeout(() => setNotifySuccess(false), 3000)
+    } catch (e: any) {
+      alert(e?.message ?? "Gabim gjatë njoftimit.")
+    } finally {
+      setNotifyingStudents(false)
+    }
+  }
+
+  async function handleRemoveDocument(docId: string) {
+    if (!selectedModuleDetail) return
+    setIsDeletingDoc(true)
+    try {
+      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/documents/${docId}`, { method: "DELETE" })
+      setDeletingDocId(null)
+      openModuleDetail(selectedModuleDetail.id)
+      loadStudentModules()
+    } catch (e: any) {
+      alert(e?.message ?? "Gabim gjatë fshirjes së dokumentit.")
+    } finally {
+      setIsDeletingDoc(false)
+    }
+  }
+
+  async function handleUploadNewDocs(files?: File[]) {
+    const toUpload = files || addingDocFiles
+    if (!selectedModuleDetail || toUpload.length === 0) return
+    setUploadingDocs(true)
+    try {
+      for (const file of toUpload) {
+        const fd = new FormData()
+        fd.append("file", file)
+        await fetchApi(`/StudentModules/${selectedModuleDetail.id}/documents`, { method: "POST", body: fd })
+      }
+      setAddingDocFiles([])
+      openModuleDetail(selectedModuleDetail.id)
+      loadStudentModules()
+    } catch (e: any) {
+      alert(e?.message ?? "Gabim gjatë ngarkimit të dokumentit.")
+    } finally {
+      setUploadingDocs(false)
+    }
+  }
+
+  async function handleDownloadModuleDoc(fileUrl: string, fileName: string) {
+    try {
+      const response = await fetchWithAuth(fileUrl, { method: "GET" })
+      if (!response.ok) throw new Error("Nuk u hap dokumenti.")
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = objectUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      alert("Gabim gjatë hapjes së dokumentit.")
+    }
+  }
+
+  async function handleOpenQrPopup(moduleId: string, moduleName: string, yearGrade: number, scheduledDate?: string | null) {
+    setQrPopupModuleId(moduleId)
+    setQrPopupModuleName(moduleName)
+    setQrPopupYear(yearGrade)
+    setQrPopupDate(scheduledDate ? format(parseISO(scheduledDate), "dd-MM-yyyy") : "")
+    setQrPopupToken(null)
+    setQrPopupError("")
+    setQrPopupLoading(true)
+    try {
+      const result = (await fetchApi(`/StudentModules/${moduleId}/qr`)) as StudentModuleQrResponse
+      setQrPopupToken(result.token)
+    } catch (e: any) {
+      setQrPopupError(e?.message ?? "Gabim gjatë gjenerimit të QR kodit.")
+    } finally {
+      setQrPopupLoading(false)
+    }
+  }
+
+  function handlePrintQr(canvasId: string, title: string) {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null
+    if (!canvas) return
+    const dataUrl = canvas.toDataURL("image/png")
+    const win = window.open("", "_blank")
+    if (!win) return
+    win.document.write(`<html><head><title>${title}</title><style>body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:system-ui,sans-serif;}h2{margin-bottom:16px;}@media print{button{display:none!important;}}</style></head><body><h2>${title}</h2><img src="${dataUrl}" width="300" height="300" /><br/><button onclick="window.print()" style="margin-top:20px;padding:8px 24px;font-size:14px;cursor:pointer;">Printo</button></body></html>`)
+    win.document.close()
+  }
+
+  function handleDownloadQr(canvasId: string, fileName: string) {
+    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null
+    if (!canvas) return
+    const dataUrl = canvas.toDataURL("image/png")
+    const link = document.createElement("a")
+    link.href = dataUrl
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
   }
 
   const studentStats = useMemo(() => {
@@ -745,12 +961,30 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     return result
   }, [students, search, sortKey, sortDir, studentStats, mentorNameById])
 
+  const filteredModules = useMemo(() => {
+    let result = studentModules
+    if (moduleYearFilter !== null) result = result.filter((m) => m.yearGrade === moduleYearFilter)
+    if (moduleTimeFilter !== "all") {
+      const now = new Date()
+      result = result.filter((m) => {
+        if (!m.scheduledDate) return moduleTimeFilter === "upcoming"
+        return moduleTimeFilter === "upcoming" ? parseISO(m.scheduledDate) >= now : parseISO(m.scheduledDate) < now
+      })
+    }
+    return result
+  }, [studentModules, moduleYearFilter, moduleTimeFilter])
+
   const pagedStudents = usePagination(filteredStudents, pageSize, currentPage)
   const scheduleDuplicateDateSet = useMemo(() => getDuplicateScheduleDates(scheduleRows), [scheduleRows])
   const newStudentStartYearNumber = parseStudentYear(newStudentStartYear)
-  const newStudentEndYearNumber = parseStudentYear(newStudentEndYear)
+  const newStudentEndYearNumber = newStudentStartYearNumber ? newStudentStartYearNumber + 3 : null
   const editStudentStartYearNumber = parseStudentYear(editStudentStartYear)
-  const editStudentEndYearNumber = parseStudentYear(editStudentEndYear)
+  const editYear2StartYearNumber = parseStudentYear(editYear2StartYear)
+  const editYear3StartYearNumber = parseStudentYear(editYear3StartYear)
+  const editComputedY3Start = editStudentStartYearNumber
+    ? (editYear3StartYearNumber || (editYear2StartYearNumber || editStudentStartYearNumber + 1) + 1)
+    : null
+  const editStudentEndYearNumber = editComputedY3Start ? editComputedY3Start + 1 : parseStudentYear(editStudentEndYear)
   const existingStudentNumbers = useMemo(
     () =>
       users.flatMap((member) => {
@@ -767,22 +1001,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const generatedEditRegistryNumber = useMemo(
     () => generateStudentNumber(editRegistry, editFirstName, editStudentStartYearNumber, editStudentEndYearNumber),
     [editFirstName, editRegistry, editStudentStartYearNumber, editStudentEndYearNumber]
-  )
-  const newStartYearOptions = useMemo(
-    () => STUDENT_YEAR_OPTIONS.filter((year) => !newStudentEndYearNumber || Number.parseInt(year, 10) <= newStudentEndYearNumber),
-    [newStudentEndYearNumber]
-  )
-  const newEndYearOptions = useMemo(
-    () => STUDENT_YEAR_OPTIONS.filter((year) => !newStudentStartYearNumber || Number.parseInt(year, 10) >= newStudentStartYearNumber),
-    [newStudentStartYearNumber]
-  )
-  const editStartYearOptions = useMemo(
-    () => STUDENT_YEAR_OPTIONS.filter((year) => !editStudentEndYearNumber || Number.parseInt(year, 10) <= editStudentEndYearNumber),
-    [editStudentEndYearNumber]
-  )
-  const editEndYearOptions = useMemo(
-    () => STUDENT_YEAR_OPTIONS.filter((year) => !editStudentStartYearNumber || Number.parseInt(year, 10) >= editStudentStartYearNumber),
-    [editStudentStartYearNumber]
   )
 
   const enabledAttendanceDates = useMemo(() => attendanceData?.enabledDates ?? [], [attendanceData])
@@ -873,15 +1091,15 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setError("Ju lutem zgjidhni mentorin për studentin.")
       return
     }
-    if (!newYearGradeFrom || !newYearGradeTo) {
-      setError("Ju lutem plotësoni datat e vitit të studimit.")
+    if (!newStudentStartYearNumber) {
+      setError("Ju lutem zgjidhni vitin e fillimit të studimit.")
       return
     }
-    const gradeYears = getYearGradeStartEndYears(newYearGrade)
-    const computedStartYear = gradeYears.startYear
-    const computedEndYear = gradeYears.endYear
-    // Derive validUntilMonth from the admin-editable "to" date
-    const validToDate = newYearGradeTo.slice(0, 7) // "yyyy-MM" format
+    const computedStartYear = newStudentStartYearNumber
+    const newY2 = parseStudentYear(newYear2StartYear) || computedStartYear + 1
+    const newY3 = parseStudentYear(newYear3StartYear) || newY2 + 1
+    const computedEndYear = newY3 + 1
+    const validToDate = `${computedEndYear}-09`
     setAddingStudent(true)
     try {
       await addUser({
@@ -898,6 +1116,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         studentNumber: newRegistry.trim().toUpperCase(),
         studentStartYear: computedStartYear,
         studentEndYear: computedEndYear,
+        studentYear2StartYear: parseStudentYear(newYear2StartYear) || null,
+        studentYear3StartYear: parseStudentYear(newYear3StartYear) || null,
         company: newCompany.trim() || null,
         district: newDistrict.trim() || null,
         cpdHoursCompleted: 0,
@@ -912,9 +1132,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setNewPhone("")
       setNewStudentStartYear(getDefaultStudentStartYear())
       setNewStudentEndYear(getDefaultStudentEndYear())
-      setNewYearGrade(1)
-      setNewYearGradeFrom(getYearGradeDates(1).from)
-      setNewYearGradeTo(getYearGradeDates(1).to)
+      setNewYear2StartYear("")
+      setNewYear3StartYear("")
       setNewMentorId("")
       setNewCompany("")
       setNewDistrict("")
@@ -938,7 +1157,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setEditRegistry(getPreferredStudentNumber(student))
     setEditPhone(student.phone ?? "")
     setEditStudentStartYear(student.studentStartYear ? String(student.studentStartYear) : "")
-    setEditStudentEndYear(student.studentEndYear ? String(student.studentEndYear) : "")
+    const startYr = student.studentStartYear
+    setEditStudentEndYear(startYr ? String(startYr + 3) : (student.studentEndYear ? String(student.studentEndYear) : ""))
+    setEditYear2StartYear(student.studentYear2StartYear ? String(student.studentYear2StartYear) : "")
+    setEditYear3StartYear(student.studentYear3StartYear ? String(student.studentYear3StartYear) : "")
     setEditMentorId(student.mentorId ?? "")
     setEditCompany(student.company ?? "")
     setEditDistrict(student.district ?? "")
@@ -994,12 +1216,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setEditError("Ju lutem zgjidhni mentorin për studentin.")
       return
     }
-    if (!editStudentStartYearNumber || !editStudentEndYearNumber) {
-      setEditError("Ju lutem plotësoni vitin e fillimit dhe vitin e mbarimit.")
-      return
-    }
-    if (editStudentEndYearNumber < editStudentStartYearNumber) {
-      setEditError("Viti i mbarimit nuk mund të jetë më i vogël se viti i fillimit.")
+    if (!editStudentStartYearNumber) {
+      setEditError("Ju lutem zgjidhni vitin e fillimit të studimit.")
       return
     }
     setIsSavingEdit(true)
@@ -1019,6 +1237,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         studentNumber: editRegistry.trim().toUpperCase(),
         studentStartYear: editStudentStartYearNumber,
         studentEndYear: editStudentEndYearNumber,
+        studentYear2StartYear: parseStudentYear(editYear2StartYear) || null,
+        studentYear3StartYear: parseStudentYear(editYear3StartYear) || null,
         company: editCompany.trim() || null,
         district: editDistrict.trim() || null,
         cpdHoursRequired: editingStudent.cpdHoursRequired,
@@ -1581,18 +1801,20 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           </div>
 
           {isAdmin && showAddForm && (
-            <div className="mb-6 rounded-xl border border-border bg-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-semibold text-foreground">Shto Student të Ri</h3>
-                <button
-                  onClick={() => { setShowAddForm(false); setError(""); setStudentTrackingLoading(false) }}
-                  disabled={addingStudent}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+              <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+                <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                  <h3 className="text-base font-semibold text-foreground">Shto Student të Ri</h3>
+                  <button
+                    onClick={() => { setShowAddForm(false); setError(""); setStudentTrackingLoading(false) }}
+                    disabled={addingStudent}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-4 p-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <Label>Numri i Studentit (Tracking) *</Label>
                   <Input
@@ -1655,75 +1877,120 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 </div>
               </div>
 
-              {/* Year Grade Section */}
+              {/* Year Section */}
               <div className="mt-5 rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <h4 className="text-sm font-semibold text-foreground mb-3">Viti i Studimit *</h4>
-                <div className="flex flex-wrap gap-3 mb-4">
-                  {([1, 2, 3] as YearGrade[]).map((grade) => {
-                    const dates = getYearGradeDates(grade)
-                    const selected = newYearGrade === grade
-                    return (
-                      <button
-                        key={grade}
-                        type="button"
-                        onClick={() => {
-                          setNewYearGrade(grade)
-                          const d = getYearGradeDates(grade)
-                          setNewYearGradeFrom(d.from)
-                          setNewYearGradeTo(d.to)
-                          const years = getYearGradeStartEndYears(grade)
-                          setNewStudentStartYear(String(years.startYear))
-                          setNewStudentEndYear(String(years.endYear))
+                <h4 className="text-sm font-semibold text-foreground mb-3">Vitet e Studimit *</h4>
+                <div className="space-y-1.5">
+                  {/* Year 1 - start year selector inline */}
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">1</span>
+                    <span className="text-xs font-medium text-foreground">Viti i Parë</span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">Shtator</span>
+                      <select
+                        value={newStudentStartYear}
+                        onChange={(e) => {
+                          setNewStudentStartYear(e.target.value)
+                          const parsed = parseStudentYear(e.target.value)
+                          if (parsed) {
+                            setNewStudentEndYear(String(parsed + 3))
+                            const currentY2 = parseStudentYear(newYear2StartYear)
+                            if (currentY2 && currentY2 <= parsed) setNewYear2StartYear("")
+                            const currentY3 = parseStudentYear(newYear3StartYear)
+                            if (currentY3 && currentY3 <= parsed) setNewYear3StartYear("")
+                          }
                         }}
-                        className={cn(
-                          "flex-1 min-w-[160px] rounded-xl border-2 p-3 text-left transition-all",
-                          selected
-                            ? "border-primary bg-primary/10 shadow-sm"
-                            : "border-border bg-card hover:border-primary/40 hover:bg-muted/30"
-                        )}
+                        className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       >
-                        <p className={cn("text-sm font-semibold", selected ? "text-primary" : "text-foreground")}>
-                          {formatYearGradeLabel(grade)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {dates.fromLabel} – {dates.toLabel}
-                        </p>
-                      </button>
+                        <option value="">Zgjidh</option>
+                        {STUDENT_YEAR_OPTIONS.map((year) => (
+                          <option key={`new-start-${year}`} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      {newStudentStartYearNumber && (() => {
+                        return <span className="text-xs text-muted-foreground">– Shtator {newStudentStartYearNumber + 1}</span>
+                      })()}
+                    </div>
+                  </div>
+
+                  {newStudentStartYearNumber && (() => {
+                    const y1 = newStudentStartYearNumber
+                    const y2 = parseStudentYear(newYear2StartYear) || y1 + 1
+                    const y3 = parseStudentYear(newYear3StartYear) || y2 + 1
+                    const y2Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y1 + 1)
+                    const y3Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y2 + 1)
+                    return (
+                      <>
+                        {/* Year 2 - editable, must be > Y1 */}
+                        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">2</span>
+                          <span className="text-xs font-medium text-foreground">Viti i Dytë</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Shtator</span>
+                            <select
+                              value={newYear2StartYear || ""}
+                              onChange={(e) => {
+                                const newY2 = e.target.value
+                                setNewYear2StartYear(newY2)
+                                const newY2Num = parseStudentYear(newY2) || y1 + 1
+                                const currentY3 = parseStudentYear(newYear3StartYear)
+                                if (currentY3 && currentY3 <= newY2Num) {
+                                  setNewYear3StartYear("")
+                                }
+                              }}
+                              className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                              <option value="">{y1 + 1}</option>
+                              {y2Options.map((yr) => (
+                                <option key={`new-y2-${yr}`} value={yr}>{yr}</option>
+                              ))}
+                            </select>
+                            <span className="text-xs text-muted-foreground">– Shtator {y2 + 1}</span>
+                          </div>
+                        </div>
+                        {/* Year 3 - editable, must be > Y2 */}
+                        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">3</span>
+                          <span className="text-xs font-medium text-foreground">Viti i Tretë</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Shtator</span>
+                            <select
+                              value={newYear3StartYear || ""}
+                              onChange={(e) => setNewYear3StartYear(e.target.value)}
+                              className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                              <option value="">{y2 + 1}</option>
+                              {y3Options.map((yr) => (
+                                <option key={`new-y3-${yr}`} value={yr}>{yr}</option>
+                              ))}
+                            </select>
+                            <span className="text-xs text-muted-foreground">– Shtator {y3 + 1}</span>
+                          </div>
+                        </div>
+                      </>
                     )
-                  })}
+                  })()}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs">Vlefshmëria Nga</Label>
-                    <Input
-                      type="date"
-                      value={newYearGradeFrom}
-                      onChange={(e) => setNewYearGradeFrom(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-xs">Vlefshmëria Deri</Label>
-                    <Input
-                      type="date"
-                      value={newYearGradeTo}
-                      onChange={(e) => setNewYearGradeTo(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 px-3 py-2.5">
-                  <p className="text-xs text-amber-800 dark:text-amber-300">
-                    <strong>Shënim:</strong> Studenti do të jetë i vlefshëm nga{" "}
-                    <strong>{newYearGradeFrom ? format(parseISO(newYearGradeFrom), "dd MMM yyyy") : "—"}</strong> deri më{" "}
-                    <strong>{newYearGradeTo ? format(parseISO(newYearGradeTo), "dd MMM yyyy") : "—"}</strong>.
-                    Pas kësaj periudhe, llogaria e studentit do të skadojë automatikisht.
-                  </p>
-                </div>
+                {newStudentStartYearNumber && (() => {
+                  const noteY2 = parseStudentYear(newYear2StartYear) || newStudentStartYearNumber + 1
+                  const noteY3 = parseStudentYear(newYear3StartYear) || noteY2 + 1
+                  return (
+                    <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 px-3 py-2.5">
+                      <p className="text-xs text-amber-800 dark:text-amber-300">
+                        <strong>Shënim:</strong> Studenti do të jetë i vlefshëm nga{" "}
+                        <strong>Shtator {newStudentStartYearNumber}</strong> deri në{" "}
+                        <strong>Shtator {noteY3 + 1}</strong>.
+                        Pas kësaj periudhe, llogaria e studentit do të skadojë automatikisht.
+                      </p>
+                    </div>
+                  )
+                })()}
               </div>
 
-              {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-              <div className="mt-4 flex justify-end gap-2">
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              </div>
+              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Button
                   variant="ghost"
                   onClick={() => { setShowAddForm(false); setError("") }}
@@ -1741,6 +2008,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     "Shto Studentin"
                   )}
                 </Button>
+              </div>
               </div>
             </div>
           )}
@@ -2047,22 +2315,24 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       {activeTab === "modules" && isAdmin && (
         <>
           {showAddModuleForm && (
-            <div className="mb-6 rounded-xl border border-border bg-card p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-base font-semibold text-foreground">Shto Modul të Ri</h3>
-                <button
-                  onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
-                  disabled={moduleSaving}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+              <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+                <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                  <h3 className="text-base font-semibold text-foreground">Shto Modul të Ri</h3>
+                  <button
+                    onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
+                    disabled={moduleSaving}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                 >
                   <X className="h-4 w-4" />
                 </button>
-              </div>
+                </div>
+                <div className="p-6">
 
               {/* Year Grade Selection */}
               <div className="mb-5">
-                <Label className="text-sm font-medium mb-3 block">Modul për vitin e:</Label>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">Modul për vitin e:</span>
                   {([1, 2, 3] as YearGrade[]).map((grade) => {
                     const selected = moduleYearGrade === grade
                     const labels = { 1: "Parë", 2: "Dytë", 3: "Tretë" } as const
@@ -2072,25 +2342,23 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         type="button"
                         onClick={() => setModuleYearGrade(grade)}
                         className={cn(
-                          "relative flex items-center gap-3 rounded-xl border-2 px-5 py-3 transition-all min-w-[140px]",
+                          "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-all",
                           selected
-                            ? "border-primary bg-primary/10 shadow-sm"
-                            : "border-border bg-card hover:border-primary/40"
+                            ? "border-primary bg-primary/10 font-medium text-primary"
+                            : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
                         )}
                       >
                         <div className={cn(
-                          "flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors",
+                          "flex h-4 w-4 items-center justify-center rounded border transition-colors",
                           selected
                             ? "border-primary bg-primary"
-                            : "border-muted-foreground/30 bg-transparent"
+                            : "border-muted-foreground/40 bg-transparent"
                         )}>
                           {selected && (
-                            <div className="h-2 w-2 rounded-full bg-white" />
+                            <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                           )}
                         </div>
-                        <span className={cn("text-sm font-medium", selected ? "text-primary" : "text-foreground")}>
-                          {labels[grade]}
-                        </span>
+                        {labels[grade]}
                       </button>
                     )
                   })}
@@ -2113,6 +2381,36 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     value={moduleLecturer}
                     onChange={(e) => setModuleLecturer(e.target.value)}
                     placeholder="Emri i lektorit..."
+                  />
+                </div>
+              </div>
+
+              {/* Date, Time and Location */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-5">
+                <div className="flex gap-4">
+                  <div className="flex flex-col gap-2 flex-1">
+                    <Label>Data e Modulit</Label>
+                    <Input
+                      type="date"
+                      value={moduleScheduledDate}
+                      onChange={(e) => setModuleScheduledDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 flex-1">
+                    <Label>Ora</Label>
+                    <Input
+                      type="time"
+                      value={moduleScheduledTime}
+                      onChange={(e) => setModuleScheduledTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Vendndodhja</Label>
+                  <Input
+                    value={moduleLocation}
+                    onChange={(e) => setModuleLocation(e.target.value)}
+                    placeholder="p.sh. Salla IEKA, Tiranë"
                   />
                 </div>
               </div>
@@ -2174,7 +2472,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      Studentët e {formatYearGradeLabel(moduleYearGrade)}
+                      Studentët e Vitit të {moduleYearGrade === 1 ? "Parë" : moduleYearGrade === 2 ? "Dytë" : "Tretë"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {moduleStudentPreviewLoading
@@ -2212,8 +2510,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               </div>
 
               {moduleError && <p className="text-sm text-destructive mb-3">{moduleError}</p>}
+              </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
                 <Button
                   variant="ghost"
                   onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
@@ -2232,8 +2531,47 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   )}
                 </Button>
               </div>
+              </div>
             </div>
           )}
+
+          {/* Module Filters */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {(["upcoming", "past", "all"] as const).map((value) => {
+              const label = value === "upcoming" ? "Të ardhshme" : value === "past" ? "Të kaluara" : "Të gjitha"
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setModuleTimeFilter(value)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                    moduleTimeFilter === value
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  {label}
+                </button>
+              )
+            })}
+            <span className="mx-1 h-4 w-px bg-border" />
+            {([1, 2, 3] as const).map((grade) => (
+              <button
+                key={grade}
+                type="button"
+                onClick={() => setModuleYearFilter(moduleYearFilter === grade ? null : grade)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  moduleYearFilter === grade
+                    ? grade === 1 ? "bg-blue-500/20 text-blue-600" : grade === 2 ? "bg-purple-500/20 text-purple-600" : "bg-emerald-500/20 text-emerald-600"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                {formatYearGradeLabel(grade)}
+              </button>
+            ))}
+          </div>
 
           {/* Modules List */}
           {modulesLoading ? (
@@ -2246,10 +2584,15 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               <p className="text-sm text-muted-foreground">Asnjë modul akoma</p>
               <p className="mt-1 text-xs text-muted-foreground">Shtoni modulin e parë duke klikuar butonin &ldquo;Shto Modul&rdquo;.</p>
             </div>
+          ) : filteredModules.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+              <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Asnjë modul për këtë filtër</p>
+            </div>
           ) : (
             <div className="space-y-3">
-              {studentModules.map((mod) => (
-                <div key={mod.id} className="rounded-xl border border-border bg-card p-5 shadow-sm">
+              {filteredModules.map((mod) => (
+                <div key={mod.id} className="rounded-xl border border-border bg-card p-5 shadow-sm cursor-pointer hover:border-primary/30 transition-colors" onClick={() => openModuleDetail(mod.id)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -2267,40 +2610,55 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                         <span>Lektori: <strong className="text-foreground">{mod.lecturer}</strong></span>
-                        <span>{mod.assignmentCount} studentë</span>
-                        {mod.documents.length > 0 && (
-                          <span>{mod.documents.length} dokument{mod.documents.length > 1 ? "e" : ""}</span>
+                        {mod.scheduledDate && (
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3" />
+                            {format(parseISO(mod.scheduledDate), "dd MMM yyyy, HH:mm")}
+                          </span>
                         )}
+                        {mod.location && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {mod.location}
+                          </span>
+                        )}
+                        <span>{mod.assignmentCount} studentë</span>
                         {mod.createdByName && (
                           <span>Krijuar nga: {mod.createdByName}</span>
                         )}
-                        <span>
-                          {format(parseISO(mod.createdAt), "dd MMM yyyy")}
-                        </span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingModuleId(mod.id)}
-                      className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      title="Fshi modulin"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleOpenQrPopup(mod.id, mod.topic, mod.yearGrade, mod.scheduledDate) }}
+                        className="rounded-md p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        title="Shfaq QR"
+                      >
+                        <QrCode className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setDeletingModuleId(mod.id) }}
+                        className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        title="Fshi modulin"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                   {mod.documents.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {mod.documents.map((doc) => (
-                        <a
+                        <button
                           key={doc.id || doc.fileName}
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleDownloadModuleDoc(doc.fileUrl, doc.fileName) }}
                           className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors"
                         >
                           <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                           {doc.fileName}
-                        </a>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -2322,6 +2680,320 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     {isDeletingModule ? "Duke fshirë..." : "Po, Fshi"}
                   </Button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* QR Quick Popup from list */}
+          {qrPopupModuleId && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-semibold text-foreground">Kodi QR</h3>
+                  <button
+                    type="button"
+                    onClick={() => { setQrPopupModuleId(null); setQrPopupToken(null); setQrPopupError("") }}
+                    className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">{qrPopupModuleName}</p>
+                {qrPopupLoading && (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+                {qrPopupError && (
+                  <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive mb-3">
+                    {qrPopupError}
+                  </p>
+                )}
+                {qrPopupToken && (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="rounded-xl border border-border bg-white p-5">
+                      <QRCodeCanvas id="module-list-qr" value={`IEKA-SM:${qrPopupToken}`} size={200} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për prezencën</p>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handlePrintQr("module-list-qr", qrPopupModuleName)}>
+                        <Printer className="mr-1.5 h-3.5 w-3.5" />
+                        Printo
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDownloadQr("module-list-qr", `QR-${qrPopupModuleName}-Viti${qrPopupYear}${qrPopupDate ? `-${qrPopupDate}` : ""}.png`)}>
+                        <Download className="mr-1.5 h-3.5 w-3.5" />
+                        Shkarko
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Module Detail Modal */}
+          {(selectedModuleDetail || moduleDetailLoading) && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+              <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+                {moduleDetailLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : selectedModuleDetail && (
+                  <>
+                    <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className={cn(
+                            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                            selectedModuleDetail.yearGrade === 1
+                              ? "bg-blue-500/10 text-blue-600"
+                              : selectedModuleDetail.yearGrade === 2
+                                ? "bg-purple-500/10 text-purple-600"
+                                : "bg-emerald-500/10 text-emerald-600"
+                          )}>
+                            {formatYearGradeLabel(selectedModuleDetail.yearGrade)}
+                          </span>
+                          <h3 className="text-lg font-semibold text-foreground">{selectedModuleDetail.topic}</h3>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span>Lektori: <strong className="text-foreground">{selectedModuleDetail.lecturer}</strong></span>
+                          {!editingSchedule && (
+                            <>
+                              {selectedModuleDetail.scheduledDate ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <CalendarDays className="h-3 w-3" />
+                                  {format(parseISO(selectedModuleDetail.scheduledDate), "dd MMM yyyy, HH:mm")}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (selectedModuleDetail.scheduledDate) {
+                                        const d = parseISO(selectedModuleDetail.scheduledDate)
+                                        setEditScheduleDate(format(d, "yyyy-MM-dd"))
+                                        setEditScheduleTime(format(d, "HH:mm"))
+                                      } else {
+                                        setEditScheduleDate("")
+                                        setEditScheduleTime("09:00")
+                                      }
+                                      setEditingSchedule(true)
+                                    }}
+                                    className="ml-1 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditScheduleDate(""); setEditScheduleTime("09:00"); setEditingSchedule(true) }}
+                                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                                >
+                                  <CalendarDays className="h-3 w-3" />
+                                  Shto datën
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {selectedModuleDetail.location && (
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {selectedModuleDetail.location}
+                            </span>
+                          )}
+                          {selectedModuleDetail.createdByName && (
+                            <span>Krijuar nga: {selectedModuleDetail.createdByName}</span>
+                          )}
+                        </div>
+                        {editingSchedule && (
+                          <div className="mt-3 flex items-end gap-2">
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Data</Label>
+                              <Input type="date" value={editScheduleDate} onChange={(e) => setEditScheduleDate(e.target.value)} className="h-8 text-xs w-[150px]" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Ora</Label>
+                              <Input type="time" value={editScheduleTime} onChange={(e) => setEditScheduleTime(e.target.value)} className="h-8 text-xs w-[120px]" />
+                            </div>
+                            <Button size="sm" className="h-8" onClick={handleUpdateSchedule} disabled={savingSchedule}>
+                              {savingSchedule ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Ruaj"}
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditingSchedule(false)} disabled={savingSchedule}>
+                              Anulo
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedModuleDetail(null); setModuleQrToken(null); setModuleQrError("") }}
+                          className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* QR Code Section */}
+                    <div className="border-b border-border px-5 py-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-foreground">Kodi QR i Prezencës</p>
+                        {!moduleQrToken && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleGenerateModuleQr(selectedModuleDetail.id)}
+                            disabled={moduleQrLoading}
+                          >
+                            {moduleQrLoading ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            Shfaq QR
+                          </Button>
+                        )}
+                      </div>
+                      {moduleQrError && (
+                        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive mb-3">
+                          {moduleQrError}
+                        </p>
+                      )}
+                      {moduleQrToken && (
+                        <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-white p-6">
+                          <QRCodeCanvas id="module-detail-qr" value={`IEKA-SM:${moduleQrToken}`} size={220} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
+                          <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për të konfirmuar prezencën</p>
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePrintQr("module-detail-qr", selectedModuleDetail.topic)}>
+                              <Printer className="mr-1 h-3 w-3" />
+                              Printo
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDownloadQr("module-detail-qr", `QR-${selectedModuleDetail.topic}-Viti${selectedModuleDetail.yearGrade}${selectedModuleDetail.scheduledDate ? `-${format(parseISO(selectedModuleDetail.scheduledDate), "dd-MM-yyyy")}` : ""}.png`)}>
+                              <Download className="mr-1 h-3 w-3" />
+                              Shkarko
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Documents */}
+                    <div className="border-b border-border px-5 py-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-foreground">
+                          Dokumente {selectedModuleDetail.documents.length > 0 && <span className="text-muted-foreground font-normal">({selectedModuleDetail.documents.length})</span>}
+                        </p>
+                        <div>
+                          <input
+                            type="file"
+                            multiple
+                            id="module-detail-file-upload"
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files.length > 0) {
+                                handleUploadNewDocs(Array.from(e.target.files))
+                                e.target.value = ""
+                              }
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => document.getElementById("module-detail-file-upload")?.click()}
+                            disabled={uploadingDocs}
+                          >
+                            {uploadingDocs ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Plus className="mr-1 h-3 w-3" />}
+                            {uploadingDocs ? "Duke ngarkuar..." : "Shto"}
+                          </Button>
+                        </div>
+                      </div>
+                      {selectedModuleDetail.documents.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedModuleDetail.documents.map((doc) => (
+                            <div key={doc.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
+                                className="inline-flex items-center gap-1.5 hover:underline"
+                              >
+                                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                {doc.fileName}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeletingDocId(doc.id)}
+                                className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Asnjë dokument i ngarkuar.</p>
+                      )}
+                    </div>
+
+                    {/* Delete Document Confirmation */}
+                    {deletingDocId && (
+                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                          <h3 className="mb-2 text-base font-semibold text-foreground">Fshi dokumentin?</h3>
+                          <p className="mb-5 text-sm text-muted-foreground">Ky veprim nuk mund të zhbëhet.</p>
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="ghost" onClick={() => setDeletingDocId(null)} disabled={isDeletingDoc}>Anulo</Button>
+                            <Button variant="destructive" onClick={() => handleRemoveDocument(deletingDocId)} disabled={isDeletingDoc}>
+                              {isDeletingDoc ? "Duke fshirë..." : "Po, Fshi"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Student Presence Table */}
+                    <div className="px-5 py-4">
+                      <p className="text-sm font-semibold text-foreground mb-3">
+                        Studentët ({selectedModuleDetail.assignments.length})
+                      </p>
+                      {selectedModuleDetail.assignments.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Asnjë student i caktuar në këtë modul.</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border text-xs text-muted-foreground">
+                                <th className="py-2 pr-3 text-left font-medium">Emri</th>
+                                <th className="py-2 pr-3 text-left font-medium">Email</th>
+                                <th className="py-2 text-left font-medium">Prezenca</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedModuleDetail.assignments.map((a) => (
+                                <tr key={a.studentId} className="border-b border-border/50">
+                                  <td className="py-2.5 pr-3 font-medium text-foreground">{a.firstName} {a.lastName}</td>
+                                  <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
+                                  <td className="py-2.5">
+                                    {a.attendedAt ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Prezent
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                                        Mungon
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -2635,7 +3307,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
       {editingStudent && isAdmin && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-lg">
+          <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Modifiko Studentin</h2>
@@ -2650,6 +3322,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
             <div className="flex flex-col gap-4 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label>Numri i Studentit (Tracking) *</Label>
+                  <Input
+                    value={editRegistry}
+                    readOnly
+                    className="font-mono bg-muted/40"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Kodi i Regjistrit *</Label>
+                  <Input value={generatedEditRegistryNumber} readOnly className="font-mono bg-muted/40" />
+                </div>
                 <div className="flex flex-col gap-2">
                   <Label>Emri *</Label>
                   <Input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} />
@@ -2667,65 +3351,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <Input type="email" value={editEmail2} onChange={(e) => setEditEmail2(e.target.value)} />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label>Numri i Studentit (Tracking) *</Label>
-                  <Input
-                    value={editRegistry}
-                    readOnly
-                    className="font-mono bg-muted/40"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Kodi i Regjistrit *</Label>
-                  <Input value={generatedEditRegistryNumber} readOnly className="font-mono bg-muted/40" />
-                </div>
-                <div className="flex flex-col gap-2">
                   <Label>Telefon</Label>
                   <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Viti Fillimit *</Label>
-                  <select
-                    value={editStudentStartYear}
-                    onChange={(e) => {
-                      const nextStartYear = e.target.value
-                      const nextStartYearNumber = parseStudentYear(nextStartYear)
-                      setEditStudentStartYear(nextStartYear)
-                      if (nextStartYearNumber && editStudentEndYearNumber && nextStartYearNumber > editStudentEndYearNumber) {
-                        setEditStudentEndYear(nextStartYear)
-                      }
-                    }}
-                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Zgjidh vitin e fillimit</option>
-                    {editStartYearOptions.map((year) => (
-                      <option key={`edit-start-${year}`} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Viti Mbarimit *</Label>
-                  <select
-                    value={editStudentEndYear}
-                    onChange={(e) => {
-                      const nextEndYear = e.target.value
-                      const nextEndYearNumber = parseStudentYear(nextEndYear)
-                      setEditStudentEndYear(nextEndYear)
-                      if (nextEndYearNumber && editStudentStartYearNumber && nextEndYearNumber < editStudentStartYearNumber) {
-                        setEditStudentStartYear(nextEndYear)
-                      }
-                    }}
-                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Zgjidh vitin e mbarimit</option>
-                    {editEndYearOptions.map((year) => (
-                      <option key={`edit-end-${year}`} value={year}>
-                        {year}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <Label>Mentori *</Label>
                   <select
@@ -2749,17 +3380,113 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <Label>Rrethi</Label>
                   <Input value={editDistrict} onChange={(e) => setEditDistrict(e.target.value)} />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Statusi i llogarisë</Label>
-                  <select
-                    value={editIsActive ? "active" : "inactive"}
-                    onChange={(e) => setEditIsActive(e.target.value === "active")}
-                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+              </div>
+
+              {/* Year Section */}
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <p className="text-xs font-semibold text-foreground mb-2">Vitet e Studimit</p>
+                <div className="space-y-1.5">
+                  {/* Year 1 - editable start year */}
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">1</span>
+                    <span className="text-xs font-medium text-foreground">Viti i Parë</span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">Shtator</span>
+                      <select
+                        value={editStudentStartYear}
+                        onChange={(e) => {
+                          const nextStartYear = e.target.value
+                          const nextStartYearNumber = parseStudentYear(nextStartYear)
+                          setEditStudentStartYear(nextStartYear)
+                          if (nextStartYearNumber) {
+                            setEditStudentEndYear(String(nextStartYearNumber + 3))
+                            const currentY2 = parseStudentYear(editYear2StartYear)
+                            if (currentY2 && currentY2 <= nextStartYearNumber) setEditYear2StartYear("")
+                            const currentY3 = parseStudentYear(editYear3StartYear)
+                            if (currentY3 && currentY3 <= nextStartYearNumber) setEditYear3StartYear("")
+                          }
+                        }}
+                        className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="">Zgjidh</option>
+                        {STUDENT_YEAR_OPTIONS.map((year) => (
+                          <option key={`edit-start-${year}`} value={year}>{year}</option>
+                        ))}
+                      </select>
+                      {editStudentStartYearNumber && (() => {
+                        return <span className="text-xs text-muted-foreground">– Shtator {editStudentStartYearNumber + 1}</span>
+                      })()}
+                    </div>
+                  </div>
+
+                  {editStudentStartYearNumber && (() => {
+                    const y1 = editStudentStartYearNumber
+                    const y2 = parseStudentYear(editYear2StartYear) || y1 + 1
+                    const y3 = parseStudentYear(editYear3StartYear) || y2 + 1
+                    const y2Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y1 + 1)
+                    const y3Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y2 + 1)
+                    return (
+                      <>
+                        {/* Year 2 - editable, must be > Y1 */}
+                        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">2</span>
+                          <span className="text-xs font-medium text-foreground">Viti i Dytë</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Shtator</span>
+                            <select
+                              value={editYear2StartYear || ""}
+                              onChange={(e) => {
+                                const newY2 = e.target.value
+                                setEditYear2StartYear(newY2)
+                                const newY2Num = parseStudentYear(newY2) || y1 + 1
+                                const currentY3 = parseStudentYear(editYear3StartYear)
+                                if (currentY3 && currentY3 <= newY2Num) {
+                                  setEditYear3StartYear("")
+                                }
+                              }}
+                              className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                              <option value="">{y1 + 1}</option>
+                              {y2Options.map((yr) => (
+                                <option key={`edit-y2-${yr}`} value={yr}>{yr}</option>
+                              ))}
+                            </select>
+                            <span className="text-xs text-muted-foreground">– Shtator {y2 + 1}</span>
+                          </div>
+                        </div>
+                        {/* Year 3 - editable, must be > Y2 */}
+                        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">3</span>
+                          <span className="text-xs font-medium text-foreground">Viti i Tretë</span>
+                          <div className="ml-auto flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Shtator</span>
+                            <select
+                              value={editYear3StartYear || ""}
+                              onChange={(e) => setEditYear3StartYear(e.target.value)}
+                              className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                              <option value="">{y2 + 1}</option>
+                              {y3Options.map((yr) => (
+                                <option key={`edit-y3-${yr}`} value={yr}>{yr}</option>
+                              ))}
+                            </select>
+                            <span className="text-xs text-muted-foreground">– Shtator {y3 + 1}</span>
+                          </div>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
+                {editStudentStartYearNumber && (() => {
+                  const y1 = editStudentStartYearNumber
+                  const y2 = parseStudentYear(editYear2StartYear) || y1 + 1
+                  const y3 = parseStudentYear(editYear3StartYear) || y2 + 1
+                  return (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Llogaria vlefshme: Shtator {y1} – Shtator {y3 + 1}
+                    </p>
+                  )
+                })()}
               </div>
 
               {editError && <p className="text-sm text-destructive font-medium">{editError}</p>}
@@ -2779,7 +3506,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <Trash2 className="mr-2 h-4 w-4" />
                   Fshij Studentin
                 </Button>
-                <div className="flex flex-col gap-3 sm:flex-row">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={editIsActive}
+                    onChange={(e) => setEditIsActive(e.target.checked)}
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  <span className={`text-xs font-medium ${editIsActive ? "text-emerald-600" : "text-muted-foreground"}`}>
+                    {editIsActive ? "Aktiv" : "Joaktiv"}
+                  </span>
+                </label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:ml-auto">
                   <Button type="button" variant="ghost" onClick={closeEdit}>Anulo</Button>
                   <Button type="button" onClick={handleUpdateStudent} disabled={isSavingEdit}>
                     {isSavingEdit ? "Duke ruajtur..." : "Ruaj Ndryshimet"}
@@ -3185,6 +3923,17 @@ function StudentCalendarView() {
   const mentorScanInFlightRef = useRef(false)
   const lastMentorScannedTokenRef = useRef<{ token: string; at: number } | null>(null)
 
+  // My Modules state
+  const [myModules, setMyModules] = useState<StudentMyModuleResponse[]>([])
+  const [myModulesLoading, setMyModulesLoading] = useState(true)
+  const [showModuleScanner, setShowModuleScanner] = useState(false)
+  const [moduleScanManualToken, setModuleScanManualToken] = useState("")
+  const [moduleScanNotice, setModuleScanNotice] = useState("")
+  const [moduleScanError, setModuleScanError] = useState("")
+  const [moduleScanBusy, setModuleScanBusy] = useState(false)
+  const moduleScanInFlightRef = useRef(false)
+  const lastModuleScannedTokenRef = useRef<{ token: string; at: number } | null>(null)
+
   async function refreshCalendarData() {
     const data = (await fetchApi("/StudentTraining/my-calendar")) as StudentTrainingCalendarResponse
     setCalendarData(data)
@@ -3230,6 +3979,59 @@ function StudentCalendarView() {
       isCancelled = true
     }
   }, [])
+
+  async function loadMyModules() {
+    setMyModulesLoading(true)
+    try {
+      const data = (await fetchApi("/StudentModules/my-modules")) as StudentMyModuleResponse[]
+      setMyModules(data)
+    } catch {
+      setMyModules([])
+    } finally {
+      setMyModulesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadMyModules()
+  }, [])
+
+  async function scanModuleToken(token: string) {
+    if (moduleScanInFlightRef.current) return
+    const now = Date.now()
+    const last = lastModuleScannedTokenRef.current
+    if (last && last.token === token && now - last.at < 5000) return
+    lastModuleScannedTokenRef.current = { token, at: now }
+
+    moduleScanInFlightRef.current = true
+    setModuleScanBusy(true)
+    setModuleScanError("")
+    setModuleScanNotice("")
+
+    try {
+      const raw = token.startsWith("IEKA-SM:") ? token.slice(8) : token
+      const result = (await fetchApi("/StudentModules/scan", {
+        method: "POST",
+        body: JSON.stringify({ qrToken: raw }),
+      })) as ScanModuleAttendanceResponse
+      setModuleScanNotice("Prezenca u konfirmua me sukses!")
+      setShowModuleScanner(false)
+      void loadMyModules()
+    } catch (e: any) {
+      setModuleScanError(e?.message ?? "Gabim gjatë skanimit.")
+    } finally {
+      setModuleScanBusy(false)
+      moduleScanInFlightRef.current = false
+    }
+  }
+
+  function handleModuleScannerResult(result: any[]) {
+    if (!result || result.length === 0) return
+    const text = result[0]?.rawValue ?? result[0]?.text ?? ""
+    if (text && text.includes("IEKA-SM:")) {
+      void scanModuleToken(text)
+    }
+  }
 
   const enabledDates = calendarData?.enabledDates ?? []
   const enabledSet = useMemo(() => new Set(enabledDates), [enabledDates])
@@ -3571,6 +4373,167 @@ function StudentCalendarView() {
               {mentorScanError && (
                 <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                   {mentorScanError}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modulet e Mia ───────────────────────────────── */}
+      <div className="mt-8">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
+              <Library className="h-5 w-5 text-primary" />
+              Modulet e Mia
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Modulet ku jeni caktuar dhe statusi i prezencës</p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setShowModuleScanner(true)
+              setModuleScanNotice("")
+              setModuleScanError("")
+              setModuleScanManualToken("")
+            }}
+          >
+            <ScanLine className="mr-1.5 h-3.5 w-3.5" />
+            Skano Modulin
+          </Button>
+        </div>
+
+        {moduleScanNotice && (
+          <p className="mb-3 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700">
+            {moduleScanNotice}
+          </p>
+        )}
+
+        {myModulesLoading ? (
+          <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
+            Duke ngarkuar modulet...
+          </div>
+        ) : myModules.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+            <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">Nuk keni asnjë modul të caktuar akoma.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {myModules.map((mod) => (
+              <div key={mod.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={cn(
+                        "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                        mod.yearGrade === 1
+                          ? "bg-blue-500/10 text-blue-600"
+                          : mod.yearGrade === 2
+                            ? "bg-purple-500/10 text-purple-600"
+                            : "bg-emerald-500/10 text-emerald-600"
+                      )}>
+                        Viti {mod.yearGrade}
+                      </span>
+                      <h3 className="text-sm font-semibold text-foreground">{mod.topic}</h3>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>Lektori: <strong className="text-foreground">{mod.lecturer}</strong></span>
+                      {mod.scheduledDate && (
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3" />
+                          {format(parseISO(mod.scheduledDate), "dd MMM yyyy, HH:mm")}
+                        </span>
+                      )}
+                      {mod.location && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {mod.location}
+                        </span>
+                      )}
+                      {mod.documentCount > 0 && (
+                        <span>{mod.documentCount} dokument{mod.documentCount > 1 ? "e" : ""}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    {mod.attended ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Prezent
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                        Në pritje
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Module QR Scanner Modal */}
+      {showModuleScanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-lg">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Skano Kodin QR të Modulit</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">Skanoni kodin QR që shfaqet nga mentori/admini</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowModuleScanner(false)
+                  setModuleScanError("")
+                }}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div className="aspect-square overflow-hidden rounded-lg border border-border">
+                <Scanner
+                  onScan={(result) => {
+                    handleModuleScannerResult(result)
+                  }}
+                  components={{ onOff: true, torch: true, zoom: false, finder: true }}
+                  styles={{ container: { width: "100%", height: "100%" } }}
+                />
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center">ose vendosni kodin manualisht:</p>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  value={moduleScanManualToken}
+                  onChange={(e) => setModuleScanManualToken(e.target.value)}
+                  placeholder="Vendos token-in QR të modulit"
+                  className="h-9 text-xs font-mono"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 px-3"
+                  disabled={moduleScanBusy || !moduleScanManualToken.trim()}
+                  onClick={() => {
+                    void scanModuleToken(moduleScanManualToken)
+                  }}
+                >
+                  {moduleScanBusy ? "..." : "Konfirmo"}
+                </Button>
+              </div>
+
+              {moduleScanError && (
+                <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {moduleScanError}
                 </p>
               )}
             </div>
