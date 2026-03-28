@@ -98,7 +98,7 @@ public class StudentModulesController(
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UploadDocument(
         Guid moduleId,
-        [FromForm] IFormFile file,
+        IFormFile file,
         CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0)
