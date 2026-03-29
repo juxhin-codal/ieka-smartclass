@@ -148,17 +148,6 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
     }
   }, [student])
 
-  if (!student) {
-    return null
-  }
-
-  // Compute topic-level stats across all modules
-  const allTopics = studentModules.flatMap(m => m.topics ?? [])
-  const attendedTopics = allTopics.filter(t => t.attended)
-  const now = new Date()
-  const upcomingTopics = allTopics.filter(t => !t.attended && t.scheduledDate && new Date(t.scheduledDate) > now)
-  const missedTopics = allTopics.filter(t => !t.attended && (!t.scheduledDate || new Date(t.scheduledDate) <= now))
-
   // Gather all topic documents across modules
   const allTopicDocs = useMemo(() => {
     const docs: { id: string; fileName: string; fileUrl: string; relativePath: string; sizeBytes: number; uploadedAt: string; topicName: string; moduleName: string }[] = []
@@ -171,6 +160,17 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
     }
     return docs
   }, [studentModules])
+
+  if (!student) {
+    return null
+  }
+
+  // Compute topic-level stats across all modules
+  const allTopics = studentModules.flatMap(m => m.topics ?? [])
+  const attendedTopics = allTopics.filter(t => t.attended)
+  const now = new Date()
+  const upcomingTopics = allTopics.filter(t => !t.attended && t.scheduledDate && new Date(t.scheduledDate) > now)
+  const missedTopics = allTopics.filter(t => !t.attended && (!t.scheduledDate || new Date(t.scheduledDate) <= now))
 
   const totalDocs = allTopicDocs.length + studentDocs.length
 
