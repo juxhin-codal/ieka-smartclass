@@ -69,7 +69,7 @@ export interface QuestionAnswer {
 }
 
 export type UserRole = "Admin" | "Member" | "Lecturer" | "Mentor" | "Student"
-export type NotificationType = "booking" | "reminder" | "survey" | "cpd-deadline"
+export type NotificationType = "booking" | "reminder" | "survey" | "cpd-deadline" | "profile-change"
 
 export interface AppUser {
   id: string

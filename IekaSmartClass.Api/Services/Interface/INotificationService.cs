@@ -13,6 +13,7 @@ public interface INotificationService
     Task ProcessScheduledNotificationsAsync(DateTime utcNow, CancellationToken cancellationToken = default);
     Task NotifyBookingOpenedAsync(Guid eventId, CancellationToken cancellationToken = default);
     Task NotifySurveyReminderForEndedSessionAsync(Guid eventId, Guid dateId, CancellationToken cancellationToken = default);
+    Task NotifyStudentProfileChangedAsync(Guid studentId, List<string> changes, CancellationToken cancellationToken = default);
 }
 
 public static class NotificationTypeValues
@@ -21,6 +22,7 @@ public static class NotificationTypeValues
     public const string Reminder = "reminder";
     public const string Survey = "survey";
     public const string CpdDeadline = "cpd-deadline";
+    public const string ProfileChange = "profile-change";
 }
 
 public sealed record NotificationPreferencesDto(

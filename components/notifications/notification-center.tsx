@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react"
-import { Bell, Star, AlertTriangle, BookOpen, Clock, Check, X, Inbox } from "lucide-react"
+import { Bell, Star, AlertTriangle, BookOpen, Clock, Check, X, Inbox, UserCog } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n"
@@ -33,6 +33,7 @@ const typeConfig: Record<NotificationType, { icon: typeof Bell; color: string; b
     "reminder": { icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
     "survey": { icon: Star, color: "text-purple-500", bg: "bg-purple-500/10" },
     "cpd-deadline": { icon: AlertTriangle, color: "text-red-500", bg: "bg-red-500/10" },
+    "profile-change": { icon: UserCog, color: "text-teal-500", bg: "bg-teal-500/10" },
 }
 
 export function NotificationCenter() {

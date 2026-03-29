@@ -1290,15 +1290,14 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     let result = studentModules
     if (moduleYearFilter !== null) result = result.filter((m) => m.yearGrade === moduleYearFilter)
     if (moduleTimeFilter !== "all") {
-      const now = new Date()
+      const todayStr = new Date().toISOString().slice(0, 10)
       result = result.filter((m) => {
         const topicDates = m.topics
           .map(t => t.scheduledDate)
           .filter((d): d is string => !!d)
-          .map(d => parseISO(d))
         if (topicDates.length === 0) return moduleTimeFilter === "upcoming"
-        const latestDate = topicDates.reduce((a, b) => (a > b ? a : b))
-        return moduleTimeFilter === "upcoming" ? latestDate >= now : latestDate < now
+        const latestDateStr = topicDates.reduce((a, b) => (a > b ? a : b)).slice(0, 10)
+        return moduleTimeFilter === "upcoming" ? latestDateStr >= todayStr : latestDateStr < todayStr
       })
     }
     return result
@@ -2984,10 +2983,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   </div>
                 ) : selectedModuleDetail && (() => {
                   const now = new Date()
+                  const todayStr = now.toISOString().slice(0, 10)
                   const topicDates = selectedModuleDetail.topics
                     .filter(t => t.scheduledDate)
                     .map(t => new Date(t.scheduledDate!))
-                  const isPastModule = topicDates.length > 0 && topicDates.every(d => d < now)
+                  const isPastModule = topicDates.length > 0 && topicDates.every(d => d.toISOString().slice(0, 10) < todayStr)
                   return (
                   <>
                     {/* Header */}
@@ -3039,7 +3039,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           <BookOpen className="h-4 w-4 text-primary" />
                           <p className="text-sm font-semibold text-foreground">Temat ({selectedModuleDetail.topics.length})</p>
                         </div>
-                        {!isPastModule && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -3049,11 +3048,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           <Plus className="mr-1 h-3 w-3" />
                           Shto Temë
                         </Button>
-                        )}
                       </div>
 
                       {/* Add Topic Form */}
-                      {!isPastModule && showAddTopicForm && (
+                      {showAddTopicForm && (
                         <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="flex flex-col gap-1">

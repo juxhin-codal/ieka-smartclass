@@ -1,5 +1,8 @@
 const DEFAULT_DIRECT_API_BASE_URL = "https://iekasmartclass-hthndtf8bjgrcvbn.italynorth-01.azurewebsites.net/api"
 
+// Guard: once a 401 triggers a redirect, suppress all further API calls
+let redirectingDueToAuth = false
+
 function normalizeApiBaseUrl(rawBaseUrl?: string) {
     const baseUrl = rawBaseUrl?.trim()
     if (!baseUrl) {
@@ -135,12 +138,16 @@ function shouldRetryRequest(method: string, status: number, isTransientStartupEr
 }
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
+    if (redirectingDueToAuth) return new Promise<never>(() => { })
+
     const headers = buildHeaders(options)
     const requestUrl = resolveApiUrl(endpoint)
     const method = (options.method ?? "GET").toUpperCase()
     const maxAttempts = method === "GET" || method === "HEAD" ? 3 : 1
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        if (redirectingDueToAuth) return new Promise<never>(() => { })
+
         let response: Response
 
         try {
@@ -168,6 +175,7 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
 
         if (response.status === 401) {
             if (typeof window !== "undefined") {
+                redirectingDueToAuth = true
                 localStorage.removeItem("ieka-token")
                 window.location.replace("/")
                 return new Promise<never>(() => { })

@@ -19,6 +19,24 @@ function validatePassword(password: string): string {
   return ""
 }
 
+const identityErrorMap: [RegExp, string][] = [
+  [/at least.*\d.*character/i, "Fjalëkalimi duhet të ketë të paktën një numër."],
+  [/at least.*upper/i, "Fjalëkalimi duhet të ketë të paktën një shkronjë të madhe."],
+  [/at least.*lower/i, "Fjalëkalimi duhet të ketë të paktën një shkronjë të vogël."],
+  [/at least.*\d.*long|must be at least.*character/i, "Fjalëkalimi duhet të ketë të paktën 8 karaktere."],
+  [/too short|minimum length/i, "Fjalëkalimi duhet të ketë të paktën 8 karaktere."],
+  [/non.*alphanumeric|special character/i, "Fjalëkalimi duhet të ketë të paktën një karakter special."],
+  [/unique char/i, "Fjalëkalimi duhet të ketë karaktere më të ndryshme."],
+  [/Passwords must have at least one/i, "Fjalëkalimi nuk plotëson kërkesat e sigurisë."],
+]
+
+function translateIdentityError(message: string): string {
+  for (const [pattern, translation] of identityErrorMap) {
+    if (pattern.test(message)) return translation
+  }
+  return message
+}
+
 function ResetPasswordContent() {
   const { t } = useI18n()
   const router = useRouter()
@@ -59,7 +77,10 @@ function ResetPasswordContent() {
       return
     }
 
-    if (passwordError || confirmError) {
+    // Validate directly (not from stale useMemo)
+    const pwErr = !password ? "Fjalëkalimi është i detyrueshëm." : validatePassword(password)
+    const cfErr = !confirmPassword ? "Konfirmimi i fjalëkalimit është i detyrueshëm." : password !== confirmPassword ? "Fjalëkalimet nuk përputhen." : ""
+    if (pwErr || cfErr) {
       return
     }
 
@@ -77,7 +98,7 @@ function ResetPasswordContent() {
       })
       const data = await response.json()
       if (!response.ok || data.success === false) {
-        setError(data.message ?? "Resetimi dështoi.")
+        setError(translateIdentityError(data.message ?? "Resetimi dështoi."))
         return
       }
 

@@ -417,6 +417,30 @@ public class NotificationService(
         }
     }
 
+    public async Task NotifyStudentProfileChangedAsync(Guid studentId, List<string> changes, CancellationToken cancellationToken = default)
+    {
+        if (changes.Count == 0) return;
+
+        var student = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == studentId, cancellationToken);
+
+        if (student is null) return;
+
+        var title = "Profili juaj u përditësua";
+        var body = "Ndryshimet e bëra:\n• " + string.Join("\n• ", changes);
+        var dedupeKey = $"profile-change:{studentId}:{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+        await TryCreateNotificationAsync(
+            studentId,
+            NotificationTypeValues.ProfileChange,
+            title,
+            body,
+            null,
+            dedupeKey,
+            cancellationToken);
+    }
+
     private async Task CreateNotificationAsync(
         AppUser user,
         string type,

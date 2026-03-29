@@ -18,6 +18,7 @@ public class MembersService(
     IApplicationDbContext dbContext,
     UserManager<AppUser> userManager,
     IEmailService emailService,
+    INotificationService notificationService,
     ILogger<MembersService> logger) : IMembersService
 {
     private readonly IRepository<AppUser> _userRepository = userRepository;
@@ -225,6 +226,19 @@ public class MembersService(
         var trimmedEmail = email.Trim();
         var trimmedEmail2 = NormalizeOptionalEmail(email2);
         var user = await _userRepository.GetByIdAsync(id) ?? throw new KeyNotFoundException("Member not found.");
+
+        // Capture old values for student notification
+        var oldRegistryNumber = user.MemberRegistryNumber;
+        var oldStudentNumber = user.StudentNumber;
+        var oldStudentStartYear = user.StudentStartYear;
+        var oldStudentEndYear = user.StudentEndYear;
+        var oldYear2StartYear = user.StudentYear2StartYear;
+        var oldYear3StartYear = user.StudentYear3StartYear;
+        var oldCompany = user.Company;
+        var oldDistrict = user.District;
+        var oldMentorId = user.MentorId;
+        var oldIsActive = user.IsActive;
+
         var previousStudentTrackingNumber = GetKnownStudentTrackingNumber(
             user.StudentTrackingNumber,
             user.StudentNumber,
@@ -303,6 +317,44 @@ public class MembersService(
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Member {MemberId} email was updated to {Email}, but the notification email could not be sent.", user.Id, user.Email);
+            }
+        }
+
+        // Notify student about profile changes
+        if (string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase))
+        {
+            var changes = new List<string>();
+            if (!string.Equals(oldRegistryNumber, user.MemberRegistryNumber, StringComparison.Ordinal))
+                changes.Add($"Numri i regjistrit: {oldRegistryNumber} → {user.MemberRegistryNumber}");
+            if (!string.Equals(oldStudentNumber, user.StudentNumber, StringComparison.Ordinal))
+                changes.Add($"Numri i studentit: {oldStudentNumber ?? "—"} → {user.StudentNumber ?? "—"}");
+            if (oldStudentStartYear != user.StudentStartYear)
+                changes.Add($"Viti i fillimit: {oldStudentStartYear?.ToString() ?? "—"} → {user.StudentStartYear?.ToString() ?? "—"}");
+            if (oldYear2StartYear != user.StudentYear2StartYear)
+                changes.Add($"Viti 2 i fillimit: {oldYear2StartYear?.ToString() ?? "—"} → {user.StudentYear2StartYear?.ToString() ?? "—"}");
+            if (oldYear3StartYear != user.StudentYear3StartYear)
+                changes.Add($"Viti 3 i fillimit: {oldYear3StartYear?.ToString() ?? "—"} → {user.StudentYear3StartYear?.ToString() ?? "—"}");
+            if (oldStudentEndYear != user.StudentEndYear)
+                changes.Add($"Viti i përfundimit: {oldStudentEndYear?.ToString() ?? "—"} → {user.StudentEndYear?.ToString() ?? "—"}");
+            if (!string.Equals(oldCompany ?? "", user.Company ?? "", StringComparison.OrdinalIgnoreCase))
+                changes.Add($"Kompania: {oldCompany ?? "—"} → {user.Company ?? "—"}");
+            if (!string.Equals(oldDistrict ?? "", user.District ?? "", StringComparison.OrdinalIgnoreCase))
+                changes.Add($"Qarku: {oldDistrict ?? "—"} → {user.District ?? "—"}");
+            if (oldMentorId != user.MentorId)
+                changes.Add("Mentori u ndryshua");
+            if (oldIsActive != user.IsActive)
+                changes.Add(user.IsActive ? "Llogaria u aktivizua" : "Llogaria u çaktivizua");
+
+            if (changes.Count > 0)
+            {
+                try
+                {
+                    await notificationService.NotifyStudentProfileChangedAsync(id, changes, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Could not send profile-change notification for student {StudentId}.", id);
+                }
             }
         }
     }
