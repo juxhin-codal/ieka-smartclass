@@ -486,6 +486,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [attSelectedTopicId, setAttSelectedTopicId] = useState("")
   const [attUpdatingKey, setAttUpdatingKey] = useState<string | null>(null)
   const [attError, setAttError] = useState("")
+  const [attStudentSearch, setAttStudentSearch] = useState("")
   const [attTopicQrToken, setAttTopicQrToken] = useState("")
   const [attTopicQrLoading, setAttTopicQrLoading] = useState(false)
   const [attShowQrModal, setAttShowQrModal] = useState(false)
@@ -1350,8 +1351,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   }, [attModuleDetail, attSelectedModuleId])
 
   const attSelectedTopic = useMemo(() =>
-    attTopics.find(t => t.id === attSelectedTopicId) ?? null
-  , [attTopics, attSelectedTopicId])
+    attTopics.find(t => t.id === attSelectedTopicId)
+      ?? (attModuleDetail?.topics.find(t => t.id === attSelectedTopicId) ?? null)
+  , [attTopics, attSelectedTopicId, attModuleDetail])
 
   const attStudentsForTopic = useMemo(() => {
     if (!attModuleDetail || !attSelectedTopicId) return []
@@ -1365,6 +1367,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const attIsPastTopic = useMemo(() => {
     if (!attSelectedTopic?.scheduledDate) return false
     return new Date(attSelectedTopic.scheduledDate) < new Date()
+  }, [attSelectedTopic])
+
+  const attIsTopicToday = useMemo(() => {
+    if (!attSelectedTopic?.scheduledDate) return false
+    const topicDate = new Date(attSelectedTopic.scheduledDate).toISOString().slice(0, 10)
+    const today = new Date().toISOString().slice(0, 10)
+    return topicDate === today
   }, [attSelectedTopic])
 
   useEffect(() => {
@@ -3747,8 +3756,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     key={topic.id}
                     type="button"
                     onClick={() => {
-                      setAttSelectedModuleId(topic.moduleId)
                       setAttSelectedTopicId(topic.id)
+                      void loadAttModuleDetail(topic.moduleId)
                     }}
                     className={cn(
                       "w-full rounded-lg border px-3 py-2 text-left transition-colors",
@@ -3828,16 +3837,36 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{attError}</p>
                 )}
 
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={attStudentSearch}
+                    onChange={(e) => setAttStudentSearch(e.target.value)}
+                    placeholder="Kërko student..."
+                    className="h-9 w-full rounded-lg border border-border bg-transparent pl-9 pr-3 text-base md:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
                 {/* Student list */}
-                {attStudentsForTopic.length === 0 ? (
+                {(() => {
+                  const q = attStudentSearch.toLowerCase().trim()
+                  const filtered = q
+                    ? attStudentsForTopic.filter(s =>
+                        `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+                        s.email.toLowerCase().includes(q)
+                      )
+                    : attStudentsForTopic
+                  return filtered.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border py-10 text-center">
-                    <p className="text-sm text-muted-foreground">Asnjë student i caktuar në këtë modul.</p>
+                    <p className="text-sm text-muted-foreground">{q ? "Asnjë student nuk përputhet me kërkimin" : "Asnjë student i caktuar në këtë modul."}</p>
                   </div>
                 ) : (
                   <>
                     {/* Mobile cards */}
                     <div className="space-y-2 md:hidden">
-                      {attStudentsForTopic.map((s) => {
+                      {filtered.map((s) => {
                         const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
                         return (
                           <div key={s.studentId} className="rounded-xl border border-border bg-card p-3">
@@ -3862,7 +3891,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 size="sm"
                                 className="h-7 flex-1 text-[11px]"
                                 variant={s.attended ? "default" : "outline"}
-                                disabled={s.attended || isUpdating || attIsPastTopic}
+                                disabled={s.attended || isUpdating || !attIsTopicToday}
                                 onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
                               >
                                 {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
@@ -3871,7 +3900,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 size="sm"
                                 className="h-7 flex-1 text-[11px]"
                                 variant={!s.attended ? "destructive" : "outline"}
-                                disabled={!s.attended || isUpdating || attIsPastTopic}
+                                disabled={!s.attended || isUpdating || !attIsTopicToday}
                                 onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
                               >
                                 {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
@@ -3894,7 +3923,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           </tr>
                         </thead>
                         <tbody>
-                          {attStudentsForTopic.map((s) => {
+                          {filtered.map((s) => {
                             const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
                             return (
                               <tr key={s.studentId} className="border-b border-border/50 last:border-0">
@@ -3918,7 +3947,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       size="sm"
                                       className="h-7 min-w-[5rem] text-[11px]"
                                       variant={s.attended ? "default" : "outline"}
-                                      disabled={s.attended || isUpdating || attIsPastTopic}
+                                      disabled={s.attended || isUpdating || !attIsTopicToday}
                                       onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
                                     >
                                       {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
@@ -3928,7 +3957,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       size="sm"
                                       className="h-7 min-w-[5rem] text-[11px]"
                                       variant={!s.attended ? "destructive" : "outline"}
-                                      disabled={!s.attended || isUpdating || attIsPastTopic}
+                                      disabled={!s.attended || isUpdating || !attIsTopicToday}
                                       onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
                                     >
                                       {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
@@ -3943,7 +3972,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </table>
                     </div>
                   </>
-                )}
+                )
+                })()}
               </div>
             )}
           </div>
