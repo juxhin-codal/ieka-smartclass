@@ -3642,8 +3642,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                                     setResultStudentId(a.studentId)
                                                     setResultStudentName(`${a.firstName} ${a.lastName}`)
                                                     setResultStudentEmail(a.email)
-                                                    setResultStudentCurrent(a.result)
-                                                    setResultValue(a.result)
+                                                    setResultStudentCurrent(a.result ?? null)
+                                                    setResultValue(a.result ?? "")
                                                     setResultNote(a.resultNote ?? "")
                                                   }}
                                                   className="text-[10px] text-primary hover:underline mt-0.5"
