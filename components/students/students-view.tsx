@@ -20,13 +20,13 @@ import type {
   StudentModuleStudentItem,
   StudentModuleTopicResponse,
   StudentMyModuleResponse,
+  StudentMyTopicResponse,
   ScanModuleAttendanceResponse,
   QuestionnaireDetail,
   QuestionnaireResponseItem,
+  MyQuestionnaireResponseItem,
   StudentTrainingCalendarResponse,
-  StudentTrainingQrResponse,
   StudentTrainingSession,
-  StudentTrainingStazh,
 } from "@/lib/data"
 import { Button } from "@/components/ui/button"
 import { Calendar as DayCalendar } from "@/components/ui/calendar"
@@ -400,10 +400,6 @@ export function StudentsView() {
   }
 
   return <MentorAdminStudentsView />
-}
-
-export function StudentEvaluationsView() {
-  return <StudentFeedbackView />
 }
 
 export function MentorAttendanceView() {
@@ -1338,12 +1334,21 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   )
 
   // Module-topic attendance computed values
-  const attTopics = useMemo(() => {
-    if (!attModuleDetail) return []
-    return [...attModuleDetail.topics]
-      .filter(t => t.scheduledDate)
+  const attAllTopics = useMemo(() => {
+    if (!attModules.length) return []
+    return attModules
+      .flatMap(m => m.topics.filter(t => t.scheduledDate).map(t => ({ ...t, moduleId: m.id, moduleTitle: `Viti ${m.yearGrade} - ${m.title}` })))
       .sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
-  }, [attModuleDetail])
+  }, [attModules])
+
+  const attTopics = useMemo(() => {
+    if (attSelectedModuleId && attModuleDetail) {
+      return [...attModuleDetail.topics]
+        .filter(t => t.scheduledDate)
+        .sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
+    }
+    return []
+  }, [attModuleDetail, attSelectedModuleId])
 
   const attSelectedTopic = useMemo(() =>
     attTopics.find(t => t.id === attSelectedTopicId) ?? null
@@ -1357,6 +1362,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       attendedAt: a.topicAttendances.find(ta => ta.topicId === attSelectedTopicId)?.attendedAt ?? null,
     }))
   }, [attModuleDetail, attSelectedTopicId])
+
+  const attIsPastTopic = useMemo(() => {
+    if (!attSelectedTopic?.scheduledDate) return false
+    return new Date(attSelectedTopic.scheduledDate) < new Date()
+  }, [attSelectedTopic])
 
   useEffect(() => {
     if (!isAdmin || !showAddForm) {
@@ -1856,8 +1866,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   }, [activeTab])
 
   useEffect(() => {
-    if (!attSelectedModuleId) { setAttModuleDetail(null); return }
-    setAttSelectedTopicId("")
+    if (!attSelectedModuleId) { setAttModuleDetail(null); setAttSelectedTopicId(""); return }
+    // Only reset topic if it doesn't belong to the newly selected module
+    const moduleTopicIds = attModules.find(m => m.id === attSelectedModuleId)?.topics.map(t => t.id) ?? []
+    if (attSelectedTopicId && !moduleTopicIds.includes(attSelectedTopicId)) {
+      setAttSelectedTopicId("")
+    }
     void loadAttModuleDetail(attSelectedModuleId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attSelectedModuleId])
@@ -2941,7 +2955,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 {qrPopupToken && (
                   <div className="flex flex-col items-center gap-3">
                     <div className="rounded-xl border border-border bg-white p-5">
-                      <QRCodeCanvas id="module-list-qr" value={`IEKA-SM:${qrPopupToken}`} size={200} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
+                      <QRCodeCanvas id="module-list-qr" value={`${typeof window !== "undefined" ? window.location.origin : ""}/scan/attendance?token=${encodeURIComponent(qrPopupToken)}`} size={200} fgColor={"#000000"} bgColor={"#ffffff"} level={"M"} />
                     </div>
                     <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për prezencën</p>
                     <div className="flex items-center gap-2">
@@ -3473,7 +3487,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                           ) : questionnaireQrToken ? (
                             <div className="flex flex-col items-center gap-3">
-                              <QRCodeCanvas id="questionnaire-qr-canvas" value={`IEKA-QZ:${questionnaireQrToken}`} size={220} level="M" />
+                              <QRCodeCanvas id="questionnaire-qr-canvas" value={`${typeof window !== "undefined" ? window.location.origin : ""}/scan/questionnaire?token=${encodeURIComponent(questionnaireQrToken)}`} size={220} level="M" />
                               <button type="button" onClick={() => handlePrintQr("questionnaire-qr-canvas", "Pyetësor QR")} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
                                 <Printer className="h-3 w-3" /> Printo
                               </button>
@@ -3695,12 +3709,16 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
             </div>
 
             {/* Topic list */}
-            {attModuleDetailLoading ? (
+            {attModulesLoading ? (
               <div className="py-4 text-center text-xs text-muted-foreground">Duke ngarkuar...</div>
-            ) : attModuleDetail && attTopics.length > 0 ? (
+            ) : attSelectedModuleId && attModuleDetailLoading ? (
+              <div className="py-4 text-center text-xs text-muted-foreground">Duke ngarkuar...</div>
+            ) : attSelectedModuleId && attModuleDetail && attTopics.length > 0 ? (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-foreground">Temat ({attTopics.length})</p>
-                {attTopics.map((topic) => (
+                {attTopics.map((topic) => {
+                  const isPast = topic.scheduledDate ? new Date(topic.scheduledDate) < new Date() : false
+                  return (
                   <button
                     key={topic.id}
                     type="button"
@@ -3721,29 +3739,66 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         </span>
                       )}
                       <span>Lektori: {topic.lecturer}</span>
+                      {isPast && <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">E kaluar</span>}
                     </div>
                     <div className="mt-1 flex items-center gap-1">
                       <UserCheck className="h-2.5 w-2.5 text-muted-foreground" />
                       <span className="text-[10px] text-muted-foreground">{topic.attendanceCount} prezencë</span>
                     </div>
                   </button>
-                ))}
+                  )
+                })}
               </div>
             ) : attSelectedModuleId && !attModuleDetailLoading ? (
               <p className="py-4 text-center text-xs text-muted-foreground italic">Asnjë temë me datë në këtë modul.</p>
+            ) : !attSelectedModuleId && attAllTopics.length > 0 ? (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-foreground">Të gjitha temat ({attAllTopics.length})</p>
+                {attAllTopics.map((topic) => {
+                  const isPast = topic.scheduledDate ? new Date(topic.scheduledDate) < new Date() : false
+                  return (
+                  <button
+                    key={topic.id}
+                    type="button"
+                    onClick={() => {
+                      setAttSelectedModuleId(topic.moduleId)
+                      setAttSelectedTopicId(topic.id)
+                    }}
+                    className={cn(
+                      "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                      attSelectedTopicId === topic.id
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                        : "border-border hover:bg-muted/50"
+                    )}
+                  >
+                    <p className="text-xs font-medium text-foreground">{topic.name}</p>
+                    <p className="text-[10px] text-primary/70 font-medium">{topic.moduleTitle}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                      {topic.scheduledDate && (
+                        <span className="inline-flex items-center gap-0.5">
+                          <CalendarDays className="h-2.5 w-2.5" />
+                          {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                        </span>
+                      )}
+                      <span>Lektori: {topic.lecturer}</span>
+                      {isPast && <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">E kaluar</span>}
+                    </div>
+                    <div className="mt-1 flex items-center gap-1">
+                      <UserCheck className="h-2.5 w-2.5 text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground">{topic.attendanceCount} prezencë</span>
+                    </div>
+                  </button>
+                  )
+                })}
+              </div>
             ) : !attSelectedModuleId ? (
-              <p className="py-4 text-center text-xs text-muted-foreground">Zgjidhni një modul për të parë temat.</p>
+              <p className="py-4 text-center text-xs text-muted-foreground">Asnjë temë me datë.</p>
             ) : null}
           </div>
 
           {/* Right panel */}
           <div>
-            {!attSelectedModuleId ? (
-              <div className="rounded-xl border border-dashed border-border py-16 text-center">
-                <BookOpen className="mx-auto h-8 w-8 text-muted-foreground/40" />
-                <p className="mt-2 text-sm text-muted-foreground">Zgjidhni një modul nga lista për të menaxhuar prezencën.</p>
-              </div>
-            ) : attModuleDetailLoading ? (
+            {attModuleDetailLoading ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
@@ -3759,6 +3814,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <div>
                     <h3 className="text-base font-semibold text-foreground">
                       Prezenca për: {attSelectedTopic.name}
+                      {attIsPastTopic && <span className="ml-2 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground align-middle">E kaluar</span>}
                     </h3>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {attSelectedTopic.scheduledDate && format(parseISO(attSelectedTopic.scheduledDate), "dd MMM yyyy, HH:mm")}
@@ -3769,15 +3825,17 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       {attStudentsForTopic.length} studentë • {attStudentsForTopic.filter(s => s.attended).length} me prezencë
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1.5 text-xs"
-                    onClick={() => handleAttTopicQr(attSelectedTopic.id)}
-                  >
-                    <QrCode className="h-3.5 w-3.5" />
-                    Shfaq QR
-                  </Button>
+                  {!attIsPastTopic && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => handleAttTopicQr(attSelectedTopic.id)}
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      Shfaq QR
+                    </Button>
+                  )}
                 </div>
 
                 {attError && (
@@ -3818,7 +3876,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 size="sm"
                                 className="h-7 flex-1 text-[11px]"
                                 variant={s.attended ? "default" : "outline"}
-                                disabled={s.attended || isUpdating}
+                                disabled={s.attended || isUpdating || attIsPastTopic}
                                 onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
                               >
                                 {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
@@ -3827,7 +3885,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 size="sm"
                                 className="h-7 flex-1 text-[11px]"
                                 variant={!s.attended ? "destructive" : "outline"}
-                                disabled={!s.attended || isUpdating}
+                                disabled={!s.attended || isUpdating || attIsPastTopic}
                                 onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
                               >
                                 {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
@@ -3874,7 +3932,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       size="sm"
                                       className="h-7 min-w-[5rem] text-[11px]"
                                       variant={s.attended ? "default" : "outline"}
-                                      disabled={s.attended || isUpdating}
+                                      disabled={s.attended || isUpdating || attIsPastTopic}
                                       onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
                                     >
                                       {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
@@ -3884,7 +3942,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       size="sm"
                                       className="h-7 min-w-[5rem] text-[11px]"
                                       variant={!s.attended ? "destructive" : "outline"}
-                                      disabled={!s.attended || isUpdating}
+                                      disabled={!s.attended || isUpdating || attIsPastTopic}
                                       onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
                                     >
                                       {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
@@ -4028,7 +4086,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
             ) : attTopicQrToken ? (
               <div className="flex flex-col items-center gap-3">
                 <div className="rounded-xl border border-border bg-white p-5">
-                  <QRCodeCanvas id="att-topic-qr" value={`IEKA-SM:${attTopicQrToken}`} size={200} fgColor="#000000" bgColor="#ffffff" level="Q" />
+                  <QRCodeCanvas id="att-topic-qr" value={`${typeof window !== "undefined" ? window.location.origin : ""}/scan/attendance?token=${encodeURIComponent(attTopicQrToken)}`} size={200} fgColor="#000000" bgColor="#ffffff" level="M" />
                 </div>
                 <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për prezencën</p>
                 <div className="flex items-center gap-2">
@@ -4493,23 +4551,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   )
 }
 
-function StudentCalendarView() {
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [calendarData, setCalendarData] = useState<StudentTrainingCalendarResponse | null>(null)
-  const [selectedDate, setSelectedDate] = useState(toDateInputValue(new Date()))
+type EvalSubTab = "results" | "questionnaires"
 
-  const [qrSession, setQrSession] = useState<StudentTrainingSession | null>(null)
-  const [qrData, setQrData] = useState<StudentTrainingQrResponse | null>(null)
-  const [qrError, setQrError] = useState("")
-  const [qrLoading, setQrLoading] = useState(false)
-  const [showMentorQrScanner, setShowMentorQrScanner] = useState(false)
-  const [mentorScanManualToken, setMentorScanManualToken] = useState("")
-  const [mentorScanNotice, setMentorScanNotice] = useState("")
-  const [mentorScanError, setMentorScanError] = useState("")
-  const [mentorScanBusy, setMentorScanBusy] = useState(false)
-  const mentorScanInFlightRef = useRef(false)
-  const lastMentorScannedTokenRef = useRef<{ token: string; at: number } | null>(null)
+function StudentCalendarView() {
 
   // My Modules state
   const [myModules, setMyModules] = useState<StudentMyModuleResponse[]>([])
@@ -4522,51 +4566,9 @@ function StudentCalendarView() {
   const moduleScanInFlightRef = useRef(false)
   const lastModuleScannedTokenRef = useRef<{ token: string; at: number } | null>(null)
 
-  async function refreshCalendarData() {
-    const data = (await fetchApi("/StudentTraining/my-calendar")) as StudentTrainingCalendarResponse
-    setCalendarData(data)
-
-    if (data.enabledDates.length > 0) {
-      const today = toDateInputValue(new Date())
-      const fallback = data.enabledDates.find((d) => d >= today) ?? data.enabledDates[0]
-      if (!data.enabledDates.includes(selectedDate)) {
-        setSelectedDate(fallback)
-      }
-    }
-  }
-
-  useEffect(() => {
-    let isCancelled = false
-    const run = async () => {
-      setIsLoading(true)
-      setError("")
-      try {
-        const data = (await fetchApi("/StudentTraining/my-calendar")) as StudentTrainingCalendarResponse
-        if (isCancelled) return
-        setCalendarData(data)
-
-        if (data.enabledDates.length > 0) {
-          const today = toDateInputValue(new Date())
-          const fallback = data.enabledDates.find((d) => d >= today) ?? data.enabledDates[0]
-          setSelectedDate(fallback)
-        }
-      } catch (e: any) {
-        if (!isCancelled) {
-          setError(e?.message ?? "Gabim gjatë ngarkimit të kalendarit.")
-          setCalendarData(null)
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    void run()
-    return () => {
-      isCancelled = true
-    }
-  }, [])
+  // Topic documents popup
+  const [selectedTopic, setSelectedTopic] = useState<{ topic: StudentMyTopicResponse; moduleName: string } | null>(null)
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
 
   async function loadMyModules() {
     setMyModulesLoading(true)
@@ -4597,7 +4599,8 @@ function StudentCalendarView() {
     setModuleScanNotice("")
 
     try {
-      const raw = token.startsWith("IEKA-SM:") ? token.slice(8) : token
+      const raw = token.startsWith("IEKA-SM:") ? token.slice(8)
+        : (() => { try { const u = new URL(token); return u.searchParams.get("token") ?? token } catch { return token } })()
       const result = (await fetchApi("/StudentModules/scan", {
         method: "POST",
         body: JSON.stringify({ qrToken: raw }),
@@ -4616,480 +4619,225 @@ function StudentCalendarView() {
   function handleModuleScannerResult(result: any[]) {
     if (!result || result.length === 0) return
     const text = result[0]?.rawValue ?? result[0]?.text ?? ""
-    if (text && text.includes("IEKA-SM:")) {
+    if (text && (text.includes("IEKA-SM:") || text.includes("/scan/attendance"))) {
       void scanModuleToken(text)
     }
   }
 
-  const enabledDates = calendarData?.enabledDates ?? []
-  const enabledSet = useMemo(() => new Set(enabledDates), [enabledDates])
-  const sessions = calendarData?.sessions ?? []
-  const sessionsForSelectedDate = useMemo(
-    () => sessions.filter((s) => s.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime)),
-    [selectedDate, sessions]
-  )
-  const upcomingSessions = useMemo(() => {
-    const today = toDateInputValue(new Date())
-    return sessions
-      .filter((s) => s.date >= today)
-      .sort((a, b) => (`${a.date}-${a.startTime}`).localeCompare(`${b.date}-${b.startTime}`))
-  }, [sessions])
-  const todayPendingSessions = useMemo(() => {
-    const today = toDateInputValue(new Date())
-    return sessions.filter((session) => session.date === today && session.attendanceStatus === "pending")
-  }, [sessions])
-
-  function canShowQr(session: StudentTrainingSession) {
-    const today = toDateInputValue(new Date())
-    return session.date === today && session.attendanceStatus === "pending"
-  }
-
-  async function openQrModal(session: StudentTrainingSession) {
-    setQrSession(session)
-    setQrData(null)
-    setQrError("")
-    setQrLoading(true)
+  async function handleDownloadDocument(doc: { id: string; fileName: string; fileUrl: string }) {
+    setDownloadingDocId(doc.id)
     try {
-      const data = (await fetchApi(`/StudentTraining/sessions/${session.id}/qr`)) as StudentTrainingQrResponse
-      setQrData(data)
-    } catch (e: any) {
-      setQrError(e?.message ?? "Gabim gjatë gjenerimit të QR.")
-    } finally {
-      setQrLoading(false)
-    }
-  }
-
-  async function scanMentorAttendanceToken(token: string) {
-    const trimmedToken = token.trim()
-    if (!trimmedToken) return
-    const now = Date.now()
-    const previous = lastMentorScannedTokenRef.current
-    if (mentorScanInFlightRef.current) return
-    if (previous && previous.token === trimmedToken && now - previous.at < 2500) {
-      return
-    }
-
-    mentorScanInFlightRef.current = true
-    setMentorScanBusy(true)
-    setMentorScanError("")
-    setMentorScanNotice("")
-    try {
-      const response = (await fetchApi("/MentorQr/confirm", {
-        method: "POST",
-        body: JSON.stringify({ qrToken: trimmedToken }),
-      })) as StudentAttendanceScanResponse
-
-      setMentorScanNotice(response.message)
-      setMentorScanManualToken("")
-      lastMentorScannedTokenRef.current = { token: trimmedToken, at: Date.now() }
-      await refreshCalendarData()
-      setTimeout(() => {
-        setShowMentorQrScanner(false)
-      }, 900)
-    } catch (e: any) {
-      setMentorScanError(e?.message ?? "Gabim gjatë skanimit të QR të mentorit.")
-    } finally {
-      setMentorScanBusy(false)
-      mentorScanInFlightRef.current = false
-    }
-  }
-
-  async function handleMentorQrScannerResult(result: any) {
-    if (!result || mentorScanBusy) return
-    try {
-      const rawValue = Array.isArray(result)
-        ? result[0]?.rawValue ?? result[0]?.text
-        : result.rawValue ?? result.text ?? result
-      if (!rawValue || typeof rawValue !== "string") return
-      await scanMentorAttendanceToken(rawValue)
+      const response = await fetchWithAuth(doc.fileUrl, { method: "GET" })
+      if (!response.ok) throw new Error("Nuk u hap dokumenti.")
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = doc.fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
     } catch {
-      setMentorScanError("Kodi QR i mentorit është i pavlefshëm.")
+      // silent fail
+    } finally {
+      setDownloadingDocId(null)
     }
   }
+
+  // All topic dates for the date overview
+  const allTopicDates = useMemo(() => {
+    const dates: { date: string; topicName: string; moduleName: string; location?: string | null; attended: boolean }[] = []
+    myModules.forEach((mod) => {
+      mod.topics.forEach((t) => {
+        if (t.scheduledDate) {
+          dates.push({ date: t.scheduledDate, topicName: t.name, moduleName: mod.title, location: t.location, attended: t.attended })
+        }
+      })
+    })
+    return dates.sort((a, b) => a.date.localeCompare(b.date))
+  }, [myModules])
+
+  const upcomingTopics = useMemo(() => {
+    const now = new Date().toISOString()
+    return allTopicDates.filter((t) => t.date >= now)
+  }, [allTopicDates])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
-          <CalendarDays className="h-5 w-5 text-primary" />
-          Trajnimi i Studentit
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Kalendari i sesioneve dhe QR për prezencë
-        </p>
-      </div>
-      {isLoading ? (
-        <div className="rounded-xl border border-border bg-card px-5 py-10 text-sm text-muted-foreground">
-          Duke ngarkuar kalendarin...
+      <>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+            <Library className="h-5 w-5 text-primary" />
+            Modulet e Mia
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">Modulet ku jeni caktuar, temat dhe dokumentet</p>
         </div>
-      ) : error ? (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-4 text-sm text-destructive">
-          {error}
+      </div>
+
+      {moduleScanNotice && (
+        <p className="mb-3 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700">
+          {moduleScanNotice}
+        </p>
+      )}
+
+      {/* Upcoming topics dates */}
+      {!myModulesLoading && upcomingTopics.length > 0 && (
+        <div className="mb-5 rounded-xl border border-border bg-card p-4">
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            Datat e ardhshme
+          </h3>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Data</th>
+                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Tema</th>
+                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Moduli</th>
+                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Vendndodhja</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingTopics.slice(0, 8).map((t, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2 text-xs text-foreground">{format(parseISO(t.date), "dd MMM yyyy, HH:mm")}</td>
+                    <td className="px-3 py-2 text-xs text-foreground font-medium">{t.topicName}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{t.moduleName}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{t.location ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {myModulesLoading ? (
+        <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
+          Duke ngarkuar modulet...
+        </div>
+      ) : myModules.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+          <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">Nuk keni asnjë modul të caktuar akoma.</p>
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-          <div className="rounded-xl border border-border bg-card p-4 h-fit">
-            <DayCalendar
-              mode="single"
-              selected={parseISO(selectedDate)}
-              onSelect={(date) => {
-                if (!date) return
-                const next = toDateInputValue(date)
-                if (enabledSet.has(next)) {
-                  setSelectedDate(next)
-                }
-              }}
-              disabled={(date) => !enabledSet.has(toDateInputValue(date))}
-              className="rounded-md border border-border bg-card p-3"
-            />
-            <p className="mt-3 text-xs text-muted-foreground">
-              Aktivizohen vetëm datat ku jeni i/e planifikuar për trajnim.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-xl border border-border bg-card p-4">
-              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="mb-1 text-base font-semibold text-foreground">
-                    Sesionet e datës {format(parseISO(selectedDate), "dd MMM yyyy")}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {todayPendingSessions.length > 0
-                      ? "Sot mund të skanoni QR-në e mentorit për të konfirmuar prezencën."
-                      : "Zgjidhni një datë për të parë sesionet e planifikuara."}
-                  </p>
+        <div className="space-y-3">
+          {myModules.map((mod) => (
+            <div key={mod.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={cn(
+                      "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                      mod.yearGrade === 1
+                        ? "bg-blue-500/10 text-blue-600"
+                        : mod.yearGrade === 2
+                          ? "bg-purple-500/10 text-purple-600"
+                          : "bg-emerald-500/10 text-emerald-600"
+                    )}>
+                      Viti {mod.yearGrade}
+                    </span>
+                    <h3 className="text-sm font-semibold text-foreground">{mod.title}</h3>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    {mod.location && (
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {mod.location}
+                      </span>
+                    )}
+                    <span>{mod.topics.length} temë</span>
+                  </div>
                 </div>
-                {todayPendingSessions.length > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full gap-2 sm:w-auto"
-                    onClick={() => {
-                      setShowMentorQrScanner(true)
-                      setMentorScanError("")
-                      setMentorScanNotice("")
-                      mentorScanInFlightRef.current = false
-                      lastMentorScannedTokenRef.current = null
-                    }}
-                  >
-                    <ScanLine className="h-4 w-4" />
-                    Skano QR të mentorit
-                  </Button>
-                )}
               </div>
-              {sessionsForSelectedDate.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nuk ka sesione për këtë datë.</p>
-              ) : (
-                <div className="space-y-2">
-                  {sessionsForSelectedDate.map((session) => (
-                    <div key={session.id} className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="inline-flex items-center gap-1 text-sm font-medium text-foreground">
-                          <Clock3 className="h-4 w-4 text-primary" />
-                          {session.startTime} - {session.endTime}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${session.attendanceStatus === "attended" ? "bg-green-500/10 text-green-600" : session.attendanceStatus === "rejected" ? "bg-red-500/10 text-red-600" : "bg-muted text-muted-foreground"}`}>
-                            {session.attendanceStatus === "attended" ? "Konfirmuar" : session.attendanceStatus === "rejected" ? "Refuzuar" : "Në pritje"}
-                          </span>
-                          {canShowQr(session) && (
-                            <Button type="button" size="sm" variant="outline" className="h-7 gap-1.5 text-[11px]" onClick={() => { void openQrModal(session) }}>
-                              <QrCode className="h-3.5 w-3.5" />
-                              Trego QR
-                            </Button>
+
+              {/* Nested topics */}
+              {mod.topics.length > 0 && (
+                <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                  {mod.topics.map((topic) => (
+                    <button
+                      key={topic.id}
+                      type="button"
+                      onClick={() => setSelectedTopic({ topic, moduleName: mod.title })}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/60 cursor-pointer"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-foreground">{topic.name}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                          <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
+                          {topic.scheduledDate && (
+                            <span className="inline-flex items-center gap-0.5">
+                              <CalendarDays className="h-2.5 w-2.5" />
+                              {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                            </span>
+                          )}
+                          {topic.location && (
+                            <span className="inline-flex items-center gap-0.5">
+                              <MapPin className="h-2.5 w-2.5" />
+                              {topic.location}
+                            </span>
+                          )}
+                          {topic.documentCount > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-primary">
+                              <FileText className="h-2.5 w-2.5" />
+                              {topic.documentCount} dokument{topic.documentCount > 1 ? "e" : ""}
+                            </span>
                           )}
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Mentori: {session.mentorFirstName} {session.mentorLastName}
-                      </p>
-                      {session.notes && (
-                        <p className="text-xs text-muted-foreground mt-1">Shënime: {session.notes}</p>
-                      )}
-                      {session.rejectionReason && (
-                        <p className="text-xs text-destructive mt-1">Arsye refuzimi: {session.rejectionReason}</p>
-                      )}
-                    </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        {(() => {
+                          const topicIsToday = topic.scheduledDate ? format(parseISO(topic.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
+                          return topicIsToday && !topic.attended ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setShowModuleScanner(true)
+                                    setModuleScanNotice("")
+                                    setModuleScanError("")
+                                    setModuleScanManualToken("")
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); setShowModuleScanner(true); setModuleScanNotice(""); setModuleScanError(""); setModuleScanManualToken("") } }}
+                                  className="inline-flex items-center justify-center rounded-md p-1 text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                                >
+                                  <ScanLine className="h-3.5 w-3.5" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Skano</TooltipContent>
+                            </Tooltip>
+                          ) : null
+                        })()}
+                        {topic.attended ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            Prezent
+                          </span>
+                        ) : topic.scheduledDate && new Date(topic.scheduledDate) > new Date() ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                            Në pritje
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+                            Pa prezencë
+                          </span>
+                        )}
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    </button>
                   ))}
                 </div>
               )}
             </div>
-
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h3 className="text-base font-semibold text-foreground mb-3">Datat e ardhshme</h3>
-              {upcomingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nuk ka sesione të planifikuara.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/50">
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Data</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Ora</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Mentori</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Statusi</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">QR</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {upcomingSessions.map((session) => (
-                        <tr key={session.id} className="border-b border-border last:border-0">
-                          <td className="px-3 py-2 text-xs text-foreground">{format(parseISO(session.date), "dd MMM yyyy")}</td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground">{session.startTime} - {session.endTime}</td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground">{session.mentorFirstName} {session.mentorLastName}</td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground capitalize">{session.attendanceStatus}</td>
-                          <td className="px-3 py-2 text-xs">
-                            {canShowQr(session) ? (
-                              <Button type="button" size="sm" variant="outline" className="h-7 gap-1.5 text-[11px]" onClick={() => { void openQrModal(session) }}>
-                                <QrCode className="h-3.5 w-3.5" />
-                                QR
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
       )}
-
-      {qrSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <div>
-                <h3 className="text-base font-semibold text-foreground">QR për Prezencë</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {format(parseISO(qrSession.date), "dd MMM yyyy")} • {qrSession.startTime} - {qrSession.endTime}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setQrSession(null)
-                  setQrData(null)
-                  setQrError("")
-                }}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-5 text-center">
-              {qrLoading ? (
-                <p className="text-sm text-muted-foreground">Duke gjeneruar QR...</p>
-              ) : qrError ? (
-                <p className="text-sm text-destructive">{qrError}</p>
-              ) : qrData ? (
-                <div className="space-y-3">
-                  <div className="inline-block rounded-lg border border-border bg-white p-3">
-                    <QRCodeCanvas value={`IEKA-ST:${qrData.qrToken}`} size={220} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Kodi skadon më {format(parseISO(qrData.expiresAt), "dd MMM yyyy HH:mm")}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showMentorQrScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h3 className="text-sm font-semibold text-foreground">Skano QR të mentorit</h3>
-              <button
-                type="button"
-                onClick={() => setShowMentorQrScanner(false)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 p-4">
-              <div className="overflow-hidden rounded-xl border border-border bg-black aspect-square">
-                <Scanner
-                  onScan={(result) => {
-                    void handleMentorQrScannerResult(result)
-                  }}
-                  components={{ onOff: true, torch: true, zoom: false, finder: true }}
-                  styles={{ container: { width: "100%", height: "100%" } }}
-                />
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Ose vendos manualisht token-in e QR të mentorit nëse po përdorni skaner hardware.
-              </p>
-
-              <div className="flex items-center gap-2">
-                <Input
-                  value={mentorScanManualToken}
-                  onChange={(e) => setMentorScanManualToken(e.target.value)}
-                  placeholder="Vendos token-in QR të mentorit"
-                  className="h-9 text-xs font-mono"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-9 px-3"
-                  disabled={mentorScanBusy || !mentorScanManualToken.trim()}
-                  onClick={() => {
-                    void scanMentorAttendanceToken(mentorScanManualToken)
-                  }}
-                >
-                  {mentorScanBusy ? "..." : "Konfirmo"}
-                </Button>
-              </div>
-
-              {mentorScanNotice && (
-                <p className="rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700">
-                  {mentorScanNotice}
-                </p>
-              )}
-              {mentorScanError && (
-                <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {mentorScanError}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modulet e Mia ───────────────────────────────── */}
-      <div className="mt-8">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
-              <Library className="h-5 w-5 text-primary" />
-              Modulet e Mia
-            </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">Modulet ku jeni caktuar dhe statusi i prezencës</p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setShowModuleScanner(true)
-              setModuleScanNotice("")
-              setModuleScanError("")
-              setModuleScanManualToken("")
-            }}
-          >
-            <ScanLine className="mr-1.5 h-3.5 w-3.5" />
-            Skano Modulin
-          </Button>
-        </div>
-
-        {moduleScanNotice && (
-          <p className="mb-3 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700">
-            {moduleScanNotice}
-          </p>
-        )}
-
-        {myModulesLoading ? (
-          <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
-            Duke ngarkuar modulet...
-          </div>
-        ) : myModules.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
-            <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Nuk keni asnjë modul të caktuar akoma.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {myModules.map((mod) => (
-              <div key={mod.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={cn(
-                        "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                        mod.yearGrade === 1
-                          ? "bg-blue-500/10 text-blue-600"
-                          : mod.yearGrade === 2
-                            ? "bg-purple-500/10 text-purple-600"
-                            : "bg-emerald-500/10 text-emerald-600"
-                      )}>
-                        Viti {mod.yearGrade}
-                      </span>
-                      <h3 className="text-sm font-semibold text-foreground">{mod.title}</h3>
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      {mod.location && (
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {mod.location}
-                        </span>
-                      )}
-                      <span>{mod.topics.length} temë</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Nested topics */}
-                {mod.topics.length > 0 && (
-                  <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-                    {mod.topics.map((topic) => (
-                      <div key={topic.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-foreground">{topic.name}</p>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                            <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
-                            {topic.scheduledDate && (
-                              <span className="inline-flex items-center gap-0.5">
-                                <CalendarDays className="h-2.5 w-2.5" />
-                                {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
-                              </span>
-                            )}
-                            {topic.location && (
-                              <span className="inline-flex items-center gap-0.5">
-                                <MapPin className="h-2.5 w-2.5" />
-                                {topic.location}
-                              </span>
-                            )}
-                            {topic.documentCount > 0 && (
-                              <span>{topic.documentCount} dokument{topic.documentCount > 1 ? "e" : ""}</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="shrink-0">
-                          {topic.attended ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                              <CheckCircle2 className="h-2.5 w-2.5" />
-                              Prezent
-                            </span>
-                          ) : topic.scheduledDate && new Date(topic.scheduledDate) > new Date() ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
-                              Në pritje
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">
-                              Pa prezencë
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Module QR Scanner Modal */}
       {showModuleScanner && (
@@ -5154,129 +4902,373 @@ function StudentCalendarView() {
           </div>
         </div>
       )}
+
+      {/* Topic Detail Modal */}
+      {selectedTopic && (() => {
+        const t = selectedTopic.topic
+        const docs = t.documents ?? []
+        const isToday = t.scheduledDate ? format(parseISO(t.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-lg">
+              <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-foreground">{t.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{selectedTopic.moduleName}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTopic(null)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto p-5 space-y-4">
+                {/* Topic info */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Lektori:</span>
+                    <span className="font-medium text-foreground">{t.lecturer}</span>
+                  </div>
+                  {t.scheduledDate && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-foreground">{format(parseISO(t.scheduledDate), "dd MMM yyyy, HH:mm")}</span>
+                      {isToday && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Sot</span>
+                      )}
+                    </div>
+                  )}
+                  {t.location && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-foreground">{t.location}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    {t.attended ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Prezent
+                      </span>
+                    ) : t.scheduledDate && new Date(t.scheduledDate) > new Date() ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600">
+                        Në pritje
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-600">
+                        Pa prezencë
+                      </span>
+                    )}
+                    {t.attended && t.attendedAt && (
+                      <span className="text-[11px] text-muted-foreground">
+                        regjistruar më {format(parseISO(t.attendedAt), "dd MMM yyyy, HH:mm")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scan QR for today's topic */}
+                {isToday && !t.attended && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <p className="text-xs text-muted-foreground mb-2">Kjo temë është sot. Skanoni kodin QR për të regjistruar prezencën.</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => {
+                        setSelectedTopic(null)
+                        setShowModuleScanner(true)
+                        setModuleScanNotice("")
+                        setModuleScanError("")
+                        setModuleScanManualToken("")
+                      }}
+                    >
+                      <ScanLine className="h-3.5 w-3.5" />
+                      Skano
+                    </Button>
+                  </div>
+                )}
+
+                {/* Documents */}
+                {docs.length > 0 ? (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-primary" />
+                      Dokumentet ({docs.length})
+                    </h4>
+                    <div className="space-y-2">
+                      {docs.map((doc) => (
+                        <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                              <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {(doc.sizeBytes / 1024).toFixed(0)} KB • {format(parseISO(doc.uploadedAt), "dd MMM yyyy")}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1.5 shrink-0"
+                            disabled={downloadingDocId === doc.id}
+                            onClick={() => void handleDownloadDocument(doc)}
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            {downloadingDocId === doc.id ? "..." : "Shkarko"}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : t.documentCount > 0 ? (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-primary" />
+                      Dokumentet ({t.documentCount})
+                    </h4>
+                    <p className="text-xs text-muted-foreground italic">Rinisni serverin e backend-it për të parë dokumentet.</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">Nuk ka dokumente për këtë temë.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+      </>
     </div>
   )
 }
 
-function StudentFeedbackView() {
-  const [feedbackLoading, setFeedbackLoading] = useState(true)
-  const [feedbackError, setFeedbackError] = useState("")
-  const [feedbackRows, setFeedbackRows] = useState<StudentTrainingStazh[]>([])
+export function StudentEvaluationsView() {
+  const [evalSubTab, setEvalSubTab] = useState<EvalSubTab>("results")
+  const [myModules, setMyModules] = useState<StudentMyModuleResponse[]>([])
+  const [myModulesLoading, setMyModulesLoading] = useState(true)
+  const [myQResponses, setMyQResponses] = useState<MyQuestionnaireResponseItem[]>([])
+  const [myQLoading, setMyQLoading] = useState(false)
+  const [expandedQResponse, setExpandedQResponse] = useState<string | null>(null)
 
   useEffect(() => {
-    let isCancelled = false
-    const run = async () => {
-      setFeedbackLoading(true)
-      setFeedbackError("")
-      try {
-        const data = (await fetchApi("/StudentTraining/my-feedback")) as StudentTrainingStazh[]
-        if (!isCancelled) {
-          setFeedbackRows(data)
-        }
-      } catch (e: any) {
-        if (!isCancelled) {
-          setFeedbackRows([])
-          setFeedbackError(e?.message ?? "Gabim gjatë ngarkimit të feedback-ut.")
-        }
-      } finally {
-        if (!isCancelled) {
-          setFeedbackLoading(false)
-        }
-      }
-    }
-
-    void run()
-    return () => {
-      isCancelled = true
-    }
+    setMyModulesLoading(true)
+    fetchApi("/StudentModules/my-modules")
+      .then((data) => setMyModules(data as StudentMyModuleResponse[]))
+      .catch(() => setMyModules([]))
+      .finally(() => setMyModulesLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (evalSubTab === "questionnaires" && myQResponses.length === 0 && !myQLoading) {
+      setMyQLoading(true)
+      fetchApi("/StudentModules/my-questionnaire-responses")
+        .then((data) => setMyQResponses((data ?? []) as MyQuestionnaireResponseItem[]))
+        .catch(() => setMyQResponses([]))
+        .finally(() => setMyQLoading(false))
+    }
+  }, [evalSubTab])
+
+  const modulesWithResults = useMemo(() => myModules.filter(m => m.result), [myModules])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
       <div className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
-          <MessageSquareText className="h-5 w-5 text-primary" />
+          <ClipboardList className="h-5 w-5 text-primary" />
           Vlerësimet
         </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Feedback-u i mentorit dhe formulari juaj i vlerësimit për stazhin.
-        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Vlerësimet e moduleve dhe pyetësorët e plotësuar</p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
-          <MessageSquareText className="h-4 w-4 text-primary" />
-          Feedback i Stazhit
-        </h3>
+      <div className="mb-5 flex items-center gap-1 border-b border-border">
+        <button
+          onClick={() => setEvalSubTab("results")}
+          className={cn(
+            "whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+            evalSubTab === "results" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <GraduationCap className="h-3.5 w-3.5" />
+            Vlerësimi i modulit
+          </span>
+        </button>
+        <button
+          onClick={() => setEvalSubTab("questionnaires")}
+          className={cn(
+            "whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+            evalSubTab === "questionnaires" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
+            Pyetësorët
+          </span>
+        </button>
+      </div>
 
-        {feedbackLoading ? (
-          <p className="text-sm text-muted-foreground">Duke ngarkuar feedback-un...</p>
-        ) : feedbackError ? (
-          <p className="text-sm text-destructive">{feedbackError}</p>
-        ) : feedbackRows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground text-center">
-            Nuk ka stazh të mbyllur me feedback.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {feedbackRows.map((row) => (
-              <div key={row.id} className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      Mentori: {row.mentorFirstName} {row.mentorLastName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Nga {row.startedAt} deri më {row.endedAt ?? "—"}
-                    </p>
-                  </div>
-                  <span className="rounded px-2 py-0.5 text-[11px] font-medium bg-primary/10 text-primary">Stazh i mbyllur</span>
-                </div>
-
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-md border border-border bg-card px-3 py-2">
-                    <p className="text-xs font-medium text-foreground">Feedback nga mentori</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Vlerësim: {row.mentorFeedbackRating ?? 0}/5
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {row.mentorFeedbackComment ?? "Mentori nuk ka lënë koment."}
-                    </p>
-                  </div>
-
-                  <div className="rounded-md border border-border bg-card px-3 py-2">
-                    <p className="text-xs font-medium text-foreground">Feedback-u juaj</p>
-                    {row.studentFeedbackSubmittedAt ? (
-                      <>
-                        <p className="mt-1 text-xs text-muted-foreground">Vlerësim: {row.studentFeedbackRating ?? 0}/5</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{row.studentFeedbackComment ?? "Pa koment."}</p>
-                      </>
-                    ) : row.studentFeedbackToken ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-7 text-[11px]"
-                          onClick={() => {
-                            window.location.href = `/stazh-feedback?token=${encodeURIComponent(row.studentFeedbackToken ?? "")}`
-                          }}
-                        >
-                          Plotëso feedback
-                        </Button>
-                        <span className="text-[11px] text-muted-foreground">
-                          Afati: {row.studentFeedbackTokenExpiresAt ? format(parseISO(row.studentFeedbackTokenExpiresAt), "dd MMM yyyy HH:mm") : "—"}
+      {evalSubTab === "results" && (
+        <div>
+          {myModulesLoading ? (
+            <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
+              Duke ngarkuar...
+            </div>
+          ) : modulesWithResults.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+              <GraduationCap className="mb-3 h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Nuk ka vlerësime ende për modulet tuaja.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {modulesWithResults.map((mod) => (
+                <div key={mod.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn(
+                          "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                          mod.yearGrade === 1
+                            ? "bg-blue-500/10 text-blue-600"
+                            : mod.yearGrade === 2
+                              ? "bg-purple-500/10 text-purple-600"
+                              : "bg-emerald-500/10 text-emerald-600"
+                        )}>
+                          Viti {mod.yearGrade}
                         </span>
+                        <h3 className="text-sm font-semibold text-foreground">{mod.title}</h3>
                       </div>
-                    ) : (
-                      <p className="mt-1 text-xs text-muted-foreground">Feedback-u juaj nuk është dërguar ende.</p>
-                    )}
+                      {mod.location && (
+                        <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {mod.location}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold",
+                        mod.result?.toLowerCase() === "kaluar" || mod.result?.toLowerCase() === "kalueshëm"
+                          ? "bg-green-500/10 text-green-600"
+                          : mod.result?.toLowerCase() === "ngelur" || mod.result?.toLowerCase() === "nuk ka kaluar"
+                            ? "bg-red-500/10 text-red-600"
+                            : "bg-amber-500/10 text-amber-600"
+                      )}>
+                        {mod.result}
+                      </span>
+                    </div>
                   </div>
+                  {(mod.resultNote || mod.resultSetAt) && (
+                    <div className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+                      {mod.resultNote && <p>{mod.resultNote}</p>}
+                      {mod.resultSetAt && (
+                        <p className="mt-0.5 flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3" />
+                          Vendosur më {format(parseISO(mod.resultSetAt), "dd MMM yyyy, HH:mm")}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {evalSubTab === "questionnaires" && (
+        <div>
+          {myQLoading ? (
+            <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
+              Duke ngarkuar pyetësorët...
+            </div>
+          ) : myQResponses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+              <FileText className="mb-3 h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Nuk keni plotësuar asnjë pyetësor ende.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myQResponses.map((resp) => (
+                <div key={resp.responseId} className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedQResponse(expandedQResponse === resp.responseId ? null : resp.responseId)}
+                    className="flex w-full items-center justify-between gap-3 p-4 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                          resp.yearGrade === 1
+                            ? "bg-blue-500/10 text-blue-600"
+                            : resp.yearGrade === 2
+                              ? "bg-purple-500/10 text-purple-600"
+                              : "bg-emerald-500/10 text-emerald-600"
+                        )}>
+                          Viti {resp.yearGrade}
+                        </span>
+                        <p className="text-sm font-semibold text-foreground">{resp.questionnaireTitle}</p>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {resp.topicName} • {resp.moduleName}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground flex items-center gap-1">
+                        <CalendarDays className="h-3 w-3" />
+                        Plotësuar më {format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-medium text-green-600">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Plotësuar
+                      </span>
+                      <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", expandedQResponse === resp.responseId && "rotate-90")} />
+                    </div>
+                  </button>
+                  {expandedQResponse === resp.responseId && (
+                    <div className="border-t border-border px-4 pb-4">
+                      <div className="mt-3 space-y-2">
+                        {resp.answers.map((a, i) => (
+                          <div key={a.questionId} className="rounded-lg bg-muted/30 p-3">
+                            <p className="text-xs text-muted-foreground mb-1">
+                              {i + 1}. {a.questionText}
+                              <span className={cn(
+                                "ml-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium",
+                                a.questionType === "Stars" ? "bg-amber-500/10 text-amber-600"
+                                  : a.questionType === "Options" ? "bg-blue-500/10 text-blue-600"
+                                    : "bg-muted text-muted-foreground"
+                              )}>
+                                {a.questionType === "Stars" ? "Yje" : a.questionType === "Options" ? "Opsione" : "Tekst i lirë"}
+                              </span>
+                            </p>
+                            {a.questionType === "Stars" ? (
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <Star
+                                    key={s}
+                                    className={cn("h-4 w-4", s <= Number(a.answer) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")}
+                                  />
+                                ))}
+                                <span className="ml-1 text-xs text-muted-foreground">({a.answer}/5)</span>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-foreground">{a.answer}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

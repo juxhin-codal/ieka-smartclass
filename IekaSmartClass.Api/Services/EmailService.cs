@@ -1,6 +1,4 @@
 using System.Net;
-using System.Net.Mail;
-using System.Net.Mime;
 using System.Text.RegularExpressions;
 using IekaSmartClass.Api.Data.Entities;
 using IekaSmartClass.Api.Services.Interface;
@@ -21,7 +19,6 @@ public class EmailService(
     private readonly EmailSettings _settings = emailOptions.Value;
     private readonly IHostEnvironment _hostEnvironment = hostEnvironment;
     private readonly ILogger<EmailService> _logger = logger;
-    private const string InlineLogoContentId = "ieka-smartclass-logo";
 
     public Task SendAccountConfirmationLinkAsync(AppUser user, string confirmationCode, CancellationToken cancellationToken = default)
     {
@@ -426,31 +423,10 @@ public class EmailService(
         }
         message.Subject = subject;
 
-        var logoResource = TryLoadInlineLogoResource();
-        var bodyBuilder = new BodyBuilder();
-
-        if (logoResource is not null)
+        var bodyBuilder = new BodyBuilder
         {
-            bodyBuilder.TextBody = BuildPlainTextBody(body);
-            var linkedResource = bodyBuilder.LinkedResources.Add(
-                InlineLogoContentId,
-                logoResource.Value.bytes,
-                MimeKit.ContentType.Parse(logoResource.Value.mimeType));
-            linkedResource.ContentId = InlineLogoContentId;
-            bodyBuilder.HtmlBody = body;
-        }
-        else
-        {
-            var htmlBody = body;
-            if (body.Contains($"cid:{InlineLogoContentId}", StringComparison.OrdinalIgnoreCase))
-            {
-                htmlBody = body.Replace(
-                    $"cid:{InlineLogoContentId}",
-                    BuildPublicUri("/logo-transparent.png"),
-                    StringComparison.OrdinalIgnoreCase);
-            }
-            bodyBuilder.HtmlBody = htmlBody;
-        }
+            HtmlBody = body
+        };
 
         message.Body = bodyBuilder.ToMessageBody();
 
@@ -560,8 +536,7 @@ public class EmailService(
 
         var mergedTokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["APP_NAME"] = _settings.AppName,
-            ["LOGO_URL"] = BuildLogoUrlToken()
+            ["APP_NAME"] = _settings.AppName
         };
 
         if (tokens is not null)
@@ -585,109 +560,6 @@ public class EmailService(
     private static string ReplaceToken(string template, string token, string value)
     {
         return Regex.Replace(template, @"\{\{\s*" + Regex.Escape(token) + @"\s*\}\}", value);
-    }
-
-    private string BuildLogoUrlToken()
-    {
-        return TryResolveEmailLogoPath(out _)
-            ? $"cid:{InlineLogoContentId}"
-            : BuildPublicUri("/logo-transparent.png");
-    }
-
-    private AlternateView? CreateHtmlViewWithInlineLogo(string body)
-    {
-        if (!body.Contains($"cid:{InlineLogoContentId}", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var logoResource = CreateInlineLogoResource();
-        if (logoResource is null)
-        {
-            return null;
-        }
-
-        var htmlView = AlternateView.CreateAlternateViewFromString(body, null, MediaTypeNames.Text.Html);
-        htmlView.LinkedResources.Add(logoResource);
-        return htmlView;
-    }
-
-    private LinkedResource? CreateInlineLogoResource()
-    {
-        if (!TryResolveEmailLogoPath(out var logoPath))
-        {
-            return null;
-        }
-
-        try
-        {
-            var resource = new LinkedResource(logoPath, "image/png")
-            {
-                ContentId = InlineLogoContentId,
-                TransferEncoding = TransferEncoding.Base64
-            };
-            resource.ContentType.Name = Path.GetFileName(logoPath);
-            return resource;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not attach email logo from {LogoPath}", logoPath);
-            return null;
-        }
-    }
-
-    private (byte[] bytes, string mimeType)? TryLoadInlineLogoResource()
-    {
-        if (!TryResolveEmailLogoPath(out var logoPath))
-            return null;
-
-        try
-        {
-            return (File.ReadAllBytes(logoPath), "image/png");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not load email logo from {LogoPath}", logoPath);
-            return null;
-        }
-    }
-
-    private bool TryResolveEmailLogoPath(out string logoPath)
-    {
-        var candidates = new[]
-        {
-            Path.Combine(_hostEnvironment.ContentRootPath, "Templates", "Emails", "logo-transparent.png"),
-            Path.Combine(_hostEnvironment.ContentRootPath, "..", "public", "logo-transparent.png"),
-            Path.Combine(_hostEnvironment.ContentRootPath, "public", "logo-transparent.png")
-        };
-
-        foreach (var candidate in candidates)
-        {
-            var fullPath = Path.GetFullPath(candidate);
-            if (File.Exists(fullPath))
-            {
-                logoPath = fullPath;
-                return true;
-            }
-        }
-
-        logoPath = string.Empty;
-        return false;
-    }
-
-    private static string BuildPlainTextBody(string html)
-    {
-        var withLineBreaks = Regex.Replace(html, @"<\s*br\s*/?>", "\n", RegexOptions.IgnoreCase);
-        withLineBreaks = Regex.Replace(withLineBreaks, @"<\s*/\s*(p|div|tr|li|h1|h2|h3)\s*>", "\n", RegexOptions.IgnoreCase);
-        var withoutTags = Regex.Replace(withLineBreaks, "<[^>]+>", string.Empty);
-        return WebUtility.HtmlDecode(withoutTags).Trim();
-    }
-
-    private string BuildPublicUri(string path)
-    {
-        var baseUrl = (_settings.FrontendBaseUrl ?? "http://localhost:3000").TrimEnd('/');
-        var normalizedPath = path.StartsWith('/') ? path : $"/{path}";
-        return $"{baseUrl}{normalizedPath}";
     }
 
     private static string BuildScheduleRows(IReadOnlyList<TrainingScheduleEmailItem> sessions)

@@ -43,7 +43,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
                     router.replace("/students")
                 }
             } else if (user.role === "Student") {
-                // Students are limited to studies, own documents and evaluations.
+                // Students are limited to studies, own documents, and evaluations.
                 if (!pathname.startsWith("/students") && !pathname.startsWith("/my-documents") && !pathname.startsWith("/my-evaluations")) {
                     router.replace("/students")
                 }
@@ -59,25 +59,25 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
         )
     }
 
-    const activeTab: TabKey = pathname.startsWith("/my-evaluations")
-        ? "myEvaluations"
-        : pathname.startsWith("/attendance")
+    const activeTab: TabKey = pathname.startsWith("/attendance")
         ? "attendance"
-        : pathname.startsWith("/my-documents")
-        ? "myDocuments"
-        : pathname.startsWith("/my-history")
-        ? "myHistory"
-        : pathname.startsWith("/modules")
-            ? (user?.role === "Member" ? "myModules" : "events")
-            : pathname.startsWith("/members")
-                ? "members"
-                : pathname.startsWith("/students")
-                    ? (user?.role === "Mentor" || user?.role === "Student" ? "studies" : "students")
-                    : pathname.startsWith("/reports")
-                        ? "reports"
-                        : pathname.startsWith("/settings")
-                            ? "settings"
-                            : "dashboard"
+        : pathname.startsWith("/my-evaluations")
+            ? "myEvaluations"
+            : pathname.startsWith("/my-documents")
+                ? "myDocuments"
+                : pathname.startsWith("/my-history")
+                    ? "myHistory"
+                    : pathname.startsWith("/modules")
+                        ? (user?.role === "Member" ? "myModules" : "events")
+                        : pathname.startsWith("/members")
+                            ? "members"
+                            : pathname.startsWith("/students")
+                                ? (user?.role === "Mentor" || user?.role === "Student" ? "studies" : "students")
+                                : pathname.startsWith("/reports")
+                                    ? "reports"
+                                    : pathname.startsWith("/settings")
+                                        ? "settings"
+                                        : "dashboard"
 
     function navigateTab(tab: TabKey) {
         if (tab === "events" || tab === "myModules") {

@@ -478,7 +478,9 @@ public class StudentModulesController(
                 t.Location,
                 t.Documents.Count,
                 t.Attendances.Any(a => a.StudentId == studentId),
-                t.Attendances.FirstOrDefault(a => a.StudentId == studentId)?.AttendedAt.ToString("o"))).ToList())));
+                t.Attendances.FirstOrDefault(a => a.StudentId == studentId)?.AttendedAt.ToString("o"),
+                t.Documents.Select(d => new StudentModuleDocumentResponse(
+                    d.Id, d.FileName, d.FileUrl, d.RelativePath, d.SizeBytes, d.UploadedAt.ToString("o"))).ToList())).ToList())));
     }
 
     [HttpGet("my-modules")]
@@ -490,21 +492,30 @@ public class StudentModulesController(
         if (context.UserId is null) return Unauthorized();
 
         var modules = await _studentModuleService.GetMyModulesAsync(context.UserId.Value, cancellationToken);
-        return Ok(modules.Select(m => new StudentMyModuleResponse(
-            m.Id,
-            m.YearGrade,
-            m.Title,
-            m.Location,
-            m.CreatedAt.ToString("o"),
-            m.Topics.Select(t => new StudentMyTopicResponse(
-                t.Id,
-                t.Name,
-                t.Lecturer,
-                t.ScheduledDate?.ToString("o"),
-                t.Location,
-                t.Documents.Count,
-                t.Attendances.Any(a => a.StudentId == context.UserId.Value),
-                t.Attendances.FirstOrDefault(a => a.StudentId == context.UserId.Value)?.AttendedAt.ToString("o"))).ToList())));
+        return Ok(modules.Select(m =>
+        {
+            var assignment = m.Assignments.FirstOrDefault(a => a.StudentId == context.UserId.Value);
+            return new StudentMyModuleResponse(
+                m.Id,
+                m.YearGrade,
+                m.Title,
+                m.Location,
+                m.CreatedAt.ToString("o"),
+                m.Topics.Select(t => new StudentMyTopicResponse(
+                    t.Id,
+                    t.Name,
+                    t.Lecturer,
+                    t.ScheduledDate?.ToString("o"),
+                    t.Location,
+                    t.Documents.Count,
+                    t.Attendances.Any(a => a.StudentId == context.UserId.Value),
+                    t.Attendances.FirstOrDefault(a => a.StudentId == context.UserId.Value)?.AttendedAt.ToString("o"),
+                    t.Documents.Select(d => new StudentModuleDocumentResponse(
+                        d.Id, d.FileName, d.FileUrl, d.RelativePath, d.SizeBytes, d.UploadedAt.ToString("o"))).ToList())).ToList(),
+                assignment?.Result,
+                assignment?.ResultNote,
+                assignment?.ResultSetAt?.ToString("o"));
+        }));
     }
 
     // ── Questionnaire endpoints ──────────────────────────────────────────────
@@ -697,6 +708,61 @@ public class StudentModulesController(
                 string.IsNullOrEmpty(x.OptionsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<List<string>>(x.OptionsJson))).ToList(),
             q.Responses.Count));
     }
+
+    [HttpGet("questionnaires/by-token")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> GetQuestionnaireByToken(
+        [FromQuery] string token,
+        [FromServices] IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        if (context.UserId is null) return Unauthorized();
+
+        if (string.IsNullOrWhiteSpace(token))
+            return BadRequest(new { message = "Kodi QR është i detyrueshëm." });
+
+        try
+        {
+            var (questionnaire, alreadyAnswered) = await _studentModuleService.GetQuestionnaireByQrTokenAsync(
+                token, context.UserId.Value, cancellationToken);
+
+            return Ok(new QuestionnaireByTokenResponse(
+                questionnaire.Id,
+                questionnaire.Title,
+                alreadyAnswered,
+                questionnaire.Questions.OrderBy(x => x.Order).Select(x => new QuestionnaireQuestionResponse(
+                    x.Id, x.Text, x.Type.ToString(), x.Order,
+                    string.IsNullOrEmpty(x.OptionsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<List<string>>(x.OptionsJson))).ToList()));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("my-questionnaire-responses")]
+    [Authorize(Roles = "Student")]
+    public async Task<IActionResult> GetMyQuestionnaireResponses(
+        [FromServices] IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        if (context.UserId is null) return Unauthorized();
+
+        var responses = await _studentModuleService.GetMyQuestionnaireResponsesAsync(context.UserId.Value, cancellationToken);
+        return Ok(responses.Select(r => new MyQuestionnaireResponseItem(
+            r.Id,
+            r.QuestionnaireId,
+            r.Questionnaire?.Title ?? "",
+            r.Questionnaire?.Topic?.Name ?? "",
+            r.Questionnaire?.Topic?.StudentModule?.Title ?? "",
+            r.Questionnaire?.Topic?.StudentModule?.YearGrade ?? 0,
+            r.SubmittedAt.ToString("o"),
+            r.Answers.Select(a => new QuestionnaireAnswerItem(
+                a.QuestionId,
+                a.Question?.Text ?? "",
+                a.Question?.Type.ToString() ?? "",
+                a.AnswerText)).ToList())));
+    }
 }
 
 // ── DTOs ────────────────────────────────────────────────────────────────────
@@ -790,7 +856,10 @@ public record StudentMyModuleResponse(
     string Title,
     string? Location,
     string CreatedAt,
-    List<StudentMyTopicResponse> Topics);
+    List<StudentMyTopicResponse> Topics,
+    string? Result = null,
+    string? ResultNote = null,
+    string? ResultSetAt = null);
 
 public record StudentMyTopicResponse(
     Guid Id,
@@ -800,7 +869,8 @@ public record StudentMyTopicResponse(
     string? Location,
     int DocumentCount,
     bool Attended,
-    string? AttendedAt);
+    string? AttendedAt,
+    List<StudentModuleDocumentResponse>? Documents = null);
 
 // ── Questionnaire DTOs ──────────────────────────────────────────────────────
 
@@ -833,6 +903,12 @@ public record QuestionnaireQrResponse(
     Guid QuestionnaireId,
     string Token);
 
+public record QuestionnaireByTokenResponse(
+    Guid Id,
+    string Title,
+    bool AlreadyAnswered,
+    List<QuestionnaireQuestionResponse> Questions);
+
 public record SubmitQuestionnaireRequest(
     string QrToken,
     List<SubmitAnswerItem> Answers);
@@ -854,3 +930,13 @@ public record QuestionnaireAnswerItem(
     string QuestionText,
     string QuestionType,
     string Answer);
+
+public record MyQuestionnaireResponseItem(
+    Guid ResponseId,
+    Guid QuestionnaireId,
+    string QuestionnaireTitle,
+    string TopicName,
+    string ModuleName,
+    int YearGrade,
+    string SubmittedAt,
+    List<QuestionnaireAnswerItem> Answers);

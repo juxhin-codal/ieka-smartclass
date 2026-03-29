@@ -1,21 +1,26 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import {
   BookOpen,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  Download,
+  FileText,
+  FolderOpen,
   X,
 } from "lucide-react"
 
-import { fetchApi } from "@/lib/api-client"
+import { fetchApi, fetchWithAuth } from "@/lib/api-client"
 import type {
   AppUser,
+  StazhItem,
   StudentMyModuleResponse,
 } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—"
@@ -42,15 +47,50 @@ interface StudentHistoryModalProps {
   onClose: () => void
 }
 
+const STUDENT_UPLOADER_TAG = "[uploader:student]"
+
+function parseStudentDocDescription(description?: string): string {
+  const raw = (description ?? "").trim()
+  if (raw.toLowerCase().startsWith(STUDENT_UPLOADER_TAG)) {
+    return raw.slice(STUDENT_UPLOADER_TAG.length).trim()
+  }
+  return raw
+}
+
 export function StudentHistoryModal({ student, onClose }: StudentHistoryModalProps) {
   const [studentModules, setStudentModules] = useState<StudentMyModuleResponse[]>([])
+  const [studentDocs, setStudentDocs] = useState<{ id: string; fileName: string; fileUrl: string; description: string; uploadedAt: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [modulesExpanded, setModulesExpanded] = useState(false)
+  const [docsExpanded, setDocsExpanded] = useState(false)
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
+
+  const handleDownload = useCallback(async (fileUrl: string, fileName: string, docId: string) => {
+    setDownloadingDocId(docId)
+    try {
+      const response = await fetchWithAuth(fileUrl, { method: "GET" })
+      if (!response.ok) throw new Error("Nuk u shkarkua dokumenti.")
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = objectUrl
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      // silent fail
+    } finally {
+      setDownloadingDocId(null)
+    }
+  }, [])
 
   useEffect(() => {
     if (!student) {
       setStudentModules([])
+      setStudentDocs([])
       setError("")
       return
     }
@@ -61,14 +101,37 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
       setLoading(true)
       setError("")
       try {
-        const modulesResponse = await fetchApi(`/StudentModules/student/${student.id}/modules`) as StudentMyModuleResponse[]
+        const [modulesResponse, stazhResponse] = await Promise.all([
+          fetchApi(`/StudentModules/student/${student.id}/modules`) as Promise<StudentMyModuleResponse[]>,
+          fetchApi(`/Stazh/student/${student.id}`) as Promise<StazhItem[]>,
+        ])
 
         if (cancelled) return
 
         setStudentModules(modulesResponse ?? [])
+
+        // Extract student-uploaded documents from all stazhet
+        const docs: typeof studentDocs = []
+        for (const stazh of stazhResponse ?? []) {
+          for (const doc of stazh.documents ?? []) {
+            const desc = (doc.description ?? "").toLowerCase()
+            if (desc.startsWith(STUDENT_UPLOADER_TAG)) {
+              docs.push({
+                id: doc.id,
+                fileName: doc.fileName,
+                fileUrl: doc.fileUrl,
+                description: parseStudentDocDescription(doc.description),
+                uploadedAt: doc.uploadedAt,
+              })
+            }
+          }
+        }
+        docs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+        setStudentDocs(docs)
       } catch (e: any) {
         if (!cancelled) {
           setStudentModules([])
+          setStudentDocs([])
           setError(e?.message ?? "Gabim gjatë ngarkimit të historikut të studentit.")
         }
       } finally {
@@ -95,6 +158,21 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
   const now = new Date()
   const upcomingTopics = allTopics.filter(t => !t.attended && t.scheduledDate && new Date(t.scheduledDate) > now)
   const missedTopics = allTopics.filter(t => !t.attended && (!t.scheduledDate || new Date(t.scheduledDate) <= now))
+
+  // Gather all topic documents across modules
+  const allTopicDocs = useMemo(() => {
+    const docs: { id: string; fileName: string; fileUrl: string; relativePath: string; sizeBytes: number; uploadedAt: string; topicName: string; moduleName: string }[] = []
+    for (const mod of studentModules) {
+      for (const topic of mod.topics ?? []) {
+        for (const doc of topic.documents ?? []) {
+          docs.push({ ...doc, topicName: topic.name, moduleName: mod.title })
+        }
+      }
+    }
+    return docs
+  }, [studentModules])
+
+  const totalDocs = allTopicDocs.length + studentDocs.length
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
@@ -244,6 +322,107 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
                             )}
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Documents section */}
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setDocsExpanded(v => !v)}
+                  className="flex w-full items-center justify-between p-4 text-left"
+                >
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <FolderOpen className="h-4 w-4 text-primary" />
+                      Dokumentet
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {totalDocs} dokumente ({allTopicDocs.length} tema • {studentDocs.length} ngarkuar nga studenti)
+                    </p>
+                  </div>
+                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", docsExpanded && "rotate-90")} />
+                </button>
+                {docsExpanded && (
+                  <div className="border-t border-border px-4 pb-4">
+                    {totalDocs === 0 ? (
+                      <p className="mt-4 rounded-lg border border-dashed border-border px-4 py-8 text-sm text-muted-foreground text-center">
+                        Nuk ka dokumente për këtë student.
+                      </p>
+                    ) : (
+                      <div className="mt-4 space-y-4">
+                        {/* Student-uploaded documents */}
+                        {studentDocs.length > 0 && (
+                          <div className="rounded-xl border border-border/70 bg-muted/10 overflow-hidden">
+                            <div className="px-4 py-3 bg-muted/20">
+                              <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-indigo-500" />
+                                Dokumente të ngarkuara nga studenti
+                              </p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{studentDocs.length} dokumente</p>
+                            </div>
+                            <div className="divide-y divide-border/50">
+                              {studentDocs.map((doc) => (
+                                <div key={doc.id} className="px-4 py-2.5 flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                      {doc.description ? `${doc.description} • ` : ""}{formatDateTime(doc.uploadedAt)}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 shrink-0"
+                                    disabled={downloadingDocId === doc.id}
+                                    onClick={() => void handleDownload(doc.fileUrl, doc.fileName, doc.id)}
+                                  >
+                                    <Download className={cn("h-4 w-4", downloadingDocId === doc.id && "animate-pulse")} />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Topic documents grouped by module */}
+                        {allTopicDocs.length > 0 && (
+                          <div className="rounded-xl border border-border/70 bg-muted/10 overflow-hidden">
+                            <div className="px-4 py-3 bg-muted/20">
+                              <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                <BookOpen className="h-4 w-4 text-primary" />
+                                Dokumente nga temat
+                              </p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{allTopicDocs.length} dokumente</p>
+                            </div>
+                            <div className="divide-y divide-border/50">
+                              {allTopicDocs.map((doc) => (
+                                <div key={doc.id} className="px-4 py-2.5 flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                      {doc.topicName} • {doc.moduleName}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 shrink-0"
+                                    disabled={downloadingDocId === doc.id}
+                                    onClick={() => void handleDownload(doc.fileUrl, doc.fileName, doc.id)}
+                                  >
+                                    <Download className={cn("h-4 w-4", downloadingDocId === doc.id && "animate-pulse")} />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

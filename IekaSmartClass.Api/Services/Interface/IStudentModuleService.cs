@@ -45,6 +45,8 @@ public interface IStudentModuleService
     Task<string> GenerateQuestionnaireQrTokenAsync(Guid questionnaireId, CancellationToken cancellationToken = default);
     Task<TopicQuestionnaireResponse> SubmitQuestionnaireAsync(string qrToken, Guid studentId, List<QuestionnaireAnswerInput> answers, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TopicQuestionnaireResponse>> GetQuestionnaireResponsesAsync(Guid questionnaireId, CancellationToken cancellationToken = default);
+    Task<(TopicQuestionnaire Questionnaire, bool AlreadyAnswered)> GetQuestionnaireByQrTokenAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TopicQuestionnaireResponse>> GetMyQuestionnaireResponsesAsync(Guid studentId, CancellationToken cancellationToken = default);
 }
 
 public sealed record CreateStudentModuleInput(

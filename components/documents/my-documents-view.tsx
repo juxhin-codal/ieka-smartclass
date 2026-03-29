@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { format, parseISO } from "date-fns"
 import { fetchApi, fetchWithAuth } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth-context"
-import type { StazhDocument, StazhItem } from "@/lib/data"
+import type { StazhDocument, StazhItem, StudentMyModuleResponse } from "@/lib/data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChevronDown, ChevronRight, Download, FileText, FolderOpen, RefreshCw, Trash2, Upload, Users } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, FileText, FolderOpen, Library, RefreshCw, Trash2, Upload, Users } from "lucide-react"
 
 type StudentSummaryApi = {
   id: string
@@ -298,8 +298,8 @@ function MentorStudentDocumentsCard({
         </div>
         <span
           className={`rounded-full px-2 py-0.5 text-xs font-medium ${student.isActive === false
-              ? "bg-red-500/10 text-red-600"
-              : "bg-green-500/10 text-green-600"
+            ? "bg-red-500/10 text-red-600"
+            : "bg-green-500/10 text-green-600"
             }`}
         >
           {student.isActive === false ? "Inactive" : "Active"}
@@ -680,7 +680,7 @@ function MentorDocumentsPanel({
 
     const allDocuments: MentorOwnDocument[] = []
     stazhet.forEach((stazh) => {
-      ;(stazh.documents ?? []).forEach((doc) => {
+      ; (stazh.documents ?? []).forEach((doc) => {
         const parsed = parseDocumentOrigin(doc.description)
         if (parsed.origin !== "mentor") {
           return
@@ -924,157 +924,176 @@ function StudentDocumentsPanel({
   downloadError: string
   onClearDownloadError: () => void
 }) {
-  const [stazhet, setStazhet] = useState<StazhItem[]>([])
-  const [selectedStazhId, setSelectedStazhId] = useState("")
+  const [modules, setModules] = useState<StudentMyModuleResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null)
 
+  // Student upload state
+  const [stazhet, setStazhet] = useState<StazhItem[]>([])
+  const [myDocs, setMyDocs] = useState<{ id: string; stazhId: string; fileName: string; fileUrl: string; description: string; uploadedAt: string }[]>([])
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadFileName, setUploadFileName] = useState("")
   const [uploadDescription, setUploadDescription] = useState("")
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState("")
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState("")
-
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const loadStudentStazhet = useCallback(async () => {
-    if (!isGuid(userId)) {
-      setLoading(false)
-      setError("Përdoruesi aktual nuk ka identifikues të vlefshëm.")
-      setStazhet([])
-      return
-    }
-
+  const loadModules = useCallback(async () => {
     onClearDownloadError()
-    setDeleteError("")
     setLoading(true)
     setError("")
-
     try {
-      const response = (await fetchApi(`/Stazh/student/${userId}`)) as StazhItem[]
-      const sorted = [...(response ?? [])].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
-      setStazhet(sorted)
+      const data = (await fetchApi("/StudentModules/my-modules")) as StudentMyModuleResponse[]
+      setModules(data)
     } catch (e: any) {
-      setStazhet([])
+      setModules([])
       setError(e?.message ?? "Gabim gjatë ngarkimit të dokumenteve.")
     } finally {
       setLoading(false)
     }
-  }, [onClearDownloadError, userId])
+  }, [onClearDownloadError])
+
+  const loadStazhet = useCallback(async () => {
+    try {
+      const data = (await fetchApi(`/Stazh/student/${userId}`)) as StazhItem[]
+      setStazhet(data ?? [])
+
+      // Extract student-uploaded docs
+      const docs: typeof myDocs = []
+      for (const stazh of data ?? []) {
+        for (const doc of stazh.documents ?? []) {
+          const parsed = parseDocumentOrigin(doc.description)
+          if (parsed.origin === "student") {
+            docs.push({
+              id: doc.id,
+              stazhId: stazh.id,
+              fileName: doc.fileName,
+              fileUrl: doc.fileUrl,
+              description: parsed.cleanDescription,
+              uploadedAt: doc.uploadedAt,
+            })
+          }
+        }
+      }
+      docs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+      setMyDocs(docs)
+    } catch {
+      setStazhet([])
+      setMyDocs([])
+    }
+  }, [userId])
 
   useEffect(() => {
-    void loadStudentStazhet()
-  }, [loadStudentStazhet])
+    void loadModules()
+    void loadStazhet()
+  }, [loadModules, loadStazhet])
 
-  useEffect(() => {
-    if (stazhet.length === 0) {
-      setSelectedStazhId("")
+  const allDocuments = useMemo(() => {
+    const docs: { id: string; fileName: string; fileUrl: string; sizeBytes: number; uploadedAt: string; topicName: string; moduleName: string }[] = []
+    modules.forEach((mod) => {
+      mod.topics.forEach((t) => {
+        ; (t.documents ?? []).forEach((d) => {
+          docs.push({
+            id: d.id,
+            fileName: d.fileName,
+            fileUrl: d.fileUrl,
+            sizeBytes: d.sizeBytes,
+            uploadedAt: d.uploadedAt,
+            topicName: t.name,
+            moduleName: mod.title,
+          })
+        })
+      })
+    })
+    return docs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+  }, [modules])
+
+  const totalDocumentCount = useMemo(() =>
+    modules.reduce((sum, mod) => sum + mod.topics.reduce((s, t) => s + (t.documentCount ?? 0), 0), 0),
+    [modules]
+  )
+
+  const totalTopicsWithDocs = useMemo(() =>
+    modules.reduce((sum, mod) => sum + mod.topics.filter(t => (t.documentCount ?? 0) > 0).length, 0),
+    [modules]
+  )
+
+  // The first stazh is used for uploads
+  const uploadStazhId = stazhet[0]?.id ?? null
+
+  async function handleUpload() {
+    if (!uploadFile || !uploadStazhId) return
+    if (!isPdfFile(uploadFile)) {
+      setUploadError("Lejohet vetëm skedar PDF.")
       return
     }
 
-    const exists = stazhet.some((stazh) => stazh.id === selectedStazhId)
-    if (!exists) {
-      setSelectedStazhId(stazhet[0].id)
-    }
-  }, [selectedStazhId, stazhet])
-
-  const selectedStazh = useMemo(
-    () => stazhet.find((stazh) => stazh.id === selectedStazhId) ?? null,
-    [selectedStazhId, stazhet]
-  )
-
-  const documents = useMemo(() => {
-    if (!selectedStazh) return [] as Array<StazhDocument & { cleanDescription: string; origin: DocumentOrigin }>
-
-    return [...(selectedStazh.documents ?? [])]
-      .map((doc) => {
-        const parsed = parseDocumentOrigin(doc.description)
-        return {
-          ...doc,
-          cleanDescription: parsed.cleanDescription,
-          origin: parsed.origin,
-        }
-      })
-      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-  }, [selectedStazh])
-
-  async function handleUpload() {
-    if (!selectedStazh || !uploadFile) return
-
-    setUploadError("")
     setUploading(true)
+    setUploadError("")
     try {
-      const body = new FormData()
-      body.append("file", uploadFile)
+      const formData = new FormData()
+      formData.append("file", uploadFile)
+      formData.append("fileName", uploadFileName.trim() || uploadFile.name)
+      formData.append("description", withDocumentOriginTag(uploadDescription, "student"))
 
-      if (uploadFileName.trim()) {
-        body.append("fileName", uploadFileName.trim())
-      }
-
-      const taggedDescription = withDocumentOriginTag(uploadDescription.trim(), "student")
-      if (taggedDescription.trim()) {
-        body.append("description", taggedDescription)
-      }
-
-      await fetchApi(`/Stazh/${selectedStazh.id}/documents/upload`, {
+      const response = await fetchWithAuth(`/api/Stazh/${uploadStazhId}/documents/upload`, {
         method: "POST",
-        body,
+        body: formData,
       })
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.message ?? "Gabim gjatë ngarkimit.")
+      }
 
       setUploadFile(null)
       setUploadFileName("")
       setUploadDescription("")
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
-      await loadStudentStazhet()
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      await loadStazhet()
     } catch (e: any) {
-      setUploadError(e?.message ?? "Gabim gjatë ngarkimit të dokumentit.")
+      setUploadError(e?.message ?? "Gabim gjatë ngarkimit.")
     } finally {
       setUploading(false)
     }
   }
 
-  const handleDeleteDocument = useCallback(
-    async (documentId: string) => {
-      if (!selectedStazh) {
-        return
-      }
-
-      if (!window.confirm("A dëshironi ta fshini këtë dokument?")) {
-        return
-      }
-
-      setDeleteError("")
-      setDeletingDocId(documentId)
-      try {
-        await fetchApi(`/Stazh/${selectedStazh.id}/documents/${documentId}`, {
-          method: "DELETE",
-        })
-        await loadStudentStazhet()
-      } catch (e: any) {
-        setDeleteError(e?.message ?? "Gabim gjatë fshirjes së dokumentit.")
-      } finally {
-        setDeletingDocId(null)
-      }
-    },
-    [loadStudentStazhet, selectedStazh]
-  )
+  async function handleDeleteDoc(stazhId: string, docId: string) {
+    setDeletingDocId(docId)
+    try {
+      await fetchApi(`/Stazh/${stazhId}/documents/${docId}`, { method: "DELETE" })
+      await loadStazhet()
+    } catch {
+      // silent
+    } finally {
+      setDeletingDocId(null)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
-          <FolderOpen className="h-5 w-5 text-primary" />
-          Dokumentet e mia
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Dokumentet e stazhit: ato të ngarkuara nga mentori dhe ato që ngarkoni ju.
-        </p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+            <FolderOpen className="h-5 w-5 text-primary" />
+            Dokumentet e mia
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Dokumentet e moduleve dhe dokumentet tuaja personale.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={() => { void loadModules(); void loadStazhet() }}
+          disabled={loading}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          Rifresko
+        </Button>
       </div>
 
       {downloadError && (
@@ -1083,139 +1102,72 @@ function StudentDocumentsPanel({
         </p>
       )}
 
-      {deleteError && (
-        <p className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {deleteError}
-        </p>
+      {/* Student upload section */}
+      {uploadStazhId && (
+        <div className="mb-4 rounded-xl border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Upload className="h-4 w-4 text-primary" />
+            Ngarko dokument
+          </h2>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Skedari (vetëm PDF)</Label>
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,application/pdf"
+                className="mt-1 h-9 text-xs"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null
+                  setUploadFile(f)
+                  if (f && !uploadFileName.trim()) setUploadFileName(f.name.replace(/\.pdf$/i, ""))
+                }}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Emri i dokumentit</Label>
+              <Input
+                value={uploadFileName}
+                onChange={(e) => setUploadFileName(e.target.value)}
+                placeholder="p.sh. Certifikatë, Raport, etj."
+                className="mt-1 h-9 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Përshkrimi (opsional)</Label>
+              <Input
+                value={uploadDescription}
+                onChange={(e) => setUploadDescription(e.target.value)}
+                placeholder="Përshkrim i shkurtër"
+                className="mt-1 h-9 text-xs"
+              />
+            </div>
+            {uploadError && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{uploadError}</p>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              className="gap-1.5"
+              disabled={!uploadFile || uploading}
+              onClick={() => void handleUpload()}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {uploading ? "Duke ngarkuar..." : "Ngarko"}
+            </Button>
+          </div>
+        </div>
       )}
 
-      <div className="mb-5 rounded-xl border border-border bg-card p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Stazhi</h2>
-            <p className="text-xs text-muted-foreground">Zgjidh stazhin për të parë ose ngarkuar dokumente.</p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => void loadStudentStazhet()}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Rifresko
-          </Button>
-        </div>
-
-        {loading ? (
-          <p className="mt-3 text-sm text-muted-foreground">Duke ngarkuar...</p>
-        ) : error ? (
-          <p className="mt-3 text-sm text-destructive">{error}</p>
-        ) : stazhet.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">Nuk u gjet asnjë stazh i lidhur me llogarinë tuaj.</p>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {stazhet.length > 1 && (
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="studentStazhSelect" className="text-xs">
-                  Zgjidh stazhin
-                </Label>
-                <select
-                  id="studentStazhSelect"
-                  value={selectedStazhId}
-                  onChange={(event) => setSelectedStazhId(event.target.value)}
-                  className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  {stazhet.map((stazh) => (
-                    <option key={stazh.id} value={stazh.id}>
-                      {stazh.title} ({formatDate(stazh.startDate)} - {formatDate(stazh.endDate)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {selectedStazh && (
-              <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">{selectedStazh.title}</p>
-                <p>
-                  Periudha: {formatDate(selectedStazh.startDate)} - {formatDate(selectedStazh.endDate)}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="mb-5 rounded-xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold text-foreground mb-2">Ngarko dokument PDF</h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Emri i dokumentit (opsional)</Label>
-            <Input
-              value={uploadFileName}
-              onChange={(event) => setUploadFileName(event.target.value)}
-              placeholder="p.sh. Detyre-studenti.pdf"
-              className="h-9"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Përshkrimi (opsional)</Label>
-            <Input
-              value={uploadDescription}
-              onChange={(event) => setUploadDescription(event.target.value)}
-              placeholder="Shënim i shkurtër"
-              className="h-9"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Skedari</Label>
-            <Input
-              ref={fileInputRef}
-              type="file"
-              className="h-9"
-              accept="application/pdf,.pdf"
-              onChange={(event) => {
-                setUploadError("")
-                const nextFile = event.target.files?.[0] ?? null
-                if (nextFile && !isPdfFile(nextFile)) {
-                  setUploadFile(null)
-                  setUploadError("Lejohet vetëm skedar PDF.")
-                  event.target.value = ""
-                  return
-                }
-                setUploadFile(nextFile)
-              }}
-            />
-          </div>
-        </div>
-        <div className="mt-3 flex items-center justify-end">
-          <Button
-            type="button"
-            className="gap-2"
-            disabled={!selectedStazh || !uploadFile || uploading || loading}
-            onClick={() => void handleUpload()}
-          >
-            <Upload className="h-4 w-4" />
-            {uploading ? "Duke ngarkuar..." : "Ngarko dokumentin"}
-          </Button>
-        </div>
-        {uploadError && <p className="mt-2 text-xs text-destructive">{uploadError}</p>}
-      </div>
-
-      <div className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold text-foreground mb-3">Dokumentet</h2>
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Duke ngarkuar dokumentet...</p>
-        ) : !selectedStazh ? (
-          <p className="text-sm text-muted-foreground">Zgjidhni një stazh për të parë dokumentet.</p>
-        ) : documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nuk ka dokumente për këtë stazh.</p>
-        ) : (
+      {/* Student-uploaded documents list */}
+      {myDocs.length > 0 && (
+        <div className="mb-4 rounded-xl border border-border bg-card p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-indigo-500" />
+            Dokumentet e ngarkuara nga unë ({myDocs.length})
+          </h2>
           <div className="space-y-2">
-            {documents.map((doc) => (
+            {myDocs.map((doc) => (
               <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
@@ -1223,45 +1175,123 @@ function StudentDocumentsPanel({
                     <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    <span className="font-medium text-foreground">
-                      {doc.origin === "mentor" ? "Nga mentori" : doc.origin === "student" ? "Nga ju" : "Dokument"}
-                    </span>
-                    {" • "}
-                    {doc.cleanDescription ? `${doc.cleanDescription} • ` : ""}
-                    Ngarkuar më {formatDateTime(doc.uploadedAt)}
+                    {doc.description ? `${doc.description} • ` : ""}{formatDateTime(doc.uploadedAt)}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="h-8 gap-1.5"
-                    onClick={() => void onOpenDocument(doc)}
-                    disabled={downloadingDocId === doc.id || deletingDocId === doc.id}
+                    onClick={() => void onOpenDocument({ id: doc.id, stazhId: doc.stazhId, fileName: doc.fileName, fileUrl: doc.fileUrl, uploadedAt: doc.uploadedAt })}
+                    disabled={downloadingDocId === doc.id}
                   >
                     <Download className="h-3.5 w-3.5" />
-                    {downloadingDocId === doc.id ? "Duke hapur..." : "Hap"}
+                    {downloadingDocId === doc.id ? "..." : "Shkarko"}
                   </Button>
-                  {doc.origin === "student" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-destructive hover:text-destructive"
-                      onClick={() => void handleDeleteDocument(doc.id)}
-                      disabled={deletingDocId === doc.id || downloadingDocId === doc.id}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      {deletingDocId === doc.id ? "Duke fshirë..." : "Fshij"}
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-destructive hover:text-destructive"
+                    onClick={() => void handleDeleteDoc(doc.stazhId, doc.id)}
+                    disabled={deletingDocId === doc.id}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deletingDocId === doc.id ? "..." : "Fshij"}
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">Duke ngarkuar...</div>
+      ) : error ? (
+        <div className="rounded-xl border border-border bg-card p-5 text-sm text-destructive">{error}</div>
+      ) : modules.length === 0 && myDocs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+          <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">Nuk keni asnjë modul të caktuar akoma.</p>
+        </div>
+      ) : (allDocuments.length > 0 || totalDocumentCount > 0) ? (
+        <div className="space-y-4">
+          {modules.map((mod) => {
+            const modDocs = mod.topics.flatMap((t) => (t.documents ?? []).map((d) => ({ ...d, topicName: t.name })))
+            const modDocCount = mod.topics.reduce((s, t) => s + (t.documentCount ?? 0), 0)
+            if (modDocs.length === 0 && modDocCount === 0) return null
+            const isExpanded = expandedModuleId === mod.id
+
+            return (
+              <div key={mod.id} className="rounded-xl border border-border bg-card p-4">
+                <button
+                  type="button"
+                  onClick={() => setExpandedModuleId(isExpanded ? null : mod.id)}
+                  className="flex w-full items-center justify-between text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? <ChevronDown className="h-4 w-4 text-primary" /> : <ChevronRight className="h-4 w-4 text-primary" />}
+                    <Library className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold text-foreground">{mod.title}</span>
+                    <span className="text-xs text-muted-foreground">({modDocs.length > 0 ? modDocs.length : modDocCount} dokument{(modDocs.length > 0 ? modDocs.length : modDocCount) !== 1 ? "e" : ""})</span>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="mt-3 space-y-3 border-t border-border pt-3">
+                    {modDocs.length > 0 ? (
+                      mod.topics.filter((t) => (t.documents ?? []).length > 0).map((topic) => (
+                        <div key={topic.id}>
+                          <p className="text-xs font-medium text-foreground mb-1.5">{topic.name}</p>
+                          <div className="space-y-1.5 pl-3">
+                            {(topic.documents ?? []).map((doc) => (
+                              <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                                    <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {(doc.sizeBytes / 1024).toFixed(0)} KB • {formatDateTime(doc.uploadedAt)}
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 gap-1.5"
+                                  onClick={() => void onOpenDocument({ id: doc.id, stazhId: "", fileName: doc.fileName, fileUrl: doc.fileUrl, uploadedAt: doc.uploadedAt })}
+                                  disabled={downloadingDocId === doc.id}
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  {downloadingDocId === doc.id ? "Duke hapur..." : "Shkarko"}
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      mod.topics.filter((t) => (t.documentCount ?? 0) > 0).map((topic) => (
+                        <div key={topic.id}>
+                          <p className="text-xs font-medium text-foreground mb-1.5">
+                            {topic.name}
+                            <span className="ml-2 text-muted-foreground">({topic.documentCount} dokument{topic.documentCount !== 1 ? "e" : ""})</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground pl-3 italic">Hapni temën nga faqja e moduleve për të shkarkuar.</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }

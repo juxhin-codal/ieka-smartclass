@@ -298,6 +298,13 @@ export interface QuestionnaireQuestion {
   options?: string[] | null
 }
 
+export interface QuestionnaireByTokenResponse {
+  id: string
+  title: string
+  alreadyAnswered: boolean
+  questions: QuestionnaireQuestion[]
+}
+
 export interface QuestionnaireResponseItem {
   responseId: string
   studentId: string
@@ -312,6 +319,17 @@ export interface QuestionnaireAnswer {
   questionText: string
   questionType: string
   answer: string
+}
+
+export interface MyQuestionnaireResponseItem {
+  responseId: string
+  questionnaireId: string
+  questionnaireTitle: string
+  topicName: string
+  moduleName: string
+  yearGrade: number
+  submittedAt: string
+  answers: QuestionnaireAnswer[]
 }
 
 export interface TopicAttendanceInfo {
@@ -373,6 +391,9 @@ export interface StudentMyModuleResponse {
   location?: string | null
   createdAt: string
   topics: StudentMyTopicResponse[]
+  result?: string | null
+  resultNote?: string | null
+  resultSetAt?: string | null
 }
 
 export interface StudentMyTopicResponse {
@@ -384,6 +405,7 @@ export interface StudentMyTopicResponse {
   documentCount: number
   attended: boolean
   attendedAt?: string | null
+  documents?: StudentModuleDocument[] | null
 }
 
 export interface ScanModuleAttendanceResponse {

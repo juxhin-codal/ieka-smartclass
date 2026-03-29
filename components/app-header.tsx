@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { LanguageToggle } from "@/components/i18n/language-toggle"
-import { LayoutDashboard, Calendar, LogOut, Users, FileBarChart, Settings, Menu, X, GraduationCap, FileText, FolderOpen, MessageSquareText, UserCheck } from "lucide-react"
+import { LayoutDashboard, Calendar, LogOut, Users, FileBarChart, Settings, Menu, X, GraduationCap, FileText, FolderOpen, UserCheck, ClipboardList } from "lucide-react"
 
 export type TabKey = "dashboard" | "events" | "myModules" | "myHistory" | "studies" | "attendance" | "myDocuments" | "myEvaluations" | "members" | "students" | "reports" | "settings"
 
@@ -30,9 +30,9 @@ const allTabs: { key: TabKey; labelKey: string; icon: typeof LayoutDashboard; ro
   { key: "myModules", labelKey: "nav.myModules", icon: Calendar, roles: ["Member"] },
   { key: "myHistory", labelKey: "nav.myHistory", icon: FileText, roles: ["Member"] },
   { key: "studies", labelKey: "nav.studies", icon: GraduationCap, roles: ["Mentor", "Student"] },
+  { key: "myEvaluations", labelKey: "nav.myEvaluations", icon: ClipboardList, roles: ["Student"] },
   { key: "attendance", labelKey: "nav.attendance", icon: UserCheck, roles: ["Mentor"] },
   { key: "myDocuments", labelKey: "nav.myDocuments", icon: FolderOpen, roles: ["Mentor", "Student"] },
-  { key: "myEvaluations", labelKey: "nav.myEvaluations", icon: MessageSquareText, roles: ["Student"] },
   { key: "members", labelKey: "nav.members", icon: Users, roles: ["Admin"] },
   { key: "students", labelKey: "nav.students", icon: GraduationCap, roles: ["Admin"] },
   { key: "reports", labelKey: "nav.reports", icon: FileBarChart, roles: ["Admin"] },
@@ -47,8 +47,8 @@ const navLabelFallback: Record<string, string> = {
   "nav.attendance": "Prezenca",
   "nav.myStudents": "Studentët e mi",
   "nav.myDocuments": "Dokumentet e mia",
-  "nav.documents": "Dokumentat",
   "nav.myEvaluations": "Vlerësimet",
+  "nav.documents": "Dokumentat",
   "nav.members": "Anëtarë",
   "nav.students": "Studentë",
   "nav.reports": "Raporte",
@@ -162,17 +162,17 @@ export function AppHeader({ activeTab, onTabChange }: AppHeaderProps) {
                 <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-card p-3 shadow-xl">
                   <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
                   <p className="text-xs text-muted-foreground truncate mb-1.5">{user.email}</p>
-                <span className={`w-fit text-[10px] px-1.5 py-0.5 rounded font-medium mb-3 ${roleBadge[user.role] ?? ""}`}>
-                  {user.role === "Admin"
-                    ? t("role.admin")
-                    : user.role === "Lecturer"
-                      ? t("role.lecturer")
-                      : user.role === "Mentor"
-                        ? t("role.mentor")
-                        : user.role === "Student"
-                          ? t("role.student")
-                          : t("role.member")}
-                </span>
+                  <span className={`w-fit text-[10px] px-1.5 py-0.5 rounded font-medium mb-3 ${roleBadge[user.role] ?? ""}`}>
+                    {user.role === "Admin"
+                      ? t("role.admin")
+                      : user.role === "Lecturer"
+                        ? t("role.lecturer")
+                        : user.role === "Mentor"
+                          ? t("role.mentor")
+                          : user.role === "Student"
+                            ? t("role.student")
+                            : t("role.member")}
+                  </span>
                   <div className="border-t border-border pt-2">
                     <button
                       onClick={() => logout?.()}

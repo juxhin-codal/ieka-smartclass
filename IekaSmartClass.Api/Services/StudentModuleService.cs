@@ -827,6 +827,45 @@ public class StudentModuleService(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<TopicQuestionnaireResponse>> GetMyQuestionnaireResponsesAsync(Guid studentId, CancellationToken cancellationToken = default)
+    {
+        return await _db.TopicQuestionnaireResponses
+            .AsNoTracking()
+            .Include(r => r.Questionnaire).ThenInclude(q => q.Topic).ThenInclude(t => t.StudentModule)
+            .Include(r => r.Questionnaire).ThenInclude(q => q.Questions)
+            .Include(r => r.Answers).ThenInclude(a => a.Question)
+            .Where(r => r.StudentId == studentId)
+            .OrderByDescending(r => r.SubmittedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<(TopicQuestionnaire Questionnaire, bool AlreadyAnswered)> GetQuestionnaireByQrTokenAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeQrTokenInput(qrToken);
+        var payload = ParseQuestionnaireQrToken(normalized);
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(payload.ExpiresAtUnix);
+        if (expiresAt < DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("Kodi QR ka skaduar.");
+
+        var questionnaire = await _db.TopicQuestionnaires
+            .AsNoTracking()
+            .Include(q => q.Questions.OrderBy(x => x.Order))
+            .Include(q => q.Topic)
+            .FirstOrDefaultAsync(q => q.Id == payload.QuestionnaireId, cancellationToken)
+            ?? throw new InvalidOperationException("Pyetësori nuk u gjet.");
+
+        var isAssigned = await _db.StudentModuleAssignments
+            .AnyAsync(a => a.StudentModuleId == questionnaire.Topic.StudentModuleId && a.StudentId == studentId, cancellationToken);
+        if (!isAssigned)
+            throw new InvalidOperationException("Nuk jeni i/e caktuar në këtë modul.");
+
+        var alreadyAnswered = await _db.TopicQuestionnaireResponses
+            .AnyAsync(r => r.QuestionnaireId == payload.QuestionnaireId && r.StudentId == studentId, cancellationToken);
+
+        return (questionnaire, alreadyAnswered);
+    }
+
     // --- Questionnaire QR Token Helpers ---
 
     private sealed record QuestionnaireQrPayload(Guid QuestionnaireId, long ExpiresAtUnix);
