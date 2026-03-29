@@ -305,6 +305,15 @@ public class StudentModuleService(
             .FirstOrDefaultAsync(t => t.Id == payload.TopicId, cancellationToken)
             ?? throw new InvalidOperationException("Tema nuk u gjet.");
 
+        // Only allow attendance on the same day as the topic's scheduled date
+        if (topic.ScheduledDate.HasValue)
+        {
+            var topicDate = topic.ScheduledDate.Value.Date;
+            var todayDate = DateTime.UtcNow.Date;
+            if (topicDate != todayDate)
+                throw new InvalidOperationException("Prezenca mund të regjistrohet vetëm në ditën e temës.");
+        }
+
         // Verify the student is assigned to this module
         var isAssigned = await _db.StudentModuleAssignments
             .AnyAsync(a => a.StudentModuleId == topic.StudentModuleId && a.StudentId == studentId, cancellationToken);

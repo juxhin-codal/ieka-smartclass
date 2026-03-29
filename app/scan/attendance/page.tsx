@@ -4,7 +4,8 @@ import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { fetchApi } from "@/lib/api-client"
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
+import { CheckCircle2, AlertCircle, Loader2, ArrowLeft } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 function ScanAttendanceContent() {
   const router = useRouter()
@@ -88,7 +89,13 @@ function ScanAttendanceContent() {
           </div>
           <h1 className="text-xl font-semibold text-foreground">Prezenca u Regjistrua!</h1>
           <p className="mt-2 text-sm text-muted-foreground">{message}</p>
-          <p className="mt-6 text-xs text-muted-foreground">Mund ta mbyllni këtë faqe.</p>
+          <Button
+            className="mt-6 gap-2"
+            onClick={() => router.push("/students")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Kthehu në panel
+          </Button>
         </div>
       </div>
     )
@@ -102,7 +109,14 @@ function ScanAttendanceContent() {
         </div>
         <h1 className="text-xl font-semibold text-foreground">Gabim</h1>
         <p className="mt-2 text-sm text-muted-foreground">{message}</p>
-        <p className="mt-6 text-xs text-muted-foreground">Mund ta mbyllni këtë faqe.</p>
+        <Button
+          className="mt-6 gap-2"
+          variant="outline"
+          onClick={() => router.push("/students")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Kthehu në panel
+        </Button>
       </div>
     </div>
   )
