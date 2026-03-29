@@ -1371,9 +1371,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attIsTopicToday = useMemo(() => {
     if (!attSelectedTopic?.scheduledDate) return false
-    const topicDate = new Date(attSelectedTopic.scheduledDate).toISOString().slice(0, 10)
-    const today = new Date().toISOString().slice(0, 10)
-    return topicDate === today
+    const d = new Date(attSelectedTopic.scheduledDate)
+    const now = new Date()
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
   }, [attSelectedTopic])
 
   useEffect(() => {
