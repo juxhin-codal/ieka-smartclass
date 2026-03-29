@@ -1,4 +1,5 @@
 using IekaSmartClass.Api.Services.Interface;
+using IekaSmartClass.Api.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -44,6 +45,10 @@ public class MembersController(IMembersService membersService) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> AddMember([FromBody] AddMemberRequest request)
     {
+        var phone = request.PhonePrefix != null || request.PhoneNumber != null
+            ? PhoneHelper.Combine(request.PhonePrefix, request.PhoneNumber)
+            : request.Phone;
+
         var id = await _membersService.AddMemberAsync(
             request.FirstName,
             request.LastName,
@@ -52,7 +57,7 @@ public class MembersController(IMembersService membersService) : ControllerBase
             request.RegistryNumber,
             request.Role,
             request.CpdHoursRequired,
-            request.Phone,
+            phone,
             request.IsActive,
             request.MentorId,
             request.ValidUntilMonth,
@@ -77,6 +82,10 @@ public class MembersController(IMembersService membersService) : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateMember(Guid id, [FromBody] UpdateMemberRequest request)
     {
+        var phone = request.PhonePrefix != null || request.PhoneNumber != null
+            ? PhoneHelper.Combine(request.PhonePrefix, request.PhoneNumber)
+            : request.Phone;
+
         await _membersService.UpdateMemberAsync(
             id,
             request.FirstName,
@@ -84,7 +93,7 @@ public class MembersController(IMembersService membersService) : ControllerBase
             request.Email,
             request.Email2,
             request.RegistryNumber,
-            request.Phone,
+            phone,
             request.Role,
             request.CpdHoursRequired,
             request.IsActive,
@@ -138,6 +147,7 @@ public class MembersController(IMembersService membersService) : ControllerBase
     private static MemberResponse ToResponse(Data.Entities.AppUser user)
     {
         var isExpired = user.IsStudentLoginExpired();
+        var (phonePrefix, phoneNumber) = PhoneHelper.Split(user.Phone);
         return new(
             user.Id,
             user.FirstName,
@@ -146,6 +156,8 @@ public class MembersController(IMembersService membersService) : ControllerBase
             user.Email2,
             user.MemberRegistryNumber,
             user.Role,
+            phonePrefix,
+            phoneNumber,
             user.Phone,
             user.CpdHoursCompleted,
             user.CpdHoursRequired,
@@ -176,7 +188,9 @@ public record AddMemberRequest(
     string RegistryNumber,
     string Role,
     int CpdHoursRequired,
-    string? Phone,
+    string? Phone = null,
+    string? PhonePrefix = null,
+    string? PhoneNumber = null,
     Guid? MentorId = null,
     bool IsActive = true,
     string? ValidUntilMonth = null,
@@ -194,9 +208,11 @@ public record UpdateMemberRequest(
     string Email,
     string? Email2,
     string RegistryNumber,
-    string? Phone,
-    string Role,
-    int CpdHoursRequired,
+    string? Phone = null,
+    string? PhonePrefix = null,
+    string? PhoneNumber = null,
+    string Role = "Member",
+    int CpdHoursRequired = 0,
     Guid? MentorId = null,
     bool IsActive = true,
     string? ValidUntilMonth = null,
@@ -219,6 +235,8 @@ public record MemberResponse(
     string? Email2,
     string MemberRegistryNumber,
     string Role,
+    string? PhonePrefix,
+    string? PhoneNumber,
     string? Phone,
     int CpdHoursCompleted,
     int CpdHoursRequired,

@@ -24,8 +24,14 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
     public DbSet<StazhDocument> StazhDocuments => Set<StazhDocument>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
     public DbSet<StudentModule> StudentModules => Set<StudentModule>();
+    public DbSet<StudentModuleTopic> StudentModuleTopics => Set<StudentModuleTopic>();
     public DbSet<StudentModuleDocument> StudentModuleDocuments => Set<StudentModuleDocument>();
     public DbSet<StudentModuleAssignment> StudentModuleAssignments => Set<StudentModuleAssignment>();
+    public DbSet<StudentModuleTopicAttendance> StudentModuleTopicAttendances => Set<StudentModuleTopicAttendance>();
+    public DbSet<TopicQuestionnaire> TopicQuestionnaires => Set<TopicQuestionnaire>();
+    public DbSet<TopicQuestionnaireQuestion> TopicQuestionnaireQuestions => Set<TopicQuestionnaireQuestion>();
+    public DbSet<TopicQuestionnaireResponse> TopicQuestionnaireResponses => Set<TopicQuestionnaireResponse>();
+    public DbSet<TopicQuestionnaireAnswer> TopicQuestionnaireAnswers => Set<TopicQuestionnaireAnswer>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -175,12 +181,10 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
         // StudentModule relationships
         builder.Entity<StudentModule>(entity =>
         {
-            entity.Property(x => x.Topic).HasMaxLength(500);
-            entity.Property(x => x.Lecturer).HasMaxLength(200);
+            entity.Property(x => x.Title).HasMaxLength(500);
             entity.Property(x => x.Location).HasMaxLength(500);
             entity.HasIndex(x => x.YearGrade);
             entity.HasIndex(x => x.CreatedAt);
-            entity.HasIndex(x => x.ScheduledDate);
 
             entity.HasOne(x => x.CreatedByUser)
                 .WithMany()
@@ -188,16 +192,30 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
                 .OnDelete(DeleteBehavior.NoAction);
         });
 
+        builder.Entity<StudentModuleTopic>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(500);
+            entity.Property(x => x.Lecturer).HasMaxLength(200);
+            entity.Property(x => x.Location).HasMaxLength(500);
+            entity.HasIndex(x => x.StudentModuleId);
+            entity.HasIndex(x => x.ScheduledDate);
+
+            entity.HasOne(x => x.StudentModule)
+                .WithMany(m => m.Topics)
+                .HasForeignKey(x => x.StudentModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         builder.Entity<StudentModuleDocument>(entity =>
         {
             entity.Property(x => x.FileName).HasMaxLength(300);
             entity.Property(x => x.FileUrl).HasMaxLength(1000);
             entity.Property(x => x.RelativePath).HasMaxLength(1000);
-            entity.HasIndex(x => x.StudentModuleId);
+            entity.HasIndex(x => x.StudentModuleTopicId);
 
-            entity.HasOne(x => x.StudentModule)
-                .WithMany(m => m.Documents)
-                .HasForeignKey(x => x.StudentModuleId)
+            entity.HasOne(x => x.StudentModuleTopic)
+                .WithMany(t => t.Documents)
+                .HasForeignKey(x => x.StudentModuleTopicId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -215,6 +233,79 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             entity.HasOne(x => x.Student)
                 .WithMany()
                 .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<StudentModuleTopicAttendance>(entity =>
+        {
+            entity.HasIndex(x => new { x.TopicId, x.StudentId }).IsUnique();
+            entity.HasIndex(x => x.StudentId);
+
+            entity.HasOne(x => x.Topic)
+                .WithMany(t => t.Attendances)
+                .HasForeignKey(x => x.TopicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // TopicQuestionnaire
+        builder.Entity<TopicQuestionnaire>(entity =>
+        {
+            entity.Property(x => x.Title).HasMaxLength(500);
+            entity.HasIndex(x => x.TopicId);
+
+            entity.HasOne(x => x.Topic)
+                .WithMany(t => t.Questionnaires)
+                .HasForeignKey(x => x.TopicId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<TopicQuestionnaireQuestion>(entity =>
+        {
+            entity.Property(x => x.Text).HasMaxLength(1000);
+            entity.Property(x => x.OptionsJson).HasMaxLength(4000);
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(x => x.QuestionnaireId);
+
+            entity.HasOne(x => x.Questionnaire)
+                .WithMany(q => q.Questions)
+                .HasForeignKey(x => x.QuestionnaireId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<TopicQuestionnaireResponse>(entity =>
+        {
+            entity.HasIndex(x => new { x.QuestionnaireId, x.StudentId }).IsUnique();
+            entity.HasIndex(x => x.StudentId);
+
+            entity.HasOne(x => x.Questionnaire)
+                .WithMany(q => q.Responses)
+                .HasForeignKey(x => x.QuestionnaireId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<TopicQuestionnaireAnswer>(entity =>
+        {
+            entity.Property(x => x.AnswerText).HasMaxLength(4000);
+            entity.HasIndex(x => new { x.ResponseId, x.QuestionId }).IsUnique();
+
+            entity.HasOne(x => x.Response)
+                .WithMany(r => r.Answers)
+                .HasForeignKey(x => x.ResponseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Question)
+                .WithMany(q => q.Answers)
+                .HasForeignKey(x => x.QuestionId)
                 .OnDelete(DeleteBehavior.NoAction);
         });
 

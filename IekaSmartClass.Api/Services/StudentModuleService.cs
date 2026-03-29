@@ -30,10 +30,13 @@ public class StudentModuleService(
     {
         return await _db.StudentModules
             .AsNoTracking()
-            .Include(m => m.Documents)
+            .Include(m => m.Topics).ThenInclude(t => t.Documents)
+            .Include(m => m.Topics).ThenInclude(t => t.Attendances)
+            .Include(m => m.Topics).ThenInclude(t => t.Questionnaires).ThenInclude(q => q.Questions)
+            .Include(m => m.Topics).ThenInclude(t => t.Questionnaires).ThenInclude(q => q.Responses)
             .Include(m => m.Assignments)
             .Include(m => m.CreatedByUser)
-            .OrderByDescending(m => m.ScheduledDate)
+            .OrderByDescending(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
     }
 
@@ -41,16 +44,18 @@ public class StudentModuleService(
     {
         return await _db.StudentModules
             .AsNoTracking()
-            .Include(m => m.Documents)
-            .Include(m => m.Assignments)
-                .ThenInclude(a => a.Student)
+            .Include(m => m.Topics).ThenInclude(t => t.Documents)
+            .Include(m => m.Topics).ThenInclude(t => t.Attendances)
+            .Include(m => m.Topics).ThenInclude(t => t.Questionnaires).ThenInclude(q => q.Questions)
+            .Include(m => m.Topics).ThenInclude(t => t.Questionnaires).ThenInclude(q => q.Responses)
+            .Include(m => m.Assignments).ThenInclude(a => a.Student)
             .Include(m => m.CreatedByUser)
             .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken);
     }
 
     public async Task<StudentModule> CreateModuleAsync(CreateStudentModuleInput input, Guid actorUserId, CancellationToken cancellationToken = default)
     {
-        var module = new StudentModule(input.YearGrade, input.Topic, input.Lecturer, actorUserId, input.ScheduledDate, input.Location);
+        var module = new StudentModule(input.YearGrade, input.Title, actorUserId, input.Location);
 
         _db.StudentModules.Add(module);
 
@@ -86,17 +91,13 @@ public class StudentModuleService(
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        // Send email notifications to all assigned students (fire-and-forget per student)
+        // Send email notifications
         foreach (var student in matchingStudents)
         {
             try
             {
                 await _emailService.SendStudentModuleNotificationAsync(
-                    student,
-                    input.Topic,
-                    input.Lecturer,
-                    input.YearGrade,
-                    cancellationToken);
+                    student, input.Title, input.YearGrade, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -105,18 +106,6 @@ public class StudentModuleService(
         }
 
         return module;
-    }
-
-    public async Task<StudentModuleDocument> AddDocumentAsync(Guid moduleId, string fileName, string fileUrl, string relativePath, long sizeBytes, CancellationToken cancellationToken = default)
-    {
-        var moduleExists = await _db.StudentModules.AnyAsync(m => m.Id == moduleId, cancellationToken);
-        if (!moduleExists)
-            throw new KeyNotFoundException("Module not found.");
-
-        var document = new StudentModuleDocument(moduleId, fileName, fileUrl, relativePath, sizeBytes);
-        _db.StudentModuleDocuments.Add(document);
-        await _db.SaveChangesAsync(cancellationToken);
-        return document;
     }
 
     public async Task DeleteModuleAsync(Guid moduleId, Guid actorUserId, CancellationToken cancellationToken = default)
@@ -144,72 +133,22 @@ public class StudentModuleService(
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<string> GenerateModuleQrTokenAsync(Guid moduleId, CancellationToken cancellationToken = default)
-    {
-        var module = await _db.StudentModules.FindAsync([moduleId], cancellationToken)
-            ?? throw new KeyNotFoundException("Moduli nuk u gjet.");
-
-        // QR valid for 8 hours
-        var expiresAt = DateTime.UtcNow.AddHours(8);
-        return CreateModuleQrToken(moduleId, expiresAt);
-    }
-
-    public async Task<StudentModuleAssignment> ScanModuleQrAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default)
-    {
-        var normalized = NormalizeQrTokenInput(qrToken);
-        var payload = ParseModuleQrToken(normalized);
-
-        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(payload.ExpiresAtUnix);
-        if (expiresAt < DateTimeOffset.UtcNow)
-        {
-            throw new InvalidOperationException("Kodi QR ka skaduar.");
-        }
-
-        var assignment = await _db.StudentModuleAssignments
-            .FirstOrDefaultAsync(a => a.StudentModuleId == payload.ModuleId && a.StudentId == studentId, cancellationToken)
-            ?? throw new InvalidOperationException("Nuk jeni i/e caktuar në këtë modul.");
-
-        assignment.MarkAttended();
-        await _db.SaveChangesAsync(cancellationToken);
-        return assignment;
-    }
-
     public async Task<IReadOnlyList<StudentModule>> GetMyModulesAsync(Guid studentId, CancellationToken cancellationToken = default)
     {
         return await _db.StudentModules
             .AsNoTracking()
-            .Include(m => m.Documents)
+            .Include(m => m.Topics).ThenInclude(t => t.Documents)
+            .Include(m => m.Topics).ThenInclude(t => t.Attendances)
             .Include(m => m.Assignments)
             .Where(m => m.Assignments.Any(a => a.StudentId == studentId))
-            .OrderByDescending(m => m.ScheduledDate)
+            .OrderByDescending(m => m.CreatedAt)
             .ToListAsync(cancellationToken);
-    }
-
-    public async Task UpdateModuleScheduleAsync(Guid moduleId, DateTime? scheduledDate, CancellationToken cancellationToken = default)
-    {
-        var module = await _db.StudentModules.FindAsync([moduleId], cancellationToken)
-            ?? throw new KeyNotFoundException("Moduli nuk u gjet.");
-
-        module.UpdateSchedule(scheduledDate);
-        await _db.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task RemoveDocumentAsync(Guid moduleId, Guid documentId, CancellationToken cancellationToken = default)
-    {
-        var document = await _db.StudentModuleDocuments
-            .FirstOrDefaultAsync(d => d.Id == documentId && d.StudentModuleId == moduleId, cancellationToken)
-            ?? throw new KeyNotFoundException("Dokumenti nuk u gjet.");
-
-        await _fileStorageService.DeleteByPublicUrlAsync(document.FileUrl, cancellationToken);
-        _db.StudentModuleDocuments.Remove(document);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task NotifyStudentsAsync(Guid moduleId, CancellationToken cancellationToken = default)
     {
         var module = await _db.StudentModules
-            .Include(m => m.Assignments)
-                .ThenInclude(a => a.Student)
+            .Include(m => m.Assignments).ThenInclude(a => a.Student)
             .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
             ?? throw new KeyNotFoundException("Moduli nuk u gjet.");
 
@@ -219,11 +158,7 @@ public class StudentModuleService(
             try
             {
                 await _emailService.SendStudentModuleNotificationAsync(
-                    assignment.Student,
-                    module.Topic,
-                    module.Lecturer,
-                    module.YearGrade,
-                    cancellationToken);
+                    assignment.Student, module.Title, module.YearGrade, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -232,13 +167,202 @@ public class StudentModuleService(
         }
     }
 
-    // --- QR Token Helpers ---
+    // ── Topic CRUD ──────────────────────────────────────────────────────────
 
-    private sealed record ModuleQrPayload(Guid ModuleId, long ExpiresAtUnix);
-
-    private string CreateModuleQrToken(Guid moduleId, DateTime expiresAt)
+    public async Task<StudentModuleTopic> AddTopicAsync(Guid moduleId, string name, string lecturer, DateTime? scheduledDate, string? location, CancellationToken cancellationToken = default)
     {
-        var payload = new ModuleQrPayload(moduleId, new DateTimeOffset(expiresAt).ToUnixTimeSeconds());
+        var module = await _db.StudentModules
+            .Include(m => m.Topics)
+            .Include(m => m.Assignments).ThenInclude(a => a.Student)
+            .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
+            ?? throw new KeyNotFoundException("Module not found.");
+
+        // Prevent two topics on the same day
+        if (scheduledDate.HasValue)
+        {
+            var dateOnly = scheduledDate.Value.Date;
+            var conflict = module.Topics.Any(t => t.ScheduledDate.HasValue && t.ScheduledDate.Value.Date == dateOnly);
+            if (conflict)
+                throw new InvalidOperationException("Ky modul ka tashmë një temë të planifikuar për këtë datë.");
+        }
+
+        var topic = new StudentModuleTopic(moduleId, name, lecturer, scheduledDate, location);
+        _db.StudentModuleTopics.Add(topic);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Notify all assigned students about new topic
+        var dateInfo = scheduledDate.HasValue ? $" ({scheduledDate.Value:dd MMM yyyy})" : "";
+        var changeDesc = $"Temë e re u shtua: {name}{dateInfo}, Lektor: {lecturer}";
+        await NotifyAssignedStudentsOfChangeAsync(module, changeDesc, cancellationToken);
+
+        return topic;
+    }
+
+    public async Task<StudentModuleTopic> UpdateTopicAsync(Guid topicId, string name, string lecturer, DateTime? scheduledDate, string? location, CancellationToken cancellationToken = default)
+    {
+        var topic = await _db.StudentModuleTopics
+            .Include(t => t.StudentModule).ThenInclude(m => m.Topics)
+            .Include(t => t.StudentModule).ThenInclude(m => m.Assignments).ThenInclude(a => a.Student)
+            .FirstOrDefaultAsync(t => t.Id == topicId, cancellationToken)
+            ?? throw new KeyNotFoundException("Topic not found.");
+
+        // Prevent two topics on the same day (exclude self)
+        if (scheduledDate.HasValue)
+        {
+            var dateOnly = scheduledDate.Value.Date;
+            var conflict = topic.StudentModule.Topics.Any(t => t.Id != topicId && t.ScheduledDate.HasValue && t.ScheduledDate.Value.Date == dateOnly);
+            if (conflict)
+                throw new InvalidOperationException("Ky modul ka tashmë një temë të planifikuar për këtë datë.");
+        }
+
+        // Track what changed for notification
+        var changes = new List<string>();
+        if (topic.ScheduledDate != scheduledDate)
+        {
+            var oldDate = topic.ScheduledDate?.ToString("dd MMM yyyy") ?? "-";
+            var newDate = scheduledDate?.ToString("dd MMM yyyy") ?? "-";
+            changes.Add($"Data u ndryshua: {oldDate} → {newDate}");
+        }
+        if (!string.Equals(topic.Location, location, StringComparison.OrdinalIgnoreCase))
+        {
+            changes.Add($"Vendndodhja u ndryshua: {topic.Location ?? "-"} → {location ?? "-"}");
+        }
+        if (!string.Equals(topic.Name, name, StringComparison.Ordinal))
+            changes.Add($"Emri i temës u ndryshua: {topic.Name} → {name}");
+        if (!string.Equals(topic.Lecturer, lecturer, StringComparison.Ordinal))
+            changes.Add($"Lektori u ndryshua: {topic.Lecturer} → {lecturer}");
+
+        topic.Update(name, lecturer, scheduledDate, location);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Notify if anything changed
+        if (changes.Count > 0)
+        {
+            var changeDesc = $"Tema \"{name}\": {string.Join("; ", changes)}";
+            await NotifyAssignedStudentsOfChangeAsync(topic.StudentModule, changeDesc, cancellationToken);
+        }
+
+        return topic;
+    }
+
+    public async Task DeleteTopicAsync(Guid topicId, CancellationToken cancellationToken = default)
+    {
+        var topic = await _db.StudentModuleTopics.FindAsync([topicId], cancellationToken)
+            ?? throw new KeyNotFoundException("Topic not found.");
+
+        _db.StudentModuleTopics.Remove(topic);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    // ── Documents (per topic) ───────────────────────────────────────────────
+
+    public async Task<StudentModuleDocument> AddDocumentAsync(Guid topicId, string fileName, string fileUrl, string relativePath, long sizeBytes, CancellationToken cancellationToken = default)
+    {
+        var topicExists = await _db.StudentModuleTopics.AnyAsync(t => t.Id == topicId, cancellationToken);
+        if (!topicExists)
+            throw new KeyNotFoundException("Topic not found.");
+
+        var document = new StudentModuleDocument(topicId, fileName, fileUrl, relativePath, sizeBytes);
+        _db.StudentModuleDocuments.Add(document);
+        await _db.SaveChangesAsync(cancellationToken);
+        return document;
+    }
+
+    public async Task RemoveDocumentAsync(Guid topicId, Guid documentId, CancellationToken cancellationToken = default)
+    {
+        var document = await _db.StudentModuleDocuments
+            .FirstOrDefaultAsync(d => d.Id == documentId && d.StudentModuleTopicId == topicId, cancellationToken)
+            ?? throw new KeyNotFoundException("Dokumenti nuk u gjet.");
+
+        await _fileStorageService.DeleteByPublicUrlAsync(document.FileUrl, cancellationToken);
+        _db.StudentModuleDocuments.Remove(document);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    // ── QR & Attendance (per topic) ─────────────────────────────────────────
+
+    public async Task<string> GenerateTopicQrTokenAsync(Guid topicId, CancellationToken cancellationToken = default)
+    {
+        var topic = await _db.StudentModuleTopics.FindAsync([topicId], cancellationToken)
+            ?? throw new KeyNotFoundException("Tema nuk u gjet.");
+
+        var expiresAt = DateTime.UtcNow.AddHours(8);
+        return CreateTopicQrToken(topicId, expiresAt);
+    }
+
+    public async Task<StudentModuleTopicAttendance> ScanTopicQrAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeQrTokenInput(qrToken);
+        var payload = ParseTopicQrToken(normalized);
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(payload.ExpiresAtUnix);
+        if (expiresAt < DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("Kodi QR ka skaduar.");
+
+        // Find the topic and its parent module
+        var topic = await _db.StudentModuleTopics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == payload.TopicId, cancellationToken)
+            ?? throw new InvalidOperationException("Tema nuk u gjet.");
+
+        // Verify the student is assigned to this module
+        var isAssigned = await _db.StudentModuleAssignments
+            .AnyAsync(a => a.StudentModuleId == topic.StudentModuleId && a.StudentId == studentId, cancellationToken);
+
+        if (!isAssigned)
+            throw new InvalidOperationException("Nuk jeni i/e caktuar në këtë modul.");
+
+        // Check if already attended this topic
+        var alreadyAttended = await _db.StudentModuleTopicAttendances
+            .AnyAsync(a => a.TopicId == payload.TopicId && a.StudentId == studentId, cancellationToken);
+
+        if (alreadyAttended)
+            throw new InvalidOperationException("Prezenca për këtë temë është regjistruar tashmë.");
+
+        var attendance = new StudentModuleTopicAttendance(payload.TopicId, studentId);
+        _db.StudentModuleTopicAttendances.Add(attendance);
+        await _db.SaveChangesAsync(cancellationToken);
+        return attendance;
+    }
+
+    public async Task<StudentModuleTopicAttendance> MarkTopicAttendanceAsync(Guid topicId, Guid studentId, CancellationToken cancellationToken = default)
+    {
+        var topic = await _db.StudentModuleTopics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == topicId, cancellationToken)
+            ?? throw new KeyNotFoundException("Tema nuk u gjet.");
+
+        var isAssigned = await _db.StudentModuleAssignments
+            .AnyAsync(a => a.StudentModuleId == topic.StudentModuleId && a.StudentId == studentId, cancellationToken);
+        if (!isAssigned)
+            throw new InvalidOperationException("Studenti nuk është i caktuar në këtë modul.");
+
+        var existing = await _db.StudentModuleTopicAttendances
+            .FirstOrDefaultAsync(a => a.TopicId == topicId && a.StudentId == studentId, cancellationToken);
+        if (existing != null)
+            return existing;
+
+        var attendance = new StudentModuleTopicAttendance(topicId, studentId);
+        _db.StudentModuleTopicAttendances.Add(attendance);
+        await _db.SaveChangesAsync(cancellationToken);
+        return attendance;
+    }
+
+    public async Task RemoveTopicAttendanceAsync(Guid topicId, Guid studentId, CancellationToken cancellationToken = default)
+    {
+        var attendance = await _db.StudentModuleTopicAttendances
+            .FirstOrDefaultAsync(a => a.TopicId == topicId && a.StudentId == studentId, cancellationToken)
+            ?? throw new KeyNotFoundException("Prezenca nuk u gjet.");
+
+        _db.StudentModuleTopicAttendances.Remove(attendance);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private sealed record TopicQrPayload(Guid TopicId, long ExpiresAtUnix);
+
+    private string CreateTopicQrToken(Guid topicId, DateTime expiresAt)
+    {
+        var payload = new TopicQrPayload(topicId, new DateTimeOffset(expiresAt).ToUnixTimeSeconds());
         var payloadJson = JsonSerializer.Serialize(payload);
         var payloadSegment = Base64UrlEncode(Encoding.UTF8.GetBytes(payloadJson));
 
@@ -249,7 +373,7 @@ public class StudentModuleService(
         return $"{payloadSegment}.{signatureSegment}";
     }
 
-    private ModuleQrPayload ParseModuleQrToken(string token)
+    private TopicQrPayload ParseTopicQrToken(string token)
     {
         if (string.IsNullOrWhiteSpace(token))
             throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
@@ -273,10 +397,10 @@ public class StudentModuleService(
                 throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
 
             var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(payloadSegment));
-            var payload = JsonSerializer.Deserialize<ModuleQrPayload>(payloadJson)
+            var payload = JsonSerializer.Deserialize<TopicQrPayload>(payloadJson)
                 ?? throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
 
-            if (payload.ModuleId == Guid.Empty || payload.ExpiresAtUnix <= 0)
+            if (payload.TopicId == Guid.Empty || payload.ExpiresAtUnix <= 0)
                 throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
 
             return payload;
@@ -383,35 +507,408 @@ public class StudentModuleService(
         return Convert.FromBase64String(normalized);
     }
 
+    // ── Student management (add/remove from existing modules) ──────────────
+
+    public async Task AddStudentsToModuleAsync(Guid moduleId, List<Guid> studentIds, CancellationToken cancellationToken = default)
+    {
+        var module = await _db.StudentModules
+            .Include(m => m.Assignments)
+            .Include(m => m.Topics)
+            .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
+            ?? throw new KeyNotFoundException("Module not found.");
+
+        var existingStudentIds = module.Assignments.Select(a => a.StudentId).ToHashSet();
+        var newStudentIds = studentIds.Where(id => !existingStudentIds.Contains(id)).ToList();
+
+        if (newStudentIds.Count == 0) return;
+
+        var students = await _db.Users
+            .Where(u => newStudentIds.Contains(u.Id) && u.Role == "Student" && u.IsActive)
+            .ToListAsync(cancellationToken);
+
+        foreach (var student in students)
+        {
+            _db.StudentModuleAssignments.Add(new StudentModuleAssignment(moduleId, student.Id));
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Notify added students
+        var topicNames = module.Topics.Select(t => t.Name).ToList();
+        foreach (var student in students)
+        {
+            try
+            {
+                await _emailService.SendStudentAddedToModuleAsync(
+                    student, module.Title, module.YearGrade, module.Location, topicNames, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send add-to-module notification to student {StudentId}", student.Id);
+            }
+        }
+    }
+
+    public async Task RemoveStudentFromModuleAsync(Guid moduleId, Guid studentId, CancellationToken cancellationToken = default)
+    {
+        var module = await _db.StudentModules
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
+            ?? throw new KeyNotFoundException("Module not found.");
+
+        var assignment = await _db.StudentModuleAssignments
+            .FirstOrDefaultAsync(a => a.StudentModuleId == moduleId && a.StudentId == studentId, cancellationToken)
+            ?? throw new KeyNotFoundException("Student is not assigned to this module.");
+
+        // Also remove any topic attendances for this student in this module
+        var topicIds = await _db.StudentModuleTopics
+            .Where(t => t.StudentModuleId == moduleId)
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+        if (topicIds.Count > 0)
+        {
+            var attendances = await _db.StudentModuleTopicAttendances
+                .Where(a => topicIds.Contains(a.TopicId) && a.StudentId == studentId)
+                .ToListAsync(cancellationToken);
+
+            _db.StudentModuleTopicAttendances.RemoveRange(attendances);
+        }
+
+        _db.StudentModuleAssignments.Remove(assignment);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Notify removed student
+        var student = await _db.Users.FindAsync([studentId], cancellationToken);
+        if (student is not null)
+        {
+            try
+            {
+                await _emailService.SendStudentRemovedFromModuleAsync(student, module.Title, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send remove-from-module notification to student {StudentId}", studentId);
+            }
+        }
+    }
+
+    // ── Notification helper ──────────────────────────────────────────────────
+
+    private async Task NotifyAssignedStudentsOfChangeAsync(StudentModule module, string changeDescription, CancellationToken cancellationToken)
+    {
+        var assignments = module.Assignments;
+        foreach (var assignment in assignments)
+        {
+            if (assignment.Student is null) continue;
+            try
+            {
+                await _emailService.SendStudentModuleUpdateAsync(
+                    assignment.Student, module.Title, changeDescription, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send module update notification to student {StudentId}", assignment.StudentId);
+            }
+        }
+    }
+
+    // ── Results ──────────────────────────────────────────────────────────────
+
+    public async Task SetStudentResultAsync(Guid moduleId, Guid studentId, string result, string? note, CancellationToken cancellationToken = default)
+    {
+        var module = await _db.StudentModules
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
+            ?? throw new KeyNotFoundException("Module not found.");
+
+        var assignment = await _db.StudentModuleAssignments
+            .Include(a => a.Student)
+            .FirstOrDefaultAsync(a => a.StudentModuleId == moduleId && a.StudentId == studentId, cancellationToken)
+            ?? throw new KeyNotFoundException("Student is not assigned to this module.");
+
+        assignment.SetResult(result, note);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (assignment.Student is not null)
+        {
+            try
+            {
+                await _emailService.SendStudentModuleResultAsync(
+                    assignment.Student, module.Title, result, note, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send result notification to student {StudentId}", studentId);
+            }
+        }
+    }
+
+    public async Task SetBulkResultsAsync(Guid moduleId, List<StudentResultInput> results, CancellationToken cancellationToken = default)
+    {
+        var module = await _db.StudentModules
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
+            ?? throw new KeyNotFoundException("Module not found.");
+
+        var studentIds = results.Select(r => r.StudentId).ToList();
+        var assignments = await _db.StudentModuleAssignments
+            .Include(a => a.Student)
+            .Where(a => a.StudentModuleId == moduleId && studentIds.Contains(a.StudentId))
+            .ToListAsync(cancellationToken);
+
+        var assignmentMap = assignments.ToDictionary(a => a.StudentId);
+
+        foreach (var r in results)
+        {
+            if (!assignmentMap.TryGetValue(r.StudentId, out var assignment)) continue;
+            assignment.SetResult(r.Result, r.Note);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Notify all students
+        foreach (var r in results)
+        {
+            if (!assignmentMap.TryGetValue(r.StudentId, out var assignment)) continue;
+            if (assignment.Student is null) continue;
+            try
+            {
+                await _emailService.SendStudentModuleResultAsync(
+                    assignment.Student, module.Title, r.Result, r.Note, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send result notification to student {StudentId}", r.StudentId);
+            }
+        }
+    }
+
+    // ── Questionnaires ────────────────────────────────────────────────────────
+
+    public async Task<TopicQuestionnaire> CreateQuestionnaireAsync(Guid topicId, string title, List<QuestionnaireQuestionInput> questions, CancellationToken cancellationToken = default)
+    {
+        var topicExists = await _db.StudentModuleTopics.AnyAsync(t => t.Id == topicId, cancellationToken);
+        if (!topicExists)
+            throw new KeyNotFoundException("Topic not found.");
+
+        var questionnaire = new TopicQuestionnaire(topicId, title);
+        _db.TopicQuestionnaires.Add(questionnaire);
+
+        foreach (var q in questions)
+        {
+            string? optionsJson = null;
+            if (q.Type == QuestionType.Options && q.Options is { Count: > 0 })
+                optionsJson = System.Text.Json.JsonSerializer.Serialize(q.Options);
+
+            var question = new TopicQuestionnaireQuestion(questionnaire.Id, q.Text, q.Type, q.Order, optionsJson);
+            _db.TopicQuestionnaireQuestions.Add(question);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return questionnaire;
+    }
+
+    public async Task DeleteQuestionnaireAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        var questionnaire = await _db.TopicQuestionnaires.FindAsync([questionnaireId], cancellationToken)
+            ?? throw new KeyNotFoundException("Questionnaire not found.");
+
+        _db.TopicQuestionnaires.Remove(questionnaire);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<TopicQuestionnaire> UpdateQuestionnaireAsync(Guid questionnaireId, string title, List<QuestionnaireQuestionInput> questions, CancellationToken cancellationToken = default)
+    {
+        var questionnaire = await _db.TopicQuestionnaires
+            .Include(q => q.Questions)
+            .FirstOrDefaultAsync(q => q.Id == questionnaireId, cancellationToken)
+            ?? throw new KeyNotFoundException("Questionnaire not found.");
+
+        questionnaire.UpdateTitle(title);
+
+        // Remove old questions
+        _db.TopicQuestionnaireQuestions.RemoveRange(questionnaire.Questions);
+
+        // Add new questions
+        foreach (var q in questions)
+        {
+            string? optionsJson = null;
+            if (q.Type == QuestionType.Options && q.Options is { Count: > 0 })
+                optionsJson = System.Text.Json.JsonSerializer.Serialize(q.Options);
+
+            var question = new TopicQuestionnaireQuestion(questionnaire.Id, q.Text, q.Type, q.Order, optionsJson);
+            _db.TopicQuestionnaireQuestions.Add(question);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return questionnaire;
+    }
+
+    public async Task<TopicQuestionnaire?> GetQuestionnaireAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        return await _db.TopicQuestionnaires
+            .AsNoTracking()
+            .Include(q => q.Questions.OrderBy(x => x.Order))
+            .Include(q => q.Responses).ThenInclude(r => r.Student)
+            .Include(q => q.Responses).ThenInclude(r => r.Answers)
+            .FirstOrDefaultAsync(q => q.Id == questionnaireId, cancellationToken);
+    }
+
+    public async Task<TopicQuestionnaire?> GetQuestionnaireByTopicAsync(Guid topicId, CancellationToken cancellationToken = default)
+    {
+        return await _db.TopicQuestionnaires
+            .AsNoTracking()
+            .Include(q => q.Questions.OrderBy(x => x.Order))
+            .Include(q => q.Responses)
+            .FirstOrDefaultAsync(q => q.TopicId == topicId, cancellationToken);
+    }
+
+    public async Task<string> GenerateQuestionnaireQrTokenAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        var exists = await _db.TopicQuestionnaires.AnyAsync(q => q.Id == questionnaireId, cancellationToken);
+        if (!exists)
+            throw new KeyNotFoundException("Pyetësori nuk u gjet.");
+
+        var expiresAt = DateTime.UtcNow.AddDays(30); // questionnaire QR lasts longer
+        return CreateQuestionnaireQrToken(questionnaireId, expiresAt);
+    }
+
+    public async Task<TopicQuestionnaireResponse> SubmitQuestionnaireAsync(string qrToken, Guid studentId, List<QuestionnaireAnswerInput> answers, CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeQrTokenInput(qrToken);
+        var payload = ParseQuestionnaireQrToken(normalized);
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(payload.ExpiresAtUnix);
+        if (expiresAt < DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("Kodi QR ka skaduar.");
+
+        var questionnaire = await _db.TopicQuestionnaires
+            .Include(q => q.Questions)
+            .Include(q => q.Topic)
+            .FirstOrDefaultAsync(q => q.Id == payload.QuestionnaireId, cancellationToken)
+            ?? throw new InvalidOperationException("Pyetësori nuk u gjet.");
+
+        // Verify the student is assigned to the parent module
+        var isAssigned = await _db.StudentModuleAssignments
+            .AnyAsync(a => a.StudentModuleId == questionnaire.Topic.StudentModuleId && a.StudentId == studentId, cancellationToken);
+        if (!isAssigned)
+            throw new InvalidOperationException("Nuk jeni i/e caktuar në këtë modul.");
+
+        // Check if already answered
+        var alreadyAnswered = await _db.TopicQuestionnaireResponses
+            .AnyAsync(r => r.QuestionnaireId == payload.QuestionnaireId && r.StudentId == studentId, cancellationToken);
+        if (alreadyAnswered)
+            throw new InvalidOperationException("Keni plotësuar tashmë këtë pyetësor.");
+
+        var response = new TopicQuestionnaireResponse(payload.QuestionnaireId, studentId);
+        _db.TopicQuestionnaireResponses.Add(response);
+
+        var questionIds = questionnaire.Questions.Select(q => q.Id).ToHashSet();
+        foreach (var a in answers)
+        {
+            if (!questionIds.Contains(a.QuestionId)) continue;
+            var answer = new TopicQuestionnaireAnswer(response.Id, a.QuestionId, a.Answer);
+            _db.TopicQuestionnaireAnswers.Add(answer);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return response;
+    }
+
+    public async Task<IReadOnlyList<TopicQuestionnaireResponse>> GetQuestionnaireResponsesAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        return await _db.TopicQuestionnaireResponses
+            .AsNoTracking()
+            .Include(r => r.Student)
+            .Include(r => r.Answers).ThenInclude(a => a.Question)
+            .Where(r => r.QuestionnaireId == questionnaireId)
+            .OrderBy(r => r.SubmittedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    // --- Questionnaire QR Token Helpers ---
+
+    private sealed record QuestionnaireQrPayload(Guid QuestionnaireId, long ExpiresAtUnix);
+
+    private string CreateQuestionnaireQrToken(Guid questionnaireId, DateTime expiresAt)
+    {
+        var payload = new QuestionnaireQrPayload(questionnaireId, new DateTimeOffset(expiresAt).ToUnixTimeSeconds());
+        var payloadJson = JsonSerializer.Serialize(payload);
+        var payloadSegment = Base64UrlEncode(Encoding.UTF8.GetBytes(payloadJson));
+
+        using var hmac = new HMACSHA256(_qrSigningKey);
+        var signatureBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payloadSegment));
+        var signatureSegment = Base64UrlEncode(signatureBytes);
+
+        return $"{payloadSegment}.{signatureSegment}";
+    }
+
+    private QuestionnaireQrPayload ParseQuestionnaireQrToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+        try
+        {
+            var parts = token.Trim().Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2)
+                throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+            var payloadSegment = parts[0];
+            var signatureSegment = parts[1];
+
+            var providedSignature = Base64UrlDecode(signatureSegment);
+
+            using var hmac = new HMACSHA256(_qrSigningKey);
+            var expectedSignature = hmac.ComputeHash(Encoding.UTF8.GetBytes(payloadSegment));
+
+            if (providedSignature.Length != expectedSignature.Length ||
+                !CryptographicOperations.FixedTimeEquals(providedSignature, expectedSignature))
+                throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+            var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(payloadSegment));
+            var payload = JsonSerializer.Deserialize<QuestionnaireQrPayload>(payloadJson)
+                ?? throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+            if (payload.QuestionnaireId == Guid.Empty || payload.ExpiresAtUnix <= 0)
+                throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+            return payload;
+        }
+        catch (InvalidOperationException) { throw; }
+        catch { throw new InvalidOperationException("Kodi QR është i pavlefshëm."); }
+    }
+
     // --- Year Grade Filtering ---
 
     private async Task<List<AppUser>> GetActiveStudentsByYearGradeAsync(int yearGrade, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
 
-        var query = _db.Users
+        // Load active students with a start year, then filter by year-grade in memory
+        // because EF Core cannot translate new DateTime(...) to SQL.
+        var students = await _db.Users
             .AsNoTracking()
-            .Where(u => u.Role == "Student" && u.IsActive && u.StudentStartYear != null);
+            .Where(u => u.Role == "Student" && u.IsActive && u.StudentStartYear != null)
+            .ToListAsync(cancellationToken);
 
-        // Push year-grade filtering into SQL so DB returns only matching rows
-        query = yearGrade switch
+        return yearGrade switch
         {
-            1 => query.Where(u =>
+            1 => students.Where(u =>
                 now >= new DateTime(u.StudentStartYear!.Value, 9, 1) &&
-                now < new DateTime(u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1, 9, 1)),
+                now < new DateTime(u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1, 9, 1)).ToList(),
 
-            2 => query.Where(u =>
+            2 => students.Where(u =>
                 now >= new DateTime(u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1, 9, 1) &&
                 now < new DateTime(
-                    u.StudentYear3StartYear ?? (u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1) + 1, 9, 1)),
+                    u.StudentYear3StartYear ?? (u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1) + 1, 9, 1)).ToList(),
 
-            3 => query.Where(u =>
+            3 => students.Where(u =>
                 now >= new DateTime(u.StudentYear3StartYear ?? u.StudentStartYear!.Value + 2, 9, 1) &&
-                now < new DateTime((u.StudentYear3StartYear ?? u.StudentStartYear!.Value + 2) + 1, 9, 1)),
+                now < new DateTime((u.StudentYear3StartYear ?? u.StudentStartYear!.Value + 2) + 1, 9, 1)).ToList(),
 
-            _ => query.Where(_ => false) // invalid year grade returns nothing
+            _ => []
         };
-
-        return await query.ToListAsync(cancellationToken);
     }
 }

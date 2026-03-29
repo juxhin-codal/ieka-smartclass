@@ -595,7 +595,7 @@ public class MembersService(
 
         if (!mentorId.HasValue)
         {
-            throw new InvalidOperationException("Për studentin duhet të zgjidhni një mentor.");
+            return null;
         }
 
         var mentor = await _dbContext.Users
@@ -680,9 +680,6 @@ public class MembersService(
             throw new InvalidOperationException("Viti Fillimit nuk është i vlefshëm.");
         }
 
-        // End year is always start + 3 (3-year program: Year1, Year2, Year3)
-        var computedEndYear = studentStartYear.Value + 3;
-
         // Validate per-year overrides if provided
         var y2Start = studentYear2StartYear;
         var y3Start = studentYear3StartYear;
@@ -698,6 +695,10 @@ public class MembersService(
         {
             throw new InvalidOperationException("Viti i Tretë duhet të fillojë pas Vitit të Dytë.");
         }
+
+        // End year = year 3 start + 1 (when year 3 finishes)
+        var y3Effective = y3Start ?? (y2Start.HasValue ? y2Start.Value + 1 : studentStartYear.Value + 2);
+        var computedEndYear = y3Effective + 1;
 
         var normalizedCompany = NormalizeOptionalValue(company);
         var normalizedDistrict = NormalizeOptionalValue(district);

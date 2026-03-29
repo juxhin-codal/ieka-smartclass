@@ -17,7 +17,11 @@ public interface IEmailService
     Task SendStudentTrainingAttendanceRejectedAsync(AppUser student, AppUser mentor, TrainingScheduleEmailItem session, string? reason, CancellationToken cancellationToken = default);
     Task SendStudentTrainingFeedbackRequestAsync(AppUser student, AppUser mentor, StudentTrainingStazhEmailItem stazh, string actionLink, CancellationToken cancellationToken = default);
     Task SendSessionClosedParticipantsSummaryAsync(AppUser admin, SessionClosedAdminEmailItem summary, IReadOnlyList<SessionParticipantEmailItem> participants, CancellationToken cancellationToken = default);
-    Task SendStudentModuleNotificationAsync(AppUser student, string moduleTopic, string lecturer, int yearGrade, CancellationToken cancellationToken = default);
+    Task SendStudentModuleNotificationAsync(AppUser student, string moduleTitle, int yearGrade, CancellationToken cancellationToken = default);
+    Task SendStudentModuleUpdateAsync(AppUser student, string moduleTitle, string changeDescription, CancellationToken cancellationToken = default);
+    Task SendStudentAddedToModuleAsync(AppUser student, string moduleTitle, int yearGrade, string? location, IReadOnlyList<string> topicNames, CancellationToken cancellationToken = default);
+    Task SendStudentRemovedFromModuleAsync(AppUser student, string moduleTitle, CancellationToken cancellationToken = default);
+    Task SendStudentModuleResultAsync(AppUser student, string moduleTitle, string result, string? resultNote, CancellationToken cancellationToken = default);
 }
 
 public sealed record BookingOpenEmailItem(string ModuleName, string DateSummary, string Location, int CpdHours, string ActionLink);

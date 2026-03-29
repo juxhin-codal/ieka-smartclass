@@ -4,6 +4,7 @@ using IekaSmartClass.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IekaSmartClass.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260328124642_AddTopicQuestionnaires")]
+    partial class AddTopicQuestionnaires
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1035,7 +1038,8 @@ namespace IekaSmartClass.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TopicId");
+                    b.HasIndex("TopicId")
+                        .IsUnique();
 
                     b.ToTable("TopicQuestionnaires");
                 });
@@ -1471,8 +1475,8 @@ namespace IekaSmartClass.Api.Migrations
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", b =>
                 {
                     b.HasOne("IekaSmartClass.Api.Data.Entities.StudentModuleTopic", "Topic")
-                        .WithMany("Questionnaires")
-                        .HasForeignKey("TopicId")
+                        .WithOne("Questionnaire")
+                        .HasForeignKey("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", "TopicId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1597,7 +1601,7 @@ namespace IekaSmartClass.Api.Migrations
 
                     b.Navigation("Documents");
 
-                    b.Navigation("Questionnaires");
+                    b.Navigation("Questionnaire");
                 });
 
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", b =>

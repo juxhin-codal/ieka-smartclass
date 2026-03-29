@@ -4,6 +4,7 @@ using IekaSmartClass.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IekaSmartClass.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260328112315_RestructureModulesAddTopics")]
+    partial class RestructureModulesAddTopics
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -729,15 +732,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.Property<DateTime>("AssignedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Result")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ResultNote")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("ResultSetAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1014,115 +1008,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SystemConfigurations");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<Guid>("TopicId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TopicId");
-
-                    b.ToTable("TopicQuestionnaires");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireAnswer", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AnswerText")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<Guid>("QuestionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ResponseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("QuestionId");
-
-                    b.HasIndex("ResponseId", "QuestionId")
-                        .IsUnique();
-
-                    b.ToTable("TopicQuestionnaireAnswers");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireQuestion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("OptionsJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("QuestionnaireId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("QuestionnaireId");
-
-                    b.ToTable("TopicQuestionnaireQuestions");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireResponse", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("QuestionnaireId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("StudentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("SubmittedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudentId");
-
-                    b.HasIndex("QuestionnaireId", "StudentId")
-                        .IsUnique();
-
-                    b.ToTable("TopicQuestionnaireResponses");
                 });
 
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.UserNotification", b =>
@@ -1468,66 +1353,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.StudentModuleTopic", "Topic")
-                        .WithMany("Questionnaires")
-                        .HasForeignKey("TopicId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Topic");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireAnswer", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireQuestion", "Question")
-                        .WithMany("Answers")
-                        .HasForeignKey("QuestionId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireResponse", "Response")
-                        .WithMany("Answers")
-                        .HasForeignKey("ResponseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Question");
-
-                    b.Navigation("Response");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireQuestion", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", "Questionnaire")
-                        .WithMany("Questions")
-                        .HasForeignKey("QuestionnaireId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Questionnaire");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireResponse", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", "Questionnaire")
-                        .WithMany("Responses")
-                        .HasForeignKey("QuestionnaireId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.AppUser", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Questionnaire");
-
-                    b.Navigation("Student");
-                });
-
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.UserNotification", b =>
                 {
                     b.HasOne("IekaSmartClass.Api.Data.Entities.AppUser", "User")
@@ -1596,25 +1421,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.Navigation("Attendances");
 
                     b.Navigation("Documents");
-
-                    b.Navigation("Questionnaires");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaire", b =>
-                {
-                    b.Navigation("Questions");
-
-                    b.Navigation("Responses");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireQuestion", b =>
-                {
-                    b.Navigation("Answers");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.TopicQuestionnaireResponse", b =>
-                {
-                    b.Navigation("Answers");
                 });
 #pragma warning restore 612, 618
         }

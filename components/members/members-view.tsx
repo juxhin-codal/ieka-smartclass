@@ -28,47 +28,47 @@ const subTabs: {
     iconClassName: string
     badgeClassName: string
 }[] = [
-    {
-        key: "aktiv",
-        label: "Anëtarë Aktiv",
-        icon: Users,
-        accentClassName: "from-emerald-500/20 via-emerald-500/5 to-transparent",
-        iconClassName: "border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
-        badgeClassName: "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30",
-    },
-    {
-        key: "jo-aktiv",
-        label: "Anëtarë Jo Aktiv",
-        icon: AlertCircle,
-        accentClassName: "from-amber-500/20 via-amber-500/5 to-transparent",
-        iconClassName: "border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-400",
-        badgeClassName: "bg-amber-500 text-white shadow-sm shadow-amber-500/30",
-    },
-    {
-        key: "administrator",
-        label: "Administrator",
-        icon: Shield,
-        accentClassName: "from-sky-500/20 via-sky-500/5 to-transparent",
-        iconClassName: "border-sky-500/20 bg-sky-500/12 text-sky-600 dark:text-sky-400",
-        badgeClassName: "bg-sky-500 text-white shadow-sm shadow-sky-500/30",
-    },
-    {
-        key: "lecturer",
-        label: "Lektor",
-        icon: BookOpen,
-        accentClassName: "from-violet-500/20 via-violet-500/5 to-transparent",
-        iconClassName: "border-violet-500/20 bg-violet-500/12 text-violet-600 dark:text-violet-400",
-        badgeClassName: "bg-violet-500 text-white shadow-sm shadow-violet-500/30",
-    },
-    {
-        key: "mentor",
-        label: "Mentor",
-        icon: Handshake,
-        accentClassName: "from-rose-500/20 via-rose-500/5 to-transparent",
-        iconClassName: "border-rose-500/20 bg-rose-500/12 text-rose-600 dark:text-rose-400",
-        badgeClassName: "bg-rose-500 text-white shadow-sm shadow-rose-500/30",
-    },
-]
+        {
+            key: "aktiv",
+            label: "Anëtarë Aktiv",
+            icon: Users,
+            accentClassName: "from-emerald-500/20 via-emerald-500/5 to-transparent",
+            iconClassName: "border-emerald-500/20 bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
+            badgeClassName: "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30",
+        },
+        {
+            key: "jo-aktiv",
+            label: "Anëtarë Jo Aktiv",
+            icon: AlertCircle,
+            accentClassName: "from-amber-500/20 via-amber-500/5 to-transparent",
+            iconClassName: "border-amber-500/20 bg-amber-500/12 text-amber-600 dark:text-amber-400",
+            badgeClassName: "bg-amber-500 text-white shadow-sm shadow-amber-500/30",
+        },
+        {
+            key: "administrator",
+            label: "Administrator",
+            icon: Shield,
+            accentClassName: "from-sky-500/20 via-sky-500/5 to-transparent",
+            iconClassName: "border-sky-500/20 bg-sky-500/12 text-sky-600 dark:text-sky-400",
+            badgeClassName: "bg-sky-500 text-white shadow-sm shadow-sky-500/30",
+        },
+        {
+            key: "lecturer",
+            label: "Lektor",
+            icon: BookOpen,
+            accentClassName: "from-violet-500/20 via-violet-500/5 to-transparent",
+            iconClassName: "border-violet-500/20 bg-violet-500/12 text-violet-600 dark:text-violet-400",
+            badgeClassName: "bg-violet-500 text-white shadow-sm shadow-violet-500/30",
+        },
+        {
+            key: "mentor",
+            label: "Mentor",
+            icon: Handshake,
+            accentClassName: "from-rose-500/20 via-rose-500/5 to-transparent",
+            iconClassName: "border-rose-500/20 bg-rose-500/12 text-rose-600 dark:text-rose-400",
+            badgeClassName: "bg-rose-500 text-white shadow-sm shadow-rose-500/30",
+        },
+    ]
 
 export function MembersView() {
     const { users, addUser, addUsers, events, setMemberYearlyPayment } = useEvents()
@@ -89,6 +89,7 @@ export function MembersView() {
     const [newEmail2, setNewEmail2] = useState("")
     const [newRegistry, setNewRegistry] = useState("")
     const [newPhone, setNewPhone] = useState("")
+    const [newPhonePrefix, setNewPhonePrefix] = useState("+355")
     const [newRole, setNewRole] = useState<string>("Member")
     const [newIsActive, setNewIsActive] = useState(true)
     const [error, setError] = useState("")
@@ -277,6 +278,8 @@ export function MembersView() {
                 memberRegistryNumber: newRegistry.trim().toUpperCase(),
                 role: newRole as any,
                 phone: newPhone.trim() || undefined,
+                phonePrefix: newPhonePrefix.trim() || "+355",
+                phoneNumber: newPhone.trim() || undefined,
                 mentorId: null,
                 validUntilMonth: null,
                 cpdHoursCompleted: 0,
@@ -284,7 +287,7 @@ export function MembersView() {
                 isActive: newRole === "Member" ? newIsActive : true,
             })
             setNewFirstName(""); setNewLastName(""); setNewEmail(""); setNewEmail2("")
-            setNewRegistry(""); setNewPhone(""); setNewRole("Member"); setNewIsActive(true); setError("")
+            setNewRegistry(""); setNewPhone(""); setNewPhonePrefix("+355"); setNewRole("Member"); setNewIsActive(true); setError("")
             setShowAddForm(false)
         } catch (e: any) {
             setError(e?.message ?? "Gabim gjatë shtimit të anëtarit")
@@ -464,7 +467,10 @@ export function MembersView() {
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="m-phone">Telefon</Label>
-                                        <Input id="m-phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+355 69 123 4567" />
+                                        <div className="flex gap-2">
+                                            <Input id="m-phone-prefix" value={newPhonePrefix} onChange={(e) => setNewPhonePrefix(e.target.value)} className="w-20" placeholder="+355" />
+                                            <Input id="m-phone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="69 123 4567" className="flex-1" />
+                                        </div>
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="m-role">Roli *</Label>

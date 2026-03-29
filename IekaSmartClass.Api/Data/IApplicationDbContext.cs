@@ -18,8 +18,14 @@ public interface IApplicationDbContext
     DbSet<EventFeedback> EventFeedbacks { get; }
     DbSet<UserNotification> UserNotifications { get; }
     DbSet<StudentModule> StudentModules { get; }
+    DbSet<StudentModuleTopic> StudentModuleTopics { get; }
     DbSet<StudentModuleDocument> StudentModuleDocuments { get; }
     DbSet<StudentModuleAssignment> StudentModuleAssignments { get; }
+    DbSet<StudentModuleTopicAttendance> StudentModuleTopicAttendances { get; }
+    DbSet<TopicQuestionnaire> TopicQuestionnaires { get; }
+    DbSet<TopicQuestionnaireQuestion> TopicQuestionnaireQuestions { get; }
+    DbSet<TopicQuestionnaireResponse> TopicQuestionnaireResponses { get; }
+    DbSet<TopicQuestionnaireAnswer> TopicQuestionnaireAnswers { get; }
     DbSet<SystemConfiguration> SystemConfigurations { get; }
     DatabaseFacade Database { get; }
 

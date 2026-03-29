@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { MonthYearPicker } from "@/components/ui/month-year-picker"
 import { Trash2, X } from "lucide-react"
 import type { AppUser } from "@/lib/data"
+import { splitPhone } from "@/lib/phone-utils"
 
 interface EditMemberFormProps {
     user: AppUser
@@ -27,7 +28,9 @@ export function EditMemberForm({ user, onClose }: EditMemberFormProps) {
     const [email, setEmail] = useState(user.email)
     const [email2, setEmail2] = useState(user.email2 ?? "")
     const [registryNumber, setRegistryNumber] = useState(user.memberRegistryNumber)
-    const [phone, setPhone] = useState(user.phone || "")
+    const { prefix: initPhonePrefix, number: initPhoneNumber } = splitPhone(user.phone)
+    const [phonePrefix, setPhonePrefix] = useState(initPhonePrefix)
+    const [phoneNumber, setPhoneNumber] = useState(initPhoneNumber)
     const [role, setRole] = useState(user.role)
     const [mentorId, setMentorId] = useState(user.mentorId ?? "")
     const [validUntilMonth, setValidUntilMonth] = useState(user.validUntilMonth ?? "")
@@ -66,7 +69,9 @@ export function EditMemberForm({ user, onClose }: EditMemberFormProps) {
                 email: email.trim(),
                 email2: email2.trim() || null,
                 memberRegistryNumber: registryNumber.trim().toUpperCase(),
-                phone: phone.trim() || undefined,
+                phone: phoneNumber.trim() || undefined,
+                phonePrefix: phonePrefix.trim() || "+355",
+                phoneNumber: phoneNumber.trim() || undefined,
                 role: role as any,
                 mentorId: role === "Student" ? mentorId : null,
                 validUntilMonth: role === "Student" ? validUntilMonth : null,
@@ -133,7 +138,10 @@ export function EditMemberForm({ user, onClose }: EditMemberFormProps) {
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="m-phone">Telefon</Label>
-                            <Input id="m-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                            <div className="flex gap-2">
+                                <Input id="m-phone-prefix" value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)} className="w-20" placeholder="+355" />
+                                <Input id="m-phone" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="69 123 4567" className="flex-1" />
+                            </div>
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="m-role">Rol *</Label>

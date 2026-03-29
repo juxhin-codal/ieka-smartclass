@@ -8,6 +8,7 @@ import { useEvents } from "@/lib/events-context"
 import { AdminPasswordResetCard } from "@/components/admin/admin-password-reset-card"
 import { StudentHistoryModal } from "@/components/students/student-history-modal"
 import { formatStudentTrackingCode, generateStudentNumber, parseStudentTrackingNumber } from "@/lib/student-registry"
+import { splitPhone } from "@/lib/phone-utils"
 import type {
   AppUser,
   MentorAttendanceQrResponse,
@@ -17,8 +18,11 @@ import type {
   StudentModuleQrResponse,
   StudentModuleResponse,
   StudentModuleStudentItem,
+  StudentModuleTopicResponse,
   StudentMyModuleResponse,
   ScanModuleAttendanceResponse,
+  QuestionnaireDetail,
+  QuestionnaireResponseItem,
   StudentTrainingCalendarResponse,
   StudentTrainingQrResponse,
   StudentTrainingSession,
@@ -56,7 +60,6 @@ import {
   Star,
   Trash2,
   Loader2,
-  Upload,
   FileText,
   ChevronRight,
   Plus,
@@ -65,6 +68,9 @@ import {
   Send,
   Printer,
   Download,
+  ClipboardList,
+  Eye,
+  XCircle,
 } from "lucide-react"
 import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pagination-bar"
 
@@ -429,6 +435,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [newStudentTrackingNumber, setNewStudentTrackingNumber] = useState<number | null>(null)
   const [newRegistry, setNewRegistry] = useState("")
   const [newPhone, setNewPhone] = useState("")
+  const [newPhonePrefix, setNewPhonePrefix] = useState("+355")
   const [newStudentStartYear, setNewStudentStartYear] = useState(getDefaultStudentStartYear())
   const [newStudentEndYear, setNewStudentEndYear] = useState(getDefaultStudentEndYear())
   const [newYear2StartYear, setNewYear2StartYear] = useState("")
@@ -450,6 +457,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [editStudentTrackingNumber, setEditStudentTrackingNumber] = useState<number | null>(null)
   const [editRegistry, setEditRegistry] = useState("")
   const [editPhone, setEditPhone] = useState("")
+  const [editPhonePrefix, setEditPhonePrefix] = useState("+355")
   const [editStudentStartYear, setEditStudentStartYear] = useState("")
   const [editStudentEndYear, setEditStudentEndYear] = useState("")
   const [editYear2StartYear, setEditYear2StartYear] = useState("")
@@ -473,27 +481,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [quickWeekEndTime, setQuickWeekEndTime] = useState("16:00")
   const [quickWeekNotes, setQuickWeekNotes] = useState("")
 
-  const [attendanceDate, setAttendanceDate] = useState(toDateInputValue(new Date()))
-  const [attendanceMentorId, setAttendanceMentorId] = useState("")
-  const [attendanceData, setAttendanceData] = useState<StudentAttendanceDayResponse | null>(null)
-  const [attendanceLoading, setAttendanceLoading] = useState(false)
-  const [attendanceError, setAttendanceError] = useState("")
-  const [attendanceUpdatingKey, setAttendanceUpdatingKey] = useState<string | null>(null)
-  const [rejectAttendanceSession, setRejectAttendanceSession] = useState<StudentTrainingSession | null>(null)
-  const [rejectAttendanceReason, setRejectAttendanceReason] = useState("")
-  const [rejectAttendanceSaving, setRejectAttendanceSaving] = useState(false)
-  const [rejectAttendanceError, setRejectAttendanceError] = useState("")
-  const [showAttendanceScanner, setShowAttendanceScanner] = useState(false)
-  const [scanManualToken, setScanManualToken] = useState("")
-  const [scanNotice, setScanNotice] = useState("")
-  const [scanError, setScanError] = useState("")
-  const [scanBusy, setScanBusy] = useState(false)
-  const [showMentorAttendanceQr, setShowMentorAttendanceQr] = useState(false)
-  const [mentorAttendanceQrData, setMentorAttendanceQrData] = useState<MentorAttendanceQrResponse | null>(null)
-  const [mentorAttendanceQrLoading, setMentorAttendanceQrLoading] = useState(false)
-  const [mentorAttendanceQrError, setMentorAttendanceQrError] = useState("")
-  const scanInFlightRef = useRef(false)
-  const lastScannedTokenRef = useRef<{ token: string; at: number } | null>(null)
+  // Module-topic attendance state
+  const [attModules, setAttModules] = useState<StudentModuleResponse[]>([])
+  const [attModulesLoading, setAttModulesLoading] = useState(false)
+  const [attSelectedModuleId, setAttSelectedModuleId] = useState("")
+  const [attModuleDetail, setAttModuleDetail] = useState<StudentModuleDetailResponse | null>(null)
+  const [attModuleDetailLoading, setAttModuleDetailLoading] = useState(false)
+  const [attSelectedTopicId, setAttSelectedTopicId] = useState("")
+  const [attUpdatingKey, setAttUpdatingKey] = useState<string | null>(null)
+  const [attError, setAttError] = useState("")
+  const [attTopicQrToken, setAttTopicQrToken] = useState("")
+  const [attTopicQrLoading, setAttTopicQrLoading] = useState(false)
+  const [attShowQrModal, setAttShowQrModal] = useState(false)
 
   const [endingStazhStudent, setEndingStazhStudent] = useState<AppUser | null>(null)
   const [endingStazhRating, setEndingStazhRating] = useState(5)
@@ -506,12 +505,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [modulesLoading, setModulesLoading] = useState(false)
   const [showAddModuleForm, setShowAddModuleForm] = useState(false)
   const [moduleYearGrade, setModuleYearGrade] = useState<YearGrade>(1)
-  const [moduleTopic, setModuleTopic] = useState("")
-  const [moduleLecturer, setModuleLecturer] = useState("")
-  const [moduleScheduledDate, setModuleScheduledDate] = useState("")
-  const [moduleScheduledTime, setModuleScheduledTime] = useState("09:00")
+  const [moduleTitle, setModuleTitle] = useState("")
   const [moduleLocation, setModuleLocation] = useState("")
-  const [moduleFiles, setModuleFiles] = useState<File[]>([])
   const [moduleSaving, setModuleSaving] = useState(false)
   const [moduleError, setModuleError] = useState("")
   const [moduleStudentPreview, setModuleStudentPreview] = useState<StudentModuleStudentItem[]>([])
@@ -529,32 +524,86 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [selectedModuleDetail, setSelectedModuleDetail] = useState<StudentModuleDetailResponse | null>(null)
   const [moduleDetailLoading, setModuleDetailLoading] = useState(false)
   const [moduleDetailStudentsExpanded, setModuleDetailStudentsExpanded] = useState(false)
-  const [moduleQrToken, setModuleQrToken] = useState<string | null>(null)
-  const [moduleQrLoading, setModuleQrLoading] = useState(false)
-  const [moduleQrError, setModuleQrError] = useState("")
 
   // Module list filters
   const [moduleYearFilter, setModuleYearFilter] = useState<number | null>(null)
   const [moduleTimeFilter, setModuleTimeFilter] = useState<"upcoming" | "past" | "all">("upcoming")
 
-  // Module detail edit states
-  const [editingSchedule, setEditingSchedule] = useState(false)
-  const [editScheduleDate, setEditScheduleDate] = useState("")
-  const [editScheduleTime, setEditScheduleTime] = useState("")
-  const [savingSchedule, setSavingSchedule] = useState(false)
+  // Module detail: Topic CRUD states
+  const [showAddTopicForm, setShowAddTopicForm] = useState(false)
+  const [newTopicName, setNewTopicName] = useState("")
+  const [newTopicLecturer, setNewTopicLecturer] = useState("")
+  const [newTopicScheduledDate, setNewTopicScheduledDate] = useState("")
+  const [newTopicScheduledTime, setNewTopicScheduledTime] = useState("09:00")
+  const [newTopicLocation, setNewTopicLocation] = useState("")
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+  const [editTopicName, setEditTopicName] = useState("")
+  const [editTopicLecturer, setEditTopicLecturer] = useState("")
+  const [editTopicScheduledDate, setEditTopicScheduledDate] = useState("")
+  const [editTopicScheduledTime, setEditTopicScheduledTime] = useState("")
+  const [editTopicLocation, setEditTopicLocation] = useState("")
+  const [topicSaving, setTopicSaving] = useState(false)
+  const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
+  const [isDeletingTopic, setIsDeletingTopic] = useState(false)
+
+  // Module detail: per-topic document states
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [deletingDocTopicId, setDeletingDocTopicId] = useState<string | null>(null)
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false)
+  const [uploadingDocsTopicId, setUploadingDocsTopicId] = useState<string | null>(null)
+  const [uploadingDocs, setUploadingDocs] = useState(false)
+
+  // Module detail: per-topic QR states
+  const [topicQrTokens, setTopicQrTokens] = useState<Record<string, string>>({})
+  const [topicQrLoading, setTopicQrLoading] = useState<string | null>(null)
+  const [topicQrError, setTopicQrError] = useState("")
+
+  // Module detail: notify & misc
   const [notifyingStudents, setNotifyingStudents] = useState(false)
   const [notifySuccess, setNotifySuccess] = useState(false)
-  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
-  const [isDeletingDoc, setIsDeletingDoc] = useState(false)
-  const [addingDocFiles, setAddingDocFiles] = useState<File[]>([])
-  const [uploadingDocs, setUploadingDocs] = useState(false)
-  const [qrPopupModuleId, setQrPopupModuleId] = useState<string | null>(null)
+
+  // QR Quick Popup from list (now per-topic)
+  const [qrPopupTopicId, setQrPopupTopicId] = useState<string | null>(null)
   const [qrPopupToken, setQrPopupToken] = useState<string | null>(null)
   const [qrPopupLoading, setQrPopupLoading] = useState(false)
   const [qrPopupError, setQrPopupError] = useState("")
-  const [qrPopupModuleName, setQrPopupModuleName] = useState("")
+  const [qrPopupTopicName, setQrPopupTopicName] = useState("")
   const [qrPopupYear, setQrPopupYear] = useState(0)
-  const [qrPopupDate, setQrPopupDate] = useState("")
+
+  // Questionnaire state
+  const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false)
+  const [questionnaireTopicId, setQuestionnaireTopicId] = useState<string | null>(null)
+  const [questionnaireTopicName, setQuestionnaireTopicName] = useState("")
+  const [questionnaireTitle, setQuestionnaireTitle] = useState("")
+  const [questionnaireQuestions, setQuestionnaireQuestions] = useState<Array<{ text: string; type: "Options" | "FreeText" | "Stars"; order: number; options: string[] }>>([])
+  const [questionnaireSaving, setQuestionnaireSaving] = useState(false)
+  const [questionnaireError, setQuestionnaireError] = useState("")
+
+  // Questionnaire results state
+  const [showQuestionnaireResults, setShowQuestionnaireResults] = useState(false)
+  const [questionnaireResultsId, setQuestionnaireResultsId] = useState<string | null>(null)
+  const [questionnaireResultsDetail, setQuestionnaireResultsDetail] = useState<QuestionnaireDetail | null>(null)
+  const [questionnaireResponses, setQuestionnaireResponses] = useState<QuestionnaireResponseItem[]>([])
+  const [questionnaireResultsLoading, setQuestionnaireResultsLoading] = useState(false)
+  const [selectedResponseId, setSelectedResponseId] = useState<string | null>(null)
+
+  // Questionnaire QR state
+  const [questionnaireQrId, setQuestionnaireQrId] = useState<string | null>(null)
+  const [questionnaireQrToken, setQuestionnaireQrToken] = useState<string | null>(null)
+  const [questionnaireQrLoading, setQuestionnaireQrLoading] = useState(false)
+
+  // Questionnaire delete state
+  const [deletingQuestionnaireId, setDeletingQuestionnaireId] = useState<string | null>(null)
+  const [isDeletingQuestionnaire, setIsDeletingQuestionnaire] = useState(false)
+
+  // Student result modal state
+  const [resultStudentId, setResultStudentId] = useState<string | null>(null)
+  const [resultStudentName, setResultStudentName] = useState("")
+  const [resultStudentEmail, setResultStudentEmail] = useState("")
+  const [resultStudentCurrent, setResultStudentCurrent] = useState<string | null>(null)
+  const [resultValue, setResultValue] = useState("")
+  const [resultNote, setResultNote] = useState("")
+  const [resultSaving, setResultSaving] = useState(false)
 
   useEffect(() => {
     if (forcedTab && activeTab !== forcedTab) {
@@ -574,13 +623,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         const existing = usersById.get(summary.id)
         return existing
           ? {
-              ...existing,
-              ...mapped,
-              isActive: summary.isActive !== false,
-              accountIsActive: summary.accountIsActive !== false,
-              isExpired: summary.isExpired === true,
-              mentorId: summary.mentorId ?? null,
-            }
+            ...existing,
+            ...mapped,
+            isActive: summary.isActive !== false,
+            accountIsActive: summary.accountIsActive !== false,
+            isExpired: summary.isExpired === true,
+            mentorId: summary.mentorId ?? null,
+          }
           : mapped
       }),
     [studentSummaries, usersById]
@@ -732,12 +781,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   async function handleCreateModule() {
     if (moduleSaving) return
 
-    if (!moduleTopic.trim()) {
-      setModuleError("Tema është e detyrueshme.")
-      return
-    }
-    if (!moduleLecturer.trim()) {
-      setModuleError("Lektori është i detyrueshëm.")
+    if (!moduleTitle.trim()) {
+      setModuleError("Titulli është i detyrueshëm.")
       return
     }
 
@@ -745,36 +790,20 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setModuleError("")
 
     try {
-      const result = (await fetchApi("/StudentModules", {
+      await fetchApi("/StudentModules", {
         method: "POST",
         body: JSON.stringify({
           yearGrade: moduleYearGrade,
-          topic: moduleTopic.trim(),
-          lecturer: moduleLecturer.trim(),
-          scheduledDate: moduleScheduledDate ? (moduleScheduledTime ? `${moduleScheduledDate}T${moduleScheduledTime}` : moduleScheduledDate) : null,
+          title: moduleTitle.trim(),
           location: moduleLocation.trim() || null,
           excludedStudentIds: moduleExcludedStudentIds.size > 0 ? Array.from(moduleExcludedStudentIds) : null,
           additionalStudentIds: moduleAdditionalStudents.length > 0 ? moduleAdditionalStudents.map(s => s.studentId) : null,
         }),
-      })) as { id: string }
-
-      // Upload documents if any
-      for (const file of moduleFiles) {
-        const formData = new FormData()
-        formData.append("file", file)
-        await fetchApi(`/StudentModules/${result.id}/documents`, {
-          method: "POST",
-          body: formData,
-        })
-      }
+      })
 
       // Reset form
-      setModuleTopic("")
-      setModuleLecturer("")
-      setModuleScheduledDate("")
-      setModuleScheduledTime("")
+      setModuleTitle("")
       setModuleLocation("")
-      setModuleFiles([])
       setModuleYearGrade(1)
       setModuleError("")
       setModuleExcludedStudentIds(new Set())
@@ -806,11 +835,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   async function openModuleDetail(moduleId: string) {
     setModuleDetailLoading(true)
     setSelectedModuleDetail(null)
-    setModuleQrToken(null)
-    setModuleQrError("")
-    setEditingSchedule(false)
-    setAddingDocFiles([])
+    setTopicQrTokens({})
+    setTopicQrError("")
+    setShowAddTopicForm(false)
+    setEditingTopicId(null)
     setDeletingDocId(null)
+    setDeletingDocTopicId(null)
+    setDeletingTopicId(null)
     setNotifySuccess(false)
     try {
       const detail = (await fetchApi(`/StudentModules/${moduleId}`)) as StudentModuleDetailResponse
@@ -822,40 +853,133 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     }
   }
 
-  async function handleGenerateModuleQr(moduleId: string) {
-    setModuleQrLoading(true)
-    setModuleQrError("")
+  async function handleGenerateTopicQr(topicId: string) {
+    setTopicQrLoading(topicId)
+    setTopicQrError("")
     try {
-      const result = (await fetchApi(`/StudentModules/${moduleId}/qr`)) as StudentModuleQrResponse
-      setModuleQrToken(result.token)
+      const result = (await fetchApi(`/StudentModules/topics/${topicId}/qr`)) as StudentModuleQrResponse
+      setTopicQrTokens(prev => ({ ...prev, [topicId]: result.token }))
     } catch (e: any) {
-      setModuleQrError(e?.message ?? "Gabim gjatë gjenerimit të QR kodit.")
+      setTopicQrError(e?.message ?? "Gabim gjatë gjenerimit të QR kodit.")
     } finally {
-      setModuleQrLoading(false)
+      setTopicQrLoading(null)
     }
   }
 
-  async function handleUpdateSchedule() {
-    if (!selectedModuleDetail) return
-    setSavingSchedule(true)
+  async function handleAddTopic() {
+    if (!selectedModuleDetail || topicSaving) return
+    if (!newTopicName.trim()) return
+    if (!newTopicLecturer.trim()) return
+
+    // Validate no duplicate date
+    if (newTopicScheduledDate) {
+      const existingDates = selectedModuleDetail.topics
+        .filter(t => t.scheduledDate)
+        .map(t => t.scheduledDate!.split("T")[0])
+      if (existingDates.includes(newTopicScheduledDate)) {
+        alert("Nuk lejohet të shtohen dy tema në të njëjtën ditë brenda një moduli.")
+        return
+      }
+    }
+
+    setTopicSaving(true)
     try {
-      const scheduledDate = editScheduleDate
-        ? editScheduleTime ? `${editScheduleDate}T${editScheduleTime}` : editScheduleDate
+      const scheduledDate = newTopicScheduledDate
+        ? (newTopicScheduledTime ? `${newTopicScheduledDate}T${newTopicScheduledTime}` : newTopicScheduledDate)
         : null
-      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/schedule`, {
-        method: "PUT",
-        body: JSON.stringify({ scheduledDate }),
+      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/topics`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: newTopicName.trim(),
+          lecturer: newTopicLecturer.trim(),
+          scheduledDate,
+          location: newTopicLocation.trim() || null,
+        }),
       })
-      // Auto-notify students about the schedule change
-      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/notify`, { method: "POST" }).catch(() => {})
-      setEditingSchedule(false)
+      setShowAddTopicForm(false)
+      setNewTopicName("")
+      setNewTopicLecturer("")
+      setNewTopicScheduledDate("")
+      setNewTopicScheduledTime("09:00")
+      setNewTopicLocation("")
       openModuleDetail(selectedModuleDetail.id)
       loadStudentModules()
     } catch (e: any) {
-      alert(e?.message ?? "Gabim gjatë ruajtjes.")
+      alert(e?.message ?? "Gabim gjatë shtimit të temës.")
     } finally {
-      setSavingSchedule(false)
+      setTopicSaving(false)
     }
+  }
+
+  async function handleUpdateTopic(topicId: string) {
+    if (topicSaving) return
+
+    // Validate no duplicate date (exclude current topic)
+    if (editTopicScheduledDate && selectedModuleDetail) {
+      const existingDates = selectedModuleDetail.topics
+        .filter(t => t.id !== topicId && t.scheduledDate)
+        .map(t => t.scheduledDate!.split("T")[0])
+      if (existingDates.includes(editTopicScheduledDate)) {
+        alert("Nuk lejohet të shtohen dy tema në të njëjtën ditë brenda një moduli.")
+        return
+      }
+    }
+
+    setTopicSaving(true)
+    try {
+      const scheduledDate = editTopicScheduledDate
+        ? (editTopicScheduledTime ? `${editTopicScheduledDate}T${editTopicScheduledTime}` : editTopicScheduledDate)
+        : null
+      await fetchApi(`/StudentModules/topics/${topicId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: editTopicName.trim(),
+          lecturer: editTopicLecturer.trim(),
+          scheduledDate,
+          location: editTopicLocation.trim() || null,
+        }),
+      })
+      setEditingTopicId(null)
+      if (selectedModuleDetail) {
+        openModuleDetail(selectedModuleDetail.id)
+        loadStudentModules()
+      }
+    } catch (e: any) {
+      alert(e?.message ?? "Gabim gjatë përditësimit të temës.")
+    } finally {
+      setTopicSaving(false)
+    }
+  }
+
+  async function handleDeleteTopic(topicId: string) {
+    setIsDeletingTopic(true)
+    try {
+      await fetchApi(`/StudentModules/topics/${topicId}`, { method: "DELETE" })
+      setDeletingTopicId(null)
+      if (selectedModuleDetail) {
+        openModuleDetail(selectedModuleDetail.id)
+        loadStudentModules()
+      }
+    } catch (e: any) {
+      alert(e?.message ?? "Gabim gjatë fshirjes së temës.")
+    } finally {
+      setIsDeletingTopic(false)
+    }
+  }
+
+  function startEditTopic(topic: StudentModuleTopicResponse) {
+    setEditingTopicId(topic.id)
+    setEditTopicName(topic.name)
+    setEditTopicLecturer(topic.lecturer)
+    if (topic.scheduledDate) {
+      const d = parseISO(topic.scheduledDate)
+      setEditTopicScheduledDate(format(d, "yyyy-MM-dd"))
+      setEditTopicScheduledTime(format(d, "HH:mm"))
+    } else {
+      setEditTopicScheduledDate("")
+      setEditTopicScheduledTime("09:00")
+    }
+    setEditTopicLocation(topic.location ?? "")
   }
 
   async function handleNotifyStudents() {
@@ -872,12 +996,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     }
   }
 
-  async function handleRemoveDocument(docId: string) {
+  async function handleRemoveDocument(topicId: string, docId: string) {
     if (!selectedModuleDetail) return
     setIsDeletingDoc(true)
     try {
-      await fetchApi(`/StudentModules/${selectedModuleDetail.id}/documents/${docId}`, { method: "DELETE" })
+      await fetchApi(`/StudentModules/topics/${topicId}/documents/${docId}`, { method: "DELETE" })
       setDeletingDocId(null)
+      setDeletingDocTopicId(null)
       openModuleDetail(selectedModuleDetail.id)
       loadStudentModules()
     } catch (e: any) {
@@ -887,23 +1012,23 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     }
   }
 
-  async function handleUploadNewDocs(files?: File[]) {
-    const toUpload = files || addingDocFiles
-    if (!selectedModuleDetail || toUpload.length === 0) return
+  async function handleUploadTopicDocs(topicId: string, files: File[]) {
+    if (!selectedModuleDetail || files.length === 0) return
+    setUploadingDocsTopicId(topicId)
     setUploadingDocs(true)
     try {
-      for (const file of toUpload) {
+      for (const file of files) {
         const fd = new FormData()
         fd.append("file", file)
-        await fetchApi(`/StudentModules/${selectedModuleDetail.id}/documents`, { method: "POST", body: fd })
+        await fetchApi(`/StudentModules/topics/${topicId}/documents`, { method: "POST", body: fd })
       }
-      setAddingDocFiles([])
       openModuleDetail(selectedModuleDetail.id)
       loadStudentModules()
     } catch (e: any) {
       alert(e?.message ?? "Gabim gjatë ngarkimit të dokumentit.")
     } finally {
       setUploadingDocs(false)
+      setUploadingDocsTopicId(null)
     }
   }
 
@@ -925,16 +1050,15 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     }
   }
 
-  async function handleOpenQrPopup(moduleId: string, moduleName: string, yearGrade: number, scheduledDate?: string | null) {
-    setQrPopupModuleId(moduleId)
-    setQrPopupModuleName(moduleName)
+  async function handleOpenQrPopup(topicId: string, topicName: string, yearGrade: number) {
+    setQrPopupTopicId(topicId)
+    setQrPopupTopicName(topicName)
     setQrPopupYear(yearGrade)
-    setQrPopupDate(scheduledDate ? format(parseISO(scheduledDate), "dd-MM-yyyy") : "")
     setQrPopupToken(null)
     setQrPopupError("")
     setQrPopupLoading(true)
     try {
-      const result = (await fetchApi(`/StudentModules/${moduleId}/qr`)) as StudentModuleQrResponse
+      const result = (await fetchApi(`/StudentModules/topics/${topicId}/qr`)) as StudentModuleQrResponse
       setQrPopupToken(result.token)
     } catch (e: any) {
       setQrPopupError(e?.message ?? "Gabim gjatë gjenerimit të QR kodit.")
@@ -951,6 +1075,159 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     if (!win) return
     win.document.write(`<html><head><title>${title}</title><style>body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:system-ui,sans-serif;}h2{margin-bottom:16px;}@media print{button{display:none!important;}}</style></head><body><h2>${title}</h2><img src="${dataUrl}" width="300" height="300" /><br/><button onclick="window.print()" style="margin-top:20px;padding:8px 24px;font-size:14px;cursor:pointer;">Printo</button></body></html>`)
     win.document.close()
+  }
+
+  // ── Questionnaire handlers ──────────────────────────────────────────────
+
+  function openCreateQuestionnaire(topicId: string, topicName: string) {
+    setQuestionnaireTopicId(topicId)
+    setQuestionnaireTopicName(topicName)
+    setQuestionnaireTitle("")
+    setQuestionnaireQuestions([{ text: "", type: "Options", order: 1, options: ["", ""] }])
+    setQuestionnaireError("")
+    setShowQuestionnaireModal(true)
+  }
+
+  function addQuestionnaireQuestion() {
+    setQuestionnaireQuestions(prev => [...prev, { text: "", type: "Options", order: prev.length + 1, options: ["", ""] }])
+  }
+
+  function removeQuestionnaireQuestion(index: number) {
+    setQuestionnaireQuestions(prev => prev.filter((_, i) => i !== index).map((q, i) => ({ ...q, order: i + 1 })))
+  }
+
+  function updateQuestionnaireQuestion(index: number, field: string, value: any) {
+    setQuestionnaireQuestions(prev => prev.map((q, i) => {
+      if (i !== index) return q
+      if (field === "type") {
+        return { ...q, type: value, options: value === "Options" ? ["", ""] : [] }
+      }
+      return { ...q, [field]: value }
+    }))
+  }
+
+  function updateQuestionOption(qIndex: number, optIndex: number, value: string) {
+    setQuestionnaireQuestions(prev => prev.map((q, i) => {
+      if (i !== qIndex) return q
+      const newOpts = [...q.options]
+      newOpts[optIndex] = value
+      return { ...q, options: newOpts }
+    }))
+  }
+
+  function addQuestionOption(qIndex: number) {
+    setQuestionnaireQuestions(prev => prev.map((q, i) => {
+      if (i !== qIndex) return q
+      return { ...q, options: [...q.options, ""] }
+    }))
+  }
+
+  function removeQuestionOption(qIndex: number, optIndex: number) {
+    setQuestionnaireQuestions(prev => prev.map((q, i) => {
+      if (i !== qIndex) return q
+      return { ...q, options: q.options.filter((_, j) => j !== optIndex) }
+    }))
+  }
+
+  async function handleCreateQuestionnaire() {
+    if (!questionnaireTopicId || !questionnaireTitle.trim()) return
+    const validQuestions = questionnaireQuestions.filter(q => q.text.trim())
+    if (validQuestions.length === 0) { setQuestionnaireError("Shtoni të paktën një pyetje."); return }
+
+    setQuestionnaireSaving(true)
+    setQuestionnaireError("")
+    try {
+      await fetchApi(`/StudentModules/topics/${questionnaireTopicId}/questionnaire`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: questionnaireTitle.trim(),
+          questions: validQuestions.map(q => ({
+            text: q.text.trim(),
+            type: q.type === "Options" ? 0 : q.type === "FreeText" ? 1 : 2,
+            order: q.order,
+            options: q.type === "Options" ? q.options.filter(o => o.trim()) : null
+          }))
+        })
+      })
+      setShowQuestionnaireModal(false)
+      // Refresh module detail
+      if (selectedModuleDetail) {
+        const updated = (await fetchApi(`/StudentModules/${selectedModuleDetail.id}`)) as StudentModuleDetailResponse
+        setSelectedModuleDetail(updated)
+      }
+      loadStudentModules()
+    } catch (e: any) {
+      setQuestionnaireError(e?.message ?? "Gabim gjatë ruajtjes së pyetësorit.")
+    } finally {
+      setQuestionnaireSaving(false)
+    }
+  }
+
+  async function handleDeleteQuestionnaire(questionnaireId: string) {
+    setIsDeletingQuestionnaire(true)
+    try {
+      await fetchApi(`/StudentModules/questionnaires/${questionnaireId}`, { method: "DELETE" })
+      setDeletingQuestionnaireId(null)
+      if (selectedModuleDetail) {
+        const updated = (await fetchApi(`/StudentModules/${selectedModuleDetail.id}`)) as StudentModuleDetailResponse
+        setSelectedModuleDetail(updated)
+      }
+      loadStudentModules()
+    } catch { /* ignore */ } finally {
+      setIsDeletingQuestionnaire(false)
+    }
+  }
+
+  async function openQuestionnaireResults(questionnaireId: string) {
+    setQuestionnaireResultsId(questionnaireId)
+    setShowQuestionnaireResults(true)
+    setQuestionnaireResultsLoading(true)
+    setSelectedResponseId(null)
+    try {
+      const [detail, responses] = await Promise.all([
+        fetchApi(`/StudentModules/questionnaires/${questionnaireId}`) as Promise<QuestionnaireDetail>,
+        fetchApi(`/StudentModules/questionnaires/${questionnaireId}/responses`) as Promise<QuestionnaireResponseItem[]>
+      ])
+      setQuestionnaireResultsDetail(detail)
+      setQuestionnaireResponses(responses)
+    } catch { /* ignore */ } finally {
+      setQuestionnaireResultsLoading(false)
+    }
+  }
+
+  async function openQuestionnaireQr(questionnaireId: string) {
+    setQuestionnaireQrId(questionnaireId)
+    setQuestionnaireQrToken(null)
+    setQuestionnaireQrLoading(true)
+    try {
+      const result = (await fetchApi(`/StudentModules/questionnaires/${questionnaireId}/qr`)) as { questionnaireId: string; token: string }
+      setQuestionnaireQrToken(result.token)
+    } catch { /* ignore */ } finally {
+      setQuestionnaireQrLoading(false)
+    }
+  }
+
+  // ── Student Result Handler ──────────────────────────────────────────────
+  async function handleSetStudentResult(moduleId: string, studentId: string) {
+    if (!resultValue.trim() || resultSaving) return
+    setResultSaving(true)
+    try {
+      await fetchApi(`/StudentModules/${moduleId}/results/${studentId}`, {
+        method: "PUT",
+        body: JSON.stringify({ result: resultValue.trim(), note: resultNote.trim() || null }),
+      })
+      setResultStudentId(null)
+      setResultStudentName("")
+      setResultStudentEmail("")
+      setResultStudentCurrent(null)
+      setResultValue("")
+      setResultNote("")
+      openModuleDetail(moduleId)
+    } catch (e: any) {
+      alert(e?.message ?? "Gabim gjatë ruajtjes së rezultatit.")
+    } finally {
+      setResultSaving(false)
+    }
   }
 
   function handleDownloadQr(canvasId: string, fileName: string) {
@@ -1019,8 +1296,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     if (moduleTimeFilter !== "all") {
       const now = new Date()
       result = result.filter((m) => {
-        if (!m.scheduledDate) return moduleTimeFilter === "upcoming"
-        return moduleTimeFilter === "upcoming" ? parseISO(m.scheduledDate) >= now : parseISO(m.scheduledDate) < now
+        const topicDates = m.topics
+          .map(t => t.scheduledDate)
+          .filter((d): d is string => !!d)
+          .map(d => parseISO(d))
+        if (topicDates.length === 0) return moduleTimeFilter === "upcoming"
+        const latestDate = topicDates.reduce((a, b) => (a > b ? a : b))
+        return moduleTimeFilter === "upcoming" ? latestDate >= now : latestDate < now
       })
     }
     return result
@@ -1055,15 +1337,26 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     [editFirstName, editRegistry, editStudentStartYearNumber, editStudentEndYearNumber]
   )
 
-  const enabledAttendanceDates = useMemo(() => attendanceData?.enabledDates ?? [], [attendanceData])
-  const enabledAttendanceDateSet = useMemo(() => new Set(enabledAttendanceDates), [enabledAttendanceDates])
-  const attendanceSelectedIndex = enabledAttendanceDates.indexOf(attendanceDate)
-  const attendancePrevDate = attendanceSelectedIndex > 0 ? enabledAttendanceDates[attendanceSelectedIndex - 1] : null
-  const attendanceNextDate =
-    attendanceSelectedIndex >= 0 && attendanceSelectedIndex < enabledAttendanceDates.length - 1
-      ? enabledAttendanceDates[attendanceSelectedIndex + 1]
-      : null
-  const attendanceActionsAllowed = attendanceDate === toDateInputValue(new Date())
+  // Module-topic attendance computed values
+  const attTopics = useMemo(() => {
+    if (!attModuleDetail) return []
+    return [...attModuleDetail.topics]
+      .filter(t => t.scheduledDate)
+      .sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
+  }, [attModuleDetail])
+
+  const attSelectedTopic = useMemo(() =>
+    attTopics.find(t => t.id === attSelectedTopicId) ?? null
+  , [attTopics, attSelectedTopicId])
+
+  const attStudentsForTopic = useMemo(() => {
+    if (!attModuleDetail || !attSelectedTopicId) return []
+    return attModuleDetail.assignments.map(a => ({
+      ...a,
+      attended: a.topicAttendances.some(ta => ta.topicId === attSelectedTopicId),
+      attendedAt: a.topicAttendances.find(ta => ta.topicId === attSelectedTopicId)?.attendedAt ?? null,
+    }))
+  }, [attModuleDetail, attSelectedTopicId])
 
   useEffect(() => {
     if (!isAdmin || !showAddForm) {
@@ -1139,10 +1432,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setError("Numri i regjistrit nuk mund te gjenerohet pa numrin e studentit, emrin dhe vitet e studimit.")
       return
     }
-    if (!newMentorId) {
-      setError("Ju lutem zgjidhni mentorin për studentin.")
-      return
-    }
     if (!newStudentStartYearNumber) {
       setError("Ju lutem zgjidhni vitin e fillimit të studimit.")
       return
@@ -1162,6 +1451,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         memberRegistryNumber: generatedNewRegistryNumber,
         role: "Student",
         phone: newPhone.trim() || undefined,
+        phonePrefix: newPhonePrefix.trim() || "+355",
+        phoneNumber: newPhone.trim() || undefined,
         mentorId: newMentorId,
         validUntilMonth: validToDate,
         studentTrackingNumber: newStudentTrackingNumber,
@@ -1182,6 +1473,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setNewStudentTrackingNumber(null)
       setNewRegistry("")
       setNewPhone("")
+      setNewPhonePrefix("+355")
       setNewStudentStartYear(getDefaultStudentStartYear())
       setNewStudentEndYear(getDefaultStudentEndYear())
       setNewYear2StartYear("")
@@ -1207,7 +1499,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setEditEmail2(student.email2 ?? "")
     setEditStudentTrackingNumber(student.studentTrackingNumber ?? parseStudentTrackingNumber(getPreferredStudentNumber(student)))
     setEditRegistry(getPreferredStudentNumber(student))
-    setEditPhone(student.phone ?? "")
+    const { prefix: parsedPrefix, number: parsedNumber } = splitPhone(student.phone)
+    setEditPhonePrefix(parsedPrefix)
+    setEditPhone(parsedNumber)
     setEditStudentStartYear(student.studentStartYear ? String(student.studentStartYear) : "")
     const startYr = student.studentStartYear
     setEditStudentEndYear(startYr ? String(startYr + 3) : (student.studentEndYear ? String(student.studentEndYear) : ""))
@@ -1264,10 +1558,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       return
     }
 
-    if (!editMentorId) {
-      setEditError("Ju lutem zgjidhni mentorin për studentin.")
-      return
-    }
     if (!editStudentStartYearNumber) {
       setEditError("Ju lutem zgjidhni vitin e fillimit të studimit.")
       return
@@ -1282,6 +1572,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         email2: editEmail2.trim() || null,
         memberRegistryNumber: generatedEditRegistryNumber,
         phone: editPhone.trim() || undefined,
+        phonePrefix: editPhonePrefix.trim() || "+355",
+        phoneNumber: editPhone.trim() || undefined,
         role: "Student",
         mentorId: editMentorId,
         validUntilMonth: toStudentValidUntilMonth(editStudentEndYearNumber),
@@ -1520,9 +1812,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       })
       await loadManageableStudents()
       closeScheduleModal()
-      if (activeTab === "attendance") {
-        await loadAttendance(attendanceDate)
-      }
     } catch (e: any) {
       setScheduleError(e?.message ?? "Gabim gjatë ruajtjes së orarit.")
     } finally {
@@ -1530,166 +1819,77 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     }
   }
 
-  async function loadAttendance(targetDate: string) {
-    setAttendanceLoading(true)
-    setAttendanceError("")
+  // ── Module-topic attendance handlers ──────────────────────────────────────
+
+  async function loadAttModules() {
+    setAttModulesLoading(true)
     try {
-      const params = new URLSearchParams({ date: targetDate })
-      if (isAdmin && attendanceMentorId) {
-        params.set("mentorId", attendanceMentorId)
+      const data = (await fetchApi("/StudentModules")) as StudentModuleResponse[]
+      setAttModules(data)
+    } catch { /* ignore */ } finally {
+      setAttModulesLoading(false)
+    }
+  }
+
+  async function loadAttModuleDetail(moduleId: string) {
+    setAttModuleDetailLoading(true)
+    setAttError("")
+    try {
+      const data = (await fetchApi(`/StudentModules/${moduleId}`)) as StudentModuleDetailResponse
+      setAttModuleDetail(data)
+      // Auto-select first topic with a date
+      const sorted = [...data.topics].filter(t => t.scheduledDate).sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
+      if (sorted.length > 0 && !attSelectedTopicId) {
+        setAttSelectedTopicId(sorted[0].id)
       }
-      const data = (await fetchApi(`/StudentTraining/attendance?${params.toString()}`)) as StudentAttendanceDayResponse
-      setAttendanceData(data)
     } catch (e: any) {
-      setAttendanceData(null)
-      setAttendanceError(e?.message ?? "Gabim gjatë ngarkimit të prezencës.")
+      setAttError(e?.message ?? "Gabim gjatë ngarkimit.")
     } finally {
-      setAttendanceLoading(false)
+      setAttModuleDetailLoading(false)
     }
   }
 
   useEffect(() => {
     if (activeTab !== "attendance") return
-    void loadAttendance(attendanceDate)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, attendanceDate, attendanceMentorId])
+    void loadAttModules()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   useEffect(() => {
-    if (!attendanceData) return
-    if (attendanceData.enabledDates.length === 0) return
-    if (attendanceData.enabledDates.includes(attendanceDate)) return
+    if (!attSelectedModuleId) { setAttModuleDetail(null); return }
+    setAttSelectedTopicId("")
+    void loadAttModuleDetail(attSelectedModuleId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attSelectedModuleId])
 
-    const today = toDateInputValue(new Date())
-    const fallback = attendanceData.enabledDates.find((d) => d >= today) ?? attendanceData.enabledDates[0]
-    setAttendanceDate(fallback)
-  }, [attendanceData, attendanceDate])
-
-  function openRejectAttendanceModal(session: StudentTrainingSession) {
-    setRejectAttendanceSession(session)
-    setRejectAttendanceReason("")
-    setRejectAttendanceError("")
-  }
-
-  function closeRejectAttendanceModal() {
-    if (rejectAttendanceSaving) return
-    setRejectAttendanceSession(null)
-    setRejectAttendanceReason("")
-    setRejectAttendanceError("")
-  }
-
-  async function markAttendance(
-    session: StudentTrainingSession,
-    status: "attended" | "rejected",
-    reasonOverride?: string | null
-  ) {
-    let reason: string | null = reasonOverride ?? null
-    if (status === "rejected" && reasonOverride === undefined) {
-      openRejectAttendanceModal(session)
-      return false
-    }
-
-    const updateKey = `${session.id}-${status}`
-    setAttendanceUpdatingKey(updateKey)
+  async function handleMarkAttendance(topicId: string, studentId: string) {
+    setAttUpdatingKey(`${topicId}-${studentId}-mark`)
     try {
-      await fetchApi(`/StudentTraining/sessions/${session.id}/attendance`, {
-        method: "PUT",
-        body: JSON.stringify({
-          status,
-          reason,
-        }),
-      })
-      await loadAttendance(attendanceDate)
-      return true
+      await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "POST" })
+      if (attSelectedModuleId) await loadAttModuleDetail(attSelectedModuleId)
     } catch (e: any) {
-      const message = e?.message ?? "Gabim gjatë përditësimit të prezencës."
-      setAttendanceError(message)
-      if (status === "rejected") {
-        setRejectAttendanceError(message)
-      }
-      return false
-    } finally {
-      setAttendanceUpdatingKey(null)
-    }
+      setAttError(e?.message ?? "Gabim gjatë regjistrimit të prezencës.")
+    } finally { setAttUpdatingKey(null) }
   }
 
-  async function submitRejectAttendance() {
-    if (!rejectAttendanceSession) return
-
-    setRejectAttendanceSaving(true)
-    setRejectAttendanceError("")
-    const ok = await markAttendance(
-      rejectAttendanceSession,
-      "rejected",
-      rejectAttendanceReason.trim() || null
-    )
-    setRejectAttendanceSaving(false)
-
-    if (ok) {
-      closeRejectAttendanceModal()
-    }
-  }
-
-  async function scanAttendanceToken(token: string) {
-    const trimmedToken = token.trim()
-    if (!trimmedToken) return
-    const now = Date.now()
-    const previous = lastScannedTokenRef.current
-    if (scanInFlightRef.current) return
-    if (previous && previous.token === trimmedToken && now - previous.at < 2500) {
-      return
-    }
-
-    scanInFlightRef.current = true
-    setScanBusy(true)
-    setScanError("")
-    setScanNotice("")
+  async function handleRemoveAttendance(topicId: string, studentId: string) {
+    setAttUpdatingKey(`${topicId}-${studentId}-remove`)
     try {
-      const response = (await fetchApi("/StudentTraining/attendance/scan", {
-        method: "POST",
-        body: JSON.stringify({ qrToken: trimmedToken }),
-      })) as StudentAttendanceScanResponse
-
-      setScanNotice(response.message)
-      setScanManualToken("")
-      lastScannedTokenRef.current = { token: trimmedToken, at: Date.now() }
-      await loadAttendance(attendanceDate)
-      setTimeout(() => {
-        setShowAttendanceScanner(false)
-      }, 900)
+      await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "DELETE" })
+      if (attSelectedModuleId) await loadAttModuleDetail(attSelectedModuleId)
     } catch (e: any) {
-      setScanError(e?.message ?? "Gabim gjatë skanimit të QR.")
-    } finally {
-      setScanBusy(false)
-      scanInFlightRef.current = false
-    }
+      setAttError(e?.message ?? "Gabim gjatë heqjes së prezencës.")
+    } finally { setAttUpdatingKey(null) }
   }
 
-  async function openMentorAttendanceQrModal() {
-    setShowMentorAttendanceQr(true)
-    setMentorAttendanceQrData(null)
-    setMentorAttendanceQrError("")
-    setMentorAttendanceQrLoading(true)
+  async function handleAttTopicQr(topicId: string) {
+    setAttTopicQrLoading(true)
+    setAttTopicQrToken("")
+    setAttShowQrModal(true)
     try {
-      const data = (await fetchApi(`/MentorQr/today?date=${encodeURIComponent(attendanceDate)}`)) as MentorAttendanceQrResponse
-      setMentorAttendanceQrData(data)
-    } catch (e: any) {
-      setMentorAttendanceQrError(e?.message ?? "Gabim gjatë gjenerimit të QR të mentorit.")
-    } finally {
-      setMentorAttendanceQrLoading(false)
-    }
-  }
-
-  async function handleScannerResult(result: any) {
-    if (!result || scanBusy) return
-    try {
-      const rawValue = Array.isArray(result)
-        ? result[0]?.rawValue ?? result[0]?.text
-        : result.rawValue ?? result.text ?? result
-      if (!rawValue || typeof rawValue !== "string") return
-      await scanAttendanceToken(rawValue)
-    } catch {
-      setScanError("Kodi QR është i pavlefshëm.")
-    }
+      const result = (await fetchApi(`/StudentModules/topics/${topicId}/qr`)) as { topicId: string; token: string }
+      setAttTopicQrToken(result.token)
+    } catch { /* ignore */ } finally { setAttTopicQrLoading(false) }
   }
 
   function openEndStazhModal(student: AppUser) {
@@ -1721,9 +1921,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       })
 
       await loadManageableStudents()
-      if (activeTab === "attendance") {
-        await loadAttendance(attendanceDate)
-      }
       closeEndStazhModal()
     } catch (e: any) {
       setEndingStazhError(e?.message ?? "Gabim gjatë mbylljes së stazhit.")
@@ -1866,201 +2063,204 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   </button>
                 </div>
                 <div className="flex flex-col gap-4 p-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label>Numri i Studentit (Tracking) *</Label>
-                  <Input
-                    value={newRegistry}
-                    readOnly
-                    placeholder="ST001"
-                    className="font-mono bg-muted/40"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {studentTrackingLoading ? "Po gjenerohet automatikisht nga databaza..." : "Numri bazë ST### gjenerohet automatikisht nga databaza."}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Kodi i Regjistrit *</Label>
-                  <Input value={generatedNewRegistryNumber} readOnly placeholder="ST001-INV2628" className="font-mono bg-muted/40" />
-                  <p className="text-xs text-muted-foreground">Gjenerohet nga numri i studentit, emri dhe vitet e studimit.</p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Emri *</Label>
-                  <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="Ana" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Mbiemri *</Label>
-                  <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Krasniqi" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Email *</Label>
-                  <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="ana.krasniqi@ieka.al" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Email 2</Label>
-                  <Input type="email" value={newEmail2} onChange={(e) => setNewEmail2(e.target.value)} placeholder="ana.personal@example.com" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Telefon</Label>
-                  <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+355 69 123 4567" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Mentori *</Label>
-                  <select
-                    value={newMentorId}
-                    onChange={(e) => setNewMentorId(e.target.value)}
-                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Zgjidh mentorin</option>
-                    {mentors.map((mentor) => (
-                      <option key={mentor.id} value={mentor.id}>
-                        {mentor.firstName} {mentor.lastName} ({mentor.memberRegistryNumber})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Shoqëria</Label>
-                  <Input value={newCompany} onChange={(e) => setNewCompany(e.target.value)} placeholder="Shoqëria ku është i angazhuar studenti" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Rrethi</Label>
-                  <Input value={newDistrict} onChange={(e) => setNewDistrict(e.target.value)} placeholder="Tiranë" />
-                </div>
-              </div>
-
-              {/* Year Section */}
-              <div className="mt-5 rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <h4 className="text-sm font-semibold text-foreground mb-3">Vitet e Studimit *</h4>
-                <div className="space-y-1.5">
-                  {/* Year 1 - start year selector inline */}
-                  <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">1</span>
-                    <span className="text-xs font-medium text-foreground">Viti i Parë</span>
-                    <div className="ml-auto flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">Shtator</span>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <Label>Numri i Studentit (Tracking) *</Label>
+                      <Input
+                        value={newRegistry}
+                        readOnly
+                        placeholder="ST001"
+                        className="font-mono bg-muted/40"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {studentTrackingLoading ? "Po gjenerohet automatikisht nga databaza..." : "Numri bazë ST### gjenerohet automatikisht nga databaza."}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Kodi i Regjistrit *</Label>
+                      <Input value={generatedNewRegistryNumber} readOnly placeholder="ST001-INV2628" className="font-mono bg-muted/40" />
+                      <p className="text-xs text-muted-foreground">Gjenerohet nga numri i studentit, emri dhe vitet e studimit.</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Emri *</Label>
+                      <Input value={newFirstName} onChange={(e) => setNewFirstName(e.target.value)} placeholder="Ana" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Mbiemri *</Label>
+                      <Input value={newLastName} onChange={(e) => setNewLastName(e.target.value)} placeholder="Krasniqi" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Email *</Label>
+                      <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="ana.krasniqi@ieka.al" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Email 2</Label>
+                      <Input type="email" value={newEmail2} onChange={(e) => setNewEmail2(e.target.value)} placeholder="ana.personal@example.com" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Telefon</Label>
+                      <div className="flex gap-2">
+                        <Input value={newPhonePrefix} onChange={(e) => setNewPhonePrefix(e.target.value)} className="w-20" placeholder="+355" />
+                        <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="69 123 4567" className="flex-1" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Mentori</Label>
                       <select
-                        value={newStudentStartYear}
-                        onChange={(e) => {
-                          setNewStudentStartYear(e.target.value)
-                          const parsed = parseStudentYear(e.target.value)
-                          if (parsed) {
-                            setNewStudentEndYear(String(parsed + 3))
-                            const currentY2 = parseStudentYear(newYear2StartYear)
-                            if (currentY2 && currentY2 <= parsed) setNewYear2StartYear("")
-                            const currentY3 = parseStudentYear(newYear3StartYear)
-                            if (currentY3 && currentY3 <= parsed) setNewYear3StartYear("")
-                          }
-                        }}
-                        className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={newMentorId}
+                        onChange={(e) => setNewMentorId(e.target.value)}
+                        className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <option value="">Zgjidh</option>
-                        {STUDENT_YEAR_OPTIONS.map((year) => (
-                          <option key={`new-start-${year}`} value={year}>{year}</option>
+                        <option value="">Zgjidh mentorin</option>
+                        {mentors.map((mentor) => (
+                          <option key={mentor.id} value={mentor.id}>
+                            {mentor.firstName} {mentor.lastName} ({mentor.memberRegistryNumber})
+                          </option>
                         ))}
                       </select>
-                      {newStudentStartYearNumber && (() => {
-                        return <span className="text-xs text-muted-foreground">– Shtator {newStudentStartYearNumber + 1}</span>
-                      })()}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Shoqëria</Label>
+                      <Input value={newCompany} onChange={(e) => setNewCompany(e.target.value)} placeholder="Shoqëria ku është i angazhuar studenti" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Rrethi</Label>
+                      <Input value={newDistrict} onChange={(e) => setNewDistrict(e.target.value)} placeholder="Tiranë" />
                     </div>
                   </div>
 
-                  {newStudentStartYearNumber && (() => {
-                    const y1 = newStudentStartYearNumber
-                    const y2 = parseStudentYear(newYear2StartYear) || y1 + 1
-                    const y3 = parseStudentYear(newYear3StartYear) || y2 + 1
-                    const y2Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y1 + 1)
-                    const y3Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y2 + 1)
-                    return (
-                      <>
-                        {/* Year 2 - editable, must be > Y1 */}
-                        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">2</span>
-                          <span className="text-xs font-medium text-foreground">Viti i Dytë</span>
-                          <div className="ml-auto flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">Shtator</span>
-                            <select
-                              value={newYear2StartYear || ""}
-                              onChange={(e) => {
-                                const newY2 = e.target.value
-                                setNewYear2StartYear(newY2)
-                                const newY2Num = parseStudentYear(newY2) || y1 + 1
+                  {/* Year Section */}
+                  <div className="mt-5 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                    <h4 className="text-sm font-semibold text-foreground mb-3">Vitet e Studimit *</h4>
+                    <div className="space-y-1.5">
+                      {/* Year 1 - start year selector inline */}
+                      <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">1</span>
+                        <span className="text-xs font-medium text-foreground">Viti i Parë</span>
+                        <div className="ml-auto flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Shtator</span>
+                          <select
+                            value={newStudentStartYear}
+                            onChange={(e) => {
+                              setNewStudentStartYear(e.target.value)
+                              const parsed = parseStudentYear(e.target.value)
+                              if (parsed) {
+                                setNewStudentEndYear(String(parsed + 3))
+                                const currentY2 = parseStudentYear(newYear2StartYear)
+                                if (currentY2 && currentY2 <= parsed) setNewYear2StartYear("")
                                 const currentY3 = parseStudentYear(newYear3StartYear)
-                                if (currentY3 && currentY3 <= newY2Num) {
-                                  setNewYear3StartYear("")
-                                }
-                              }}
-                              className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                            >
-                              <option value="">{y1 + 1}</option>
-                              {y2Options.map((yr) => (
-                                <option key={`new-y2-${yr}`} value={yr}>{yr}</option>
-                              ))}
-                            </select>
-                            <span className="text-xs text-muted-foreground">– Shtator {y2 + 1}</span>
-                          </div>
+                                if (currentY3 && currentY3 <= parsed) setNewYear3StartYear("")
+                              }
+                            }}
+                            className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            <option value="">Zgjidh</option>
+                            {STUDENT_YEAR_OPTIONS.map((year) => (
+                              <option key={`new-start-${year}`} value={year}>{year}</option>
+                            ))}
+                          </select>
+                          {newStudentStartYearNumber && (() => {
+                            return <span className="text-xs text-muted-foreground">– Shtator {newStudentStartYearNumber + 1}</span>
+                          })()}
                         </div>
-                        {/* Year 3 - editable, must be > Y2 */}
-                        <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">3</span>
-                          <span className="text-xs font-medium text-foreground">Viti i Tretë</span>
-                          <div className="ml-auto flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">Shtator</span>
-                            <select
-                              value={newYear3StartYear || ""}
-                              onChange={(e) => setNewYear3StartYear(e.target.value)}
-                              className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                            >
-                              <option value="">{y2 + 1}</option>
-                              {y3Options.map((yr) => (
-                                <option key={`new-y3-${yr}`} value={yr}>{yr}</option>
-                              ))}
-                            </select>
-                            <span className="text-xs text-muted-foreground">– Shtator {y3 + 1}</span>
-                          </div>
-                        </div>
-                      </>
-                    )
-                  })()}
-                </div>
+                      </div>
 
-                {newStudentStartYearNumber && (() => {
-                  const noteY2 = parseStudentYear(newYear2StartYear) || newStudentStartYearNumber + 1
-                  const noteY3 = parseStudentYear(newYear3StartYear) || noteY2 + 1
-                  return (
-                    <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 px-3 py-2.5">
-                      <p className="text-xs text-amber-800 dark:text-amber-300">
-                        <strong>Shënim:</strong> Studenti do të jetë i vlefshëm nga{" "}
-                        <strong>Shtator {newStudentStartYearNumber}</strong> deri në{" "}
-                        <strong>Shtator {noteY3 + 1}</strong>.
-                        Pas kësaj periudhe, llogaria e studentit do të skadojë automatikisht.
-                      </p>
+                      {newStudentStartYearNumber && (() => {
+                        const y1 = newStudentStartYearNumber
+                        const y2 = parseStudentYear(newYear2StartYear) || y1 + 1
+                        const y3 = parseStudentYear(newYear3StartYear) || y2 + 1
+                        const y2Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y1 + 1)
+                        const y3Options = STUDENT_YEAR_OPTIONS.filter((yr) => Number(yr) > y2 + 1)
+                        return (
+                          <>
+                            {/* Year 2 - editable, must be > Y1 */}
+                            <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">2</span>
+                              <span className="text-xs font-medium text-foreground">Viti i Dytë</span>
+                              <div className="ml-auto flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground">Shtator</span>
+                                <select
+                                  value={newYear2StartYear || ""}
+                                  onChange={(e) => {
+                                    const newY2 = e.target.value
+                                    setNewYear2StartYear(newY2)
+                                    const newY2Num = parseStudentYear(newY2) || y1 + 1
+                                    const currentY3 = parseStudentYear(newYear3StartYear)
+                                    if (currentY3 && currentY3 <= newY2Num) {
+                                      setNewYear3StartYear("")
+                                    }
+                                  }}
+                                  className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  <option value="">{y1 + 1}</option>
+                                  {y2Options.map((yr) => (
+                                    <option key={`new-y2-${yr}`} value={yr}>{yr}</option>
+                                  ))}
+                                </select>
+                                <span className="text-xs text-muted-foreground">– Shtator {y2 + 1}</span>
+                              </div>
+                            </div>
+                            {/* Year 3 - editable, must be > Y2 */}
+                            <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">3</span>
+                              <span className="text-xs font-medium text-foreground">Viti i Tretë</span>
+                              <div className="ml-auto flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground">Shtator</span>
+                                <select
+                                  value={newYear3StartYear || ""}
+                                  onChange={(e) => setNewYear3StartYear(e.target.value)}
+                                  className="h-7 rounded border border-input bg-transparent px-1.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  <option value="">{y2 + 1}</option>
+                                  {y3Options.map((yr) => (
+                                    <option key={`new-y3-${yr}`} value={yr}>{yr}</option>
+                                  ))}
+                                </select>
+                                <span className="text-xs text-muted-foreground">– Shtator {y3 + 1}</span>
+                              </div>
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
-                  )
-                })()}
-              </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              </div>
-              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => { setShowAddForm(false); setError("") }}
-                  disabled={addingStudent}
-                >
-                  Anulo
-                </Button>
-                <Button onClick={handleAdd} disabled={addingStudent || studentTrackingLoading}>
-                  {addingStudent ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Duke shtuar...
-                    </>
-                  ) : (
-                    "Shto Studentin"
-                  )}
-                </Button>
-              </div>
+                    {newStudentStartYearNumber && (() => {
+                      const noteY2 = parseStudentYear(newYear2StartYear) || newStudentStartYearNumber + 1
+                      const noteY3 = parseStudentYear(newYear3StartYear) || noteY2 + 1
+                      return (
+                        <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 px-3 py-2.5">
+                          <p className="text-xs text-amber-800 dark:text-amber-300">
+                            <strong>Shënim:</strong> Studenti do të jetë i vlefshëm nga{" "}
+                            <strong>Shtator {newStudentStartYearNumber}</strong> deri në{" "}
+                            <strong>Shtator {noteY3 + 1}</strong>.
+                            Pas kësaj periudhe, llogaria e studentit do të skadojë automatikisht.
+                          </p>
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                </div>
+                <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                  <Button
+                    variant="ghost"
+                    onClick={() => { setShowAddForm(false); setError("") }}
+                    disabled={addingStudent}
+                  >
+                    Anulo
+                  </Button>
+                  <Button onClick={handleAdd} disabled={addingStudent || studentTrackingLoading}>
+                    {addingStudent ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Duke shtuar...
+                      </>
+                    ) : (
+                      "Shto Studentin"
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -2156,23 +2356,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           </span>
                           <p className="mt-2 text-sm font-semibold text-foreground">{mentorName}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {isInactiveStudent ? "Orari është i bllokuar derisa studenti të riaktivizohet." : "Menaxho orarin dhe mbylljen e stazhit nga kjo kartë."}
+                            {isInactiveStudent ? "Studenti është jo aktiv." : ""}
                           </p>
                         </div>
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="min-w-[5.5rem] flex-1 gap-1.5"
-                          onClick={() => openScheduleModal(s)}
-                          disabled={isInactiveStudent}
-                        >
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          Orari
-                        </Button>
+                        {/* Orari disabled for now — only modules are active */}
                         {isAdmin && (
                           <Button
                             type="button"
@@ -2299,20 +2489,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openScheduleModal(s)}
-                                disabled={isInactiveStudent}
-                                className={cn(
-                                  "inline-flex items-center rounded-md border border-border px-2 py-1 text-xs font-medium",
-                                  isInactiveStudent
-                                    ? "cursor-not-allowed text-muted-foreground/50"
-                                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                )}
-                                title={isInactiveStudent ? "Studenti është jo aktiv" : "Menaxho orarin"}
-                              >
-                                <CalendarDays className="h-3.5 w-3.5" />
-                              </button>
+                              {/* Orari disabled for now */}
                               {isAdmin && (
                                 <button
                                   type="button"
@@ -2375,319 +2552,243 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
                     disabled={moduleSaving}
                     className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
                 <div className="p-6">
 
-              {/* Year Grade Selection */}
-              <div className="mb-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">Modul për vitin e:</span>
-                  {([1, 2, 3] as YearGrade[]).map((grade) => {
-                    const selected = moduleYearGrade === grade
-                    const labels = { 1: "Parë", 2: "Dytë", 3: "Tretë" } as const
-                    return (
-                      <button
-                        key={grade}
-                        type="button"
-                        onClick={() => setModuleYearGrade(grade)}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-all",
-                          selected
-                            ? "border-primary bg-primary/10 font-medium text-primary"
-                            : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                        )}
-                      >
-                        <div className={cn(
-                          "flex h-4 w-4 items-center justify-center rounded border transition-colors",
-                          selected
-                            ? "border-primary bg-primary"
-                            : "border-muted-foreground/40 bg-transparent"
-                        )}>
-                          {selected && (
-                            <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                          )}
-                        </div>
-                        {labels[grade]}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Topic and Lecturer */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-5">
-                <div className="flex flex-col gap-2">
-                  <Label>Tema *</Label>
-                  <Input
-                    value={moduleTopic}
-                    onChange={(e) => setModuleTopic(e.target.value)}
-                    placeholder="Tema e modulit..."
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Lektori *</Label>
-                  <Input
-                    value={moduleLecturer}
-                    onChange={(e) => setModuleLecturer(e.target.value)}
-                    placeholder="Emri i lektorit..."
-                  />
-                </div>
-              </div>
-
-              {/* Date, Time and Location */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-5">
-                <div className="flex gap-4">
-                  <div className="flex flex-col gap-2 flex-1">
-                    <Label>Data e Modulit</Label>
-                    <Input
-                      type="date"
-                      value={moduleScheduledDate}
-                      onChange={(e) => setModuleScheduledDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2 flex-1">
-                    <Label>Ora</Label>
-                    <Input
-                      type="time"
-                      value={moduleScheduledTime}
-                      onChange={(e) => setModuleScheduledTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Vendndodhja</Label>
-                  <Input
-                    value={moduleLocation}
-                    onChange={(e) => setModuleLocation(e.target.value)}
-                    placeholder="p.sh. Salla IEKA, Tiranë"
-                  />
-                </div>
-              </div>
-
-              {/* Training Materials Upload */}
-              <div className="mb-5">
-                <Label className="text-sm font-medium mb-2 block">Materialet e trajnimit</Label>
-                <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 p-4 text-center">
-                  <input
-                    type="file"
-                    multiple
-                    id="module-file-upload"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files) {
-                        setModuleFiles((prev) => [...prev, ...Array.from(e.target.files!)])
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="module-file-upload"
-                    className="cursor-pointer inline-flex flex-col items-center gap-2"
-                  >
-                    <Upload className="h-8 w-8 text-muted-foreground/60" />
-                    <span className="text-sm text-muted-foreground">Klikoni për të ngarkuar skedarë</span>
-                    <span className="text-xs text-muted-foreground/60">PDF, Word, PowerPoint, etj.</span>
-                  </label>
-                </div>
-                {moduleFiles.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {moduleFiles.map((file, idx) => (
-                      <div key={`${file.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="text-sm text-foreground truncate">{file.name}</span>
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            ({(file.size / 1024).toFixed(1)} KB)
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setModuleFiles((prev) => prev.filter((_, i) => i !== idx))}
-                          className="rounded-md p-1 text-muted-foreground hover:text-destructive"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Student Preview - Expandable List */}
-              <div className="mb-4 rounded-xl border border-border overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setModuleStudentPreviewExpanded((v) => !v)}
-                  className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-left"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      Studentët e Vitit të {moduleYearGrade === 1 ? "Parë" : moduleYearGrade === 2 ? "Dytë" : "Tretë"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {moduleStudentPreviewLoading
-                        ? "Duke ngarkuar..."
-                        : `${moduleStudentPreview.filter(s => !moduleExcludedStudentIds.has(s.studentId)).length + moduleAdditionalStudents.length} studentë do të njoftohen`}
-                    </p>
-                  </div>
-                  <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", moduleStudentPreviewExpanded && "rotate-90")} />
-                </button>
-                {moduleStudentPreviewExpanded && (
-                  <div className="border-t border-border">
-                    {moduleStudentPreviewLoading ? (
-                      <div className="px-4 py-3 text-sm text-muted-foreground">Duke ngarkuar studentët...</div>
-                    ) : moduleStudentPreview.length === 0 && moduleAdditionalStudents.length === 0 ? (
-                      <div className="px-4 py-3 text-sm text-muted-foreground">
-                        Nuk ka studentë aktiv për {formatYearGradeLabel(moduleYearGrade)}.
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-border max-h-[250px] overflow-y-auto">
-                        {moduleStudentPreview.map((student) => {
-                          const isExcluded = moduleExcludedStudentIds.has(student.studentId)
-                          return (
-                            <div key={student.studentId} className={cn("flex items-center gap-3 px-4 py-2.5", isExcluded && "opacity-40")}>
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[10px] font-semibold text-blue-500">
-                                {student.firstName[0]}{student.lastName[0]}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className={cn("text-sm font-medium text-foreground truncate", isExcluded && "line-through")}>{student.firstName} {student.lastName}</p>
-                                <p className="text-xs text-muted-foreground truncate">{student.email}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setModuleExcludedStudentIds(prev => {
-                                    const next = new Set(prev)
-                                    if (next.has(student.studentId)) next.delete(student.studentId)
-                                    else next.add(student.studentId)
-                                    return next
-                                  })
-                                }}
-                                className={cn(
-                                  "shrink-0 rounded-md p-1 transition-colors",
-                                  isExcluded ? "text-green-500 hover:bg-green-500/10" : "text-red-400 hover:bg-red-500/10"
-                                )}
-                                title={isExcluded ? "Rikthe studentin" : "Hiq studentin"}
-                              >
-                                {isExcluded ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                              </button>
+                  {/* Year Grade Selection */}
+                  <div className="mb-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">Modul për vitin e:</span>
+                      {([1, 2, 3] as YearGrade[]).map((grade) => {
+                        const selected = moduleYearGrade === grade
+                        const labels = { 1: "Parë", 2: "Dytë", 3: "Tretë" } as const
+                        return (
+                          <button
+                            key={grade}
+                            type="button"
+                            onClick={() => setModuleYearGrade(grade)}
+                            className={cn(
+                              "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-all",
+                              selected
+                                ? "border-primary bg-primary/10 font-medium text-primary"
+                                : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                            )}
+                          >
+                            <div className={cn(
+                              "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                              selected
+                                ? "border-primary bg-primary"
+                                : "border-muted-foreground/40 bg-transparent"
+                            )}>
+                              {selected && (
+                                <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                              )}
                             </div>
-                          )
-                        })}
-                        {/* Additional students from other years */}
-                        {moduleAdditionalStudents.map((student) => (
-                          <div key={student.studentId} className="flex items-center gap-3 px-4 py-2.5 bg-green-500/5">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-500/10 text-[10px] font-semibold text-green-500">
-                              {student.firstName[0]}{student.lastName[0]}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-foreground truncate">{student.firstName} {student.lastName}</p>
-                              <p className="text-xs text-muted-foreground truncate">{student.email}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setModuleAdditionalStudents(prev => prev.filter(s => s.studentId !== student.studentId))}
-                              className="shrink-0 rounded-md p-1 text-red-400 hover:bg-red-500/10 transition-colors"
-                              title="Hiq studentin"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {/* Add student from other years */}
-                    <div className="border-t border-border px-4 py-3">
-                      <div className="relative" ref={addStudentDropdownRef}>
-                        <button
-                          type="button"
-                          onClick={() => { setShowAddStudentDropdown(v => !v); setAddStudentSearch("") }}
-                          className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                          Shto Student
-                        </button>
-                        {showAddStudentDropdown && (
-                          <div className="absolute left-0 bottom-full mb-1 w-72 rounded-lg border border-border bg-popover shadow-lg z-50">
-                            <div className="p-2">
-                              <Input
-                                placeholder="Kërko student..."
-                                value={addStudentSearch}
-                                onChange={e => setAddStudentSearch(e.target.value)}
-                                className="h-8 text-xs"
-                                autoFocus
-                              />
-                            </div>
-                            <div className="max-h-[200px] overflow-y-auto">
-                              {allActiveStudentsLoading ? (
-                                <div className="px-3 py-2 text-xs text-muted-foreground">Duke ngarkuar...</div>
-                              ) : (() => {
-                                const yearStudentIds = new Set(moduleStudentPreview.map(s => s.studentId))
-                                const additionalIds = new Set(moduleAdditionalStudents.map(s => s.studentId))
-                                const searchLower = addStudentSearch.toLowerCase()
-                                const filtered = allActiveStudents.filter(s =>
-                                  !yearStudentIds.has(s.studentId) &&
-                                  !additionalIds.has(s.studentId) &&
-                                  (searchLower === "" || `${s.firstName} ${s.lastName} ${s.email}`.toLowerCase().includes(searchLower))
-                                )
-                                return filtered.length === 0 ? (
-                                  <div className="px-3 py-2 text-xs text-muted-foreground">Nuk u gjet asnjë student.</div>
-                                ) : (
-                                  filtered.slice(0, 20).map(student => (
-                                    <button
-                                      key={student.studentId}
-                                      type="button"
-                                      onClick={() => {
-                                        setModuleAdditionalStudents(prev => [...prev, student])
-                                        setAddStudentSearch("")
-                                        setShowAddStudentDropdown(false)
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-                                    >
-                                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[9px] font-semibold text-blue-500">
-                                        {student.firstName[0]}{student.lastName[0]}
-                                      </div>
-                                      <div className="min-w-0">
-                                        <p className="text-xs font-medium text-foreground truncate">{student.firstName} {student.lastName}</p>
-                                        <p className="text-[10px] text-muted-foreground truncate">{student.email}</p>
-                                      </div>
-                                    </button>
-                                  ))
-                                )
-                              })()}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                            {labels[grade]}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
-                )}
-              </div>
 
-              {moduleError && <p className="text-sm text-destructive mb-3">{moduleError}</p>}
-              </div>
+                  {/* Title and Location */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-5">
+                    <div className="flex flex-col gap-2">
+                      <Label>Titulli *</Label>
+                      <Input
+                        value={moduleTitle}
+                        onChange={(e) => setModuleTitle(e.target.value)}
+                        placeholder="Titulli i modulit..."
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Vendndodhja</Label>
+                      <Input
+                        value={moduleLocation}
+                        onChange={(e) => setModuleLocation(e.target.value)}
+                        placeholder="p.sh. Salla IEKA, Tiranë"
+                      />
+                    </div>
+                  </div>
 
-              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
-                  disabled={moduleSaving}
-                >
-                  Anulo
-                </Button>
-                <Button onClick={handleCreateModule} disabled={moduleSaving}>
-                  {moduleSaving ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Duke krijuar...
-                    </>
-                  ) : (
-                    "Krijo Modulin"
-                  )}
-                </Button>
-              </div>
+                  <p className="mb-5 text-xs text-muted-foreground">Temat, lektorët, datat dhe dokumentet shtohen brenda modulit pas krijimit.</p>
+
+                  {/* Student Preview - Expandable List */}
+                  <div className="mb-4 rounded-xl border border-border overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setModuleStudentPreviewExpanded((v) => !v)}
+                      className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-left"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          Studentët e Vitit të {moduleYearGrade === 1 ? "Parë" : moduleYearGrade === 2 ? "Dytë" : "Tretë"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {moduleStudentPreviewLoading
+                            ? "Duke ngarkuar..."
+                            : `${moduleStudentPreview.filter(s => !moduleExcludedStudentIds.has(s.studentId)).length + moduleAdditionalStudents.length} studentë do të njoftohen`}
+                        </p>
+                      </div>
+                      <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", moduleStudentPreviewExpanded && "rotate-90")} />
+                    </button>
+                    {moduleStudentPreviewExpanded && (
+                      <div className="border-t border-border">
+                        {moduleStudentPreviewLoading ? (
+                          <div className="px-4 py-3 text-sm text-muted-foreground">Duke ngarkuar studentët...</div>
+                        ) : moduleStudentPreview.length === 0 && moduleAdditionalStudents.length === 0 ? (
+                          <div className="px-4 py-3 text-sm text-muted-foreground">
+                            Nuk ka studentë aktiv për {formatYearGradeLabel(moduleYearGrade)}.
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-border max-h-[250px] overflow-y-auto">
+                            {moduleStudentPreview.map((student) => {
+                              const isExcluded = moduleExcludedStudentIds.has(student.studentId)
+                              return (
+                                <div key={student.studentId} className={cn("flex items-center gap-3 px-4 py-2.5", isExcluded && "opacity-40")}>
+                                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[10px] font-semibold text-blue-500">
+                                    {student.firstName[0]}{student.lastName[0]}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className={cn("text-sm font-medium text-foreground truncate", isExcluded && "line-through")}>{student.firstName} {student.lastName}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{student.email}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setModuleExcludedStudentIds(prev => {
+                                        const next = new Set(prev)
+                                        if (next.has(student.studentId)) next.delete(student.studentId)
+                                        else next.add(student.studentId)
+                                        return next
+                                      })
+                                    }}
+                                    className={cn(
+                                      "shrink-0 rounded-md p-1 transition-colors",
+                                      isExcluded ? "text-green-500 hover:bg-green-500/10" : "text-red-400 hover:bg-red-500/10"
+                                    )}
+                                    title={isExcluded ? "Rikthe studentin" : "Hiq studentin"}
+                                  >
+                                    {isExcluded ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              )
+                            })}
+                            {/* Additional students from other years */}
+                            {moduleAdditionalStudents.map((student) => (
+                              <div key={student.studentId} className="flex items-center gap-3 px-4 py-2.5 bg-green-500/5">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-500/10 text-[10px] font-semibold text-green-500">
+                                  {student.firstName[0]}{student.lastName[0]}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-foreground truncate">{student.firstName} {student.lastName}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{student.email}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setModuleAdditionalStudents(prev => prev.filter(s => s.studentId !== student.studentId))}
+                                  className="shrink-0 rounded-md p-1 text-red-400 hover:bg-red-500/10 transition-colors"
+                                  title="Hiq studentin"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Add student from other years */}
+                        <div className="border-t border-border px-4 py-3">
+                          <div className="relative" ref={addStudentDropdownRef}>
+                            <button
+                              type="button"
+                              onClick={() => { setShowAddStudentDropdown(v => !v); setAddStudentSearch("") }}
+                              className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                            >
+                              <UserPlus className="h-3.5 w-3.5" />
+                              Shto Student
+                            </button>
+                            {showAddStudentDropdown && (
+                              <div className="absolute left-0 bottom-full mb-1 w-72 rounded-lg border border-border bg-popover shadow-lg z-50">
+                                <div className="p-2">
+                                  <Input
+                                    placeholder="Kërko student..."
+                                    value={addStudentSearch}
+                                    onChange={e => setAddStudentSearch(e.target.value)}
+                                    className="h-8 text-xs"
+                                    autoFocus
+                                  />
+                                </div>
+                                <div className="max-h-[200px] overflow-y-auto">
+                                  {allActiveStudentsLoading ? (
+                                    <div className="px-3 py-2 text-xs text-muted-foreground">Duke ngarkuar...</div>
+                                  ) : (() => {
+                                    const yearStudentIds = new Set(moduleStudentPreview.map(s => s.studentId))
+                                    const additionalIds = new Set(moduleAdditionalStudents.map(s => s.studentId))
+                                    const searchLower = addStudentSearch.toLowerCase()
+                                    const filtered = allActiveStudents.filter(s =>
+                                      !yearStudentIds.has(s.studentId) &&
+                                      !additionalIds.has(s.studentId) &&
+                                      (searchLower === "" || `${s.firstName} ${s.lastName} ${s.email}`.toLowerCase().includes(searchLower))
+                                    )
+                                    return filtered.length === 0 ? (
+                                      <div className="px-3 py-2 text-xs text-muted-foreground">Nuk u gjet asnjë student.</div>
+                                    ) : (
+                                      filtered.slice(0, 20).map(student => (
+                                        <button
+                                          key={student.studentId}
+                                          type="button"
+                                          onClick={() => {
+                                            setModuleAdditionalStudents(prev => [...prev, student])
+                                            setAddStudentSearch("")
+                                            setShowAddStudentDropdown(false)
+                                          }}
+                                          className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                                        >
+                                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[9px] font-semibold text-blue-500">
+                                            {student.firstName[0]}{student.lastName[0]}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-medium text-foreground truncate">{student.firstName} {student.lastName}</p>
+                                            <p className="text-[10px] text-muted-foreground truncate">{student.email}</p>
+                                          </div>
+                                        </button>
+                                      ))
+                                    )
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {moduleError && <p className="text-sm text-destructive mb-3">{moduleError}</p>}
+                </div>
+
+                <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                  <Button
+                    variant="ghost"
+                    onClick={() => { setShowAddModuleForm(false); setModuleError("") }}
+                    disabled={moduleSaving}
+                  >
+                    Anulo
+                  </Button>
+                  <Button onClick={handleCreateModule} disabled={moduleSaving}>
+                    {moduleSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Duke krijuar...
+                      </>
+                    ) : (
+                      "Krijo Modulin"
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -2763,16 +2864,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         )}>
                           {formatYearGradeLabel(mod.yearGrade)}
                         </span>
-                        <h3 className="text-base font-semibold text-foreground">{mod.topic}</h3>
+                        <h3 className="text-base font-semibold text-foreground">{mod.title}</h3>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span>Lektori: <strong className="text-foreground">{mod.lecturer}</strong></span>
-                        {mod.scheduledDate && (
-                          <span className="inline-flex items-center gap-1">
-                            <CalendarDays className="h-3 w-3" />
-                            {format(parseISO(mod.scheduledDate), "dd MMM yyyy, HH:mm")}
-                          </span>
-                        )}
+                        <span>{mod.topics.length} temë</span>
                         {mod.location && (
                           <span className="inline-flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
@@ -2788,14 +2883,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); handleOpenQrPopup(mod.id, mod.topic, mod.yearGrade, mod.scheduledDate) }}
-                        className="rounded-md p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                        title="Shfaq QR"
-                      >
-                        <QrCode className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
                         onClick={(e) => { e.stopPropagation(); setDeletingModuleId(mod.id) }}
                         className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         title="Fshi modulin"
@@ -2804,21 +2891,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </button>
                     </div>
                   </div>
-                  {mod.documents.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {mod.documents.map((doc) => (
-                        <button
-                          key={doc.id || doc.fileName}
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleDownloadModuleDoc(doc.fileUrl, doc.fileName) }}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors"
-                        >
-                          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                          {doc.fileName}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -2841,21 +2913,21 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
             </div>
           )}
 
-          {/* QR Quick Popup from list */}
-          {qrPopupModuleId && (
+          {/* QR Quick Popup from list (per-topic) */}
+          {qrPopupTopicId && (
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
               <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-base font-semibold text-foreground">Kodi QR</h3>
                   <button
                     type="button"
-                    onClick={() => { setQrPopupModuleId(null); setQrPopupToken(null); setQrPopupError("") }}
+                    onClick={() => { setQrPopupTopicId(null); setQrPopupToken(null); setQrPopupError("") }}
                     className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <p className="text-sm text-muted-foreground mb-4">{qrPopupModuleName}</p>
+                <p className="text-sm text-muted-foreground mb-4">{qrPopupTopicName}</p>
                 {qrPopupLoading && (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -2873,11 +2945,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     </div>
                     <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për prezencën</p>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => handlePrintQr("module-list-qr", qrPopupModuleName)}>
+                      <Button size="sm" variant="outline" onClick={() => handlePrintQr("module-list-qr", qrPopupTopicName)}>
                         <Printer className="mr-1.5 h-3.5 w-3.5" />
                         Printo
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => handleDownloadQr("module-list-qr", `QR-${qrPopupModuleName}-Viti${qrPopupYear}${qrPopupDate ? `-${qrPopupDate}` : ""}.png`)}>
+                      <Button size="sm" variant="outline" onClick={() => handleDownloadQr("module-list-qr", `QR-${qrPopupTopicName}-Viti${qrPopupYear}.png`)}>
                         <Download className="mr-1.5 h-3.5 w-3.5" />
                         Shkarko
                       </Button>
@@ -2896,8 +2968,15 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : selectedModuleDetail && (
+                ) : selectedModuleDetail && (() => {
+                  const now = new Date()
+                  const topicDates = selectedModuleDetail.topics
+                    .filter(t => t.scheduledDate)
+                    .map(t => new Date(t.scheduledDate!))
+                  const isPastModule = topicDates.length > 0 && topicDates.every(d => d < now)
+                  return (
                   <>
+                    {/* Header */}
                     <div className="flex items-start justify-between gap-3 border-b border-border p-5">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -2911,46 +2990,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           )}>
                             {formatYearGradeLabel(selectedModuleDetail.yearGrade)}
                           </span>
-                          <h3 className="text-lg font-semibold text-foreground">{selectedModuleDetail.topic}</h3>
+                          <h3 className="text-lg font-semibold text-foreground">{selectedModuleDetail.title}</h3>
+                          {isPastModule && (
+                            <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-600">I përfunduar</span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>Lektori: <strong className="text-foreground">{selectedModuleDetail.lecturer}</strong></span>
-                          {!editingSchedule && (
-                            <>
-                              {selectedModuleDetail.scheduledDate ? (
-                                <span className="inline-flex items-center gap-1">
-                                  <CalendarDays className="h-3 w-3" />
-                                  {format(parseISO(selectedModuleDetail.scheduledDate), "dd MMM yyyy, HH:mm")}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (selectedModuleDetail.scheduledDate) {
-                                        const d = parseISO(selectedModuleDetail.scheduledDate)
-                                        setEditScheduleDate(format(d, "yyyy-MM-dd"))
-                                        setEditScheduleTime(format(d, "HH:mm"))
-                                      } else {
-                                        setEditScheduleDate("")
-                                        setEditScheduleTime("09:00")
-                                      }
-                                      setEditingSchedule(true)
-                                    }}
-                                    className="ml-1 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </button>
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => { setEditScheduleDate(""); setEditScheduleTime("09:00"); setEditingSchedule(true) }}
-                                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                                >
-                                  <CalendarDays className="h-3 w-3" />
-                                  Shto datën
-                                </button>
-                              )}
-                            </>
-                          )}
                           {selectedModuleDetail.location && (
                             <span className="inline-flex items-center gap-1">
                               <MapPin className="h-3 w-3" />
@@ -2961,29 +3006,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             <span>Krijuar nga: {selectedModuleDetail.createdByName}</span>
                           )}
                         </div>
-                        {editingSchedule && (
-                          <div className="mt-3 flex items-end gap-2">
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Data</Label>
-                              <Input type="date" value={editScheduleDate} onChange={(e) => setEditScheduleDate(e.target.value)} className="h-8 text-xs w-[150px]" />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Ora</Label>
-                              <Input type="time" value={editScheduleTime} onChange={(e) => setEditScheduleTime(e.target.value)} className="h-8 text-xs w-[120px]" />
-                            </div>
-                            <Button size="sm" className="h-8" onClick={handleUpdateSchedule} disabled={savingSchedule}>
-                              {savingSchedule ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Ruaj"}
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditingSchedule(false)} disabled={savingSchedule}>
-                              Anulo
-                            </Button>
-                          </div>
-                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => { setSelectedModuleDetail(null); setModuleQrToken(null); setModuleQrError("") }}
+                          onClick={() => { setSelectedModuleDetail(null); setTopicQrTokens({}); setTopicQrError("") }}
                           className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
                         >
                           <X className="h-5 w-5" />
@@ -2991,126 +3018,340 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </div>
                     </div>
 
-                    {/* QR Code & Documents */}
+                    {/* Topics Section */}
                     <div className="px-5 py-4 space-y-3">
-                      {/* QR Code Card */}
-                      <div className="rounded-xl border border-border overflow-hidden">
-                        <div className="flex items-center justify-between bg-muted/30 px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <QrCode className="h-4 w-4 text-primary" />
-                            <p className="text-sm font-semibold text-foreground">Kodi QR i Prezencës</p>
-                          </div>
-                          {!moduleQrToken && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => handleGenerateModuleQr(selectedModuleDetail.id)}
-                              disabled={moduleQrLoading}
-                            >
-                              {moduleQrLoading ? (
-                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                              ) : null}
-                              {moduleQrLoading ? "Duke gjeneruar..." : "Shfaq QR"}
-                            </Button>
-                          )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="h-4 w-4 text-primary" />
+                          <p className="text-sm font-semibold text-foreground">Temat ({selectedModuleDetail.topics.length})</p>
                         </div>
-                        {moduleQrError && (
-                          <p className="mx-4 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                            {moduleQrError}
-                          </p>
+                        {!isPastModule && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => { setShowAddTopicForm(true); setNewTopicName(""); setNewTopicLecturer(""); setNewTopicScheduledDate(""); setNewTopicScheduledTime("09:00"); setNewTopicLocation("") }}
+                        >
+                          <Plus className="mr-1 h-3 w-3" />
+                          Shto Temë
+                        </Button>
                         )}
-                        {moduleQrToken && (
-                          <div className="flex flex-col items-center gap-3 border-t border-border bg-white p-6">
-                            <QRCodeCanvas id="module-detail-qr" value={`IEKA-SM:${moduleQrToken}`} size={220} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
-                            <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për të konfirmuar prezencën</p>
-                            <div className="flex items-center gap-2">
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handlePrintQr("module-detail-qr", selectedModuleDetail.topic)}>
-                                <Printer className="mr-1 h-3 w-3" />
-                                Printo
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDownloadQr("module-detail-qr", `QR-${selectedModuleDetail.topic}-Viti${selectedModuleDetail.yearGrade}${selectedModuleDetail.scheduledDate ? `-${format(parseISO(selectedModuleDetail.scheduledDate), "dd-MM-yyyy")}` : ""}.png`)}>
-                                <Download className="mr-1 h-3 w-3" />
-                                Shkarko
-                              </Button>
+                      </div>
+
+                      {/* Add Topic Form */}
+                      {!isPastModule && showAddTopicForm && (
+                        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Emri i Temës *</Label>
+                              <Input value={newTopicName} onChange={(e) => setNewTopicName(e.target.value)} placeholder="Emri i temës..." className="h-8 text-xs" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Lektori *</Label>
+                              <Input value={newTopicLecturer} onChange={(e) => setNewTopicLecturer(e.target.value)} placeholder="Emri i lektorit..." className="h-8 text-xs" />
                             </div>
                           </div>
-                        )}
-                      </div>
-
-                      {/* Documents Card */}
-                      <div className="rounded-xl border border-border overflow-hidden">
-                        <div className="flex items-center justify-between bg-muted/30 px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-primary" />
-                            <p className="text-sm font-semibold text-foreground">
-                              Dokumente {selectedModuleDetail.documents.length > 0 && <span className="text-muted-foreground font-normal">({selectedModuleDetail.documents.length})</span>}
-                            </p>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Data</Label>
+                              <Input type="date" value={newTopicScheduledDate} onChange={(e) => setNewTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Ora</Label>
+                              <Input type="time" value={newTopicScheduledTime} onChange={(e) => setNewTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Vendndodhja</Label>
+                              <Input value={newTopicLocation} onChange={(e) => setNewTopicLocation(e.target.value)} placeholder="Vendndodhja..." className="h-8 text-xs" />
+                            </div>
                           </div>
-                          <div>
-                            <input
-                              type="file"
-                              multiple
-                              id="module-detail-file-upload"
-                              className="hidden"
-                              onChange={(e) => {
-                                if (e.target.files && e.target.files.length > 0) {
-                                  handleUploadNewDocs(Array.from(e.target.files))
-                                  e.target.value = ""
-                                }
-                              }}
-                            />
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => document.getElementById("module-detail-file-upload")?.click()}
-                              disabled={uploadingDocs}
-                            >
-                              {uploadingDocs ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Plus className="mr-1 h-3 w-3" />}
-                              {uploadingDocs ? "Duke ngarkuar..." : "Shto"}
+                          <div className="flex items-center gap-2 justify-end">
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAddTopicForm(false)} disabled={topicSaving}>Anulo</Button>
+                            <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim()}>
+                              {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                              {topicSaving ? "Duke ruajtur..." : "Ruaj Temën"}
                             </Button>
                           </div>
                         </div>
-                        {selectedModuleDetail.documents.length > 0 ? (
-                          <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-                            {selectedModuleDetail.documents.map((doc) => (
-                              <div key={doc.id} className="group inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/50 transition-colors">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
-                                  className="inline-flex items-center gap-1.5 hover:underline"
-                                >
-                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                  {doc.fileName}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeletingDocId(doc.id)}
-                                  className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="border-t border-border px-4 py-4 text-center">
-                            <p className="text-xs text-muted-foreground">Asnjë dokument i ngarkuar.</p>
-                          </div>
-                        )}
-                      </div>
+                      )}
+
+                      {/* Topic List */}
+                      {selectedModuleDetail.topics.length === 0 && !showAddTopicForm ? (
+                        <div className="rounded-xl border border-dashed border-border py-8 text-center">
+                          <p className="text-xs text-muted-foreground">Asnjë temë akoma. Shtoni temën e parë.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {selectedModuleDetail.topics.map((topic) => (
+                            <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
+                              {editingTopicId === topic.id ? (
+                                /* Edit Topic Inline */
+                                <div className="p-4 space-y-3 bg-muted/20">
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Emri i Temës *</Label>
+                                      <Input value={editTopicName} onChange={(e) => setEditTopicName(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Lektori *</Label>
+                                      <Input value={editTopicLecturer} onChange={(e) => setEditTopicLecturer(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Data</Label>
+                                      <Input type="date" value={editTopicScheduledDate} onChange={(e) => setEditTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Ora</Label>
+                                      <Input type="time" value={editTopicScheduledTime} onChange={(e) => setEditTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Vendndodhja</Label>
+                                      <Input value={editTopicLocation} onChange={(e) => setEditTopicLocation(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>
+                                    <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim()}>
+                                      {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                      {topicSaving ? "Duke ruajtur..." : "Ruaj"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* Display Topic */
+                                <div className="px-4 py-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-semibold text-foreground">{topic.name}</p>
+                                        {topic.scheduledDate && (() => {
+                                          const topicDate = new Date(topic.scheduledDate!)
+                                          const now = new Date()
+                                          const isUpcoming = topicDate > now
+                                          return isUpcoming ? (
+                                            <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
+                                          ) : topic.attendanceCount > 0 ? (
+                                            <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Me prezencë</span>
+                                          ) : (
+                                            <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Pa prezencë</span>
+                                          )
+                                        })()}
+                                      </div>
+                                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                        <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
+                                        {topic.scheduledDate && (
+                                          <span className="inline-flex items-center gap-1">
+                                            <CalendarDays className="h-3 w-3" />
+                                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                                          </span>
+                                        )}
+                                        {topic.location && (
+                                          <span className="inline-flex items-center gap-1">
+                                            <MapPin className="h-3 w-3" />
+                                            {topic.location}
+                                          </span>
+                                        )}
+                                        <span className="inline-flex items-center gap-1">
+                                          <UserCheck className="h-3 w-3" />
+                                          {topic.attendanceCount} prezencë
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {!isPastModule && (
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenQrPopup(topic.id, topic.name, selectedModuleDetail.yearGrade)}
+                                        className="rounded-md p-1 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                        title="Shfaq QR"
+                                      >
+                                        <QrCode className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditTopic(topic)}
+                                        className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                        title="Ndrysho"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeletingTopicId(topic.id)}
+                                        className="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                        title="Fshi temën"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                    )}
+                                  </div>
+
+                                  {/* ── Documents Section ── */}
+                                  <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span className="text-xs font-semibold text-foreground">Dokumente</span>
+                                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{topic.documents.length}</span>
+                                      </div>
+                                      {!isPastModule && (
+                                      <div>
+                                        <input
+                                          type="file"
+                                          multiple
+                                          id={`topic-file-upload-${topic.id}`}
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            if (e.target.files && e.target.files.length > 0) {
+                                              handleUploadTopicDocs(topic.id, Array.from(e.target.files))
+                                              e.target.value = ""
+                                            }
+                                          }}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => document.getElementById(`topic-file-upload-${topic.id}`)?.click()}
+                                          disabled={uploadingDocs && uploadingDocsTopicId === topic.id}
+                                          className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                                        >
+                                          {uploadingDocs && uploadingDocsTopicId === topic.id ? (
+                                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                          ) : (
+                                            <Plus className="h-2.5 w-2.5" />
+                                          )}
+                                          Ngarko
+                                        </button>
+                                      </div>
+                                      )}
+                                    </div>
+                                    {topic.documents.length > 0 ? (
+                                      <div className="space-y-1">
+                                        {topic.documents.map((doc) => (
+                                          <div key={doc.id} className="group flex items-center justify-between gap-2 rounded-md border border-border/50 bg-card px-2.5 py-1.5 text-[11px] hover:bg-muted/30 transition-colors">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
+                                              className="inline-flex items-center gap-1.5 min-w-0 hover:underline text-foreground"
+                                            >
+                                              <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                                              <span className="truncate">{doc.fileName}</span>
+                                            </button>
+                                            {!isPastModule && (
+                                            <button
+                                              type="button"
+                                              onClick={() => { setDeletingDocId(doc.id); setDeletingDocTopicId(topic.id) }}
+                                              className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity shrink-0"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-[11px] text-muted-foreground italic">Asnjë dokument i ngarkuar.</p>
+                                    )}
+                                  </div>
+
+                                  {/* ── Questionnaires Section ── */}
+                                  <div className="mt-2 rounded-lg border border-primary/20 bg-primary/[0.02] p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <ClipboardList className="h-3.5 w-3.5 text-primary" />
+                                        <span className="text-xs font-semibold text-foreground">Pyetësorët</span>
+                                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{(topic.questionnaires ?? []).length}</span>
+                                      </div>
+                                      {!isPastModule && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openCreateQuestionnaire(topic.id, topic.name)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                                      >
+                                        <Plus className="h-2.5 w-2.5" />
+                                        Shto Pyetësor
+                                      </button>
+                                      )}
+                                    </div>
+                                    {(topic.questionnaires ?? []).length > 0 ? (
+                                      <div className="space-y-1.5">
+                                        {(topic.questionnaires ?? []).map((q) => (
+                                          <div key={q.id} className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-card px-2.5 py-2 text-[11px] hover:bg-primary/5 transition-colors">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                              <ClipboardList className="h-3 w-3 text-primary shrink-0" />
+                                              <span className="font-medium text-foreground truncate">{q.title}</span>
+                                              <span className="text-muted-foreground shrink-0">({q.questionCount} pyetje • {q.responseCount} përgjigje)</span>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 shrink-0">
+                                              <button
+                                                type="button"
+                                                onClick={() => openQuestionnaireQr(q.id)}
+                                                className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
+                                                title="QR Pyetësor"
+                                              >
+                                                <QrCode className="h-3 w-3" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => openQuestionnaireResults(q.id)}
+                                                className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
+                                                title="Shiko Rezultatet"
+                                              >
+                                                <Eye className="h-3 w-3" />
+                                              </button>
+                                              {!isPastModule && (
+                                              <button
+                                                type="button"
+                                                onClick={() => setDeletingQuestionnaireId(q.id)}
+                                                className="rounded-md p-1 text-destructive hover:bg-destructive/10 transition-colors"
+                                                title="Fshi Pyetësorin"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-[11px] text-muted-foreground italic">Asnjë pyetësor i shtuar.</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
+                    {/* Delete Topic Confirmation */}
+                    {deletingTopicId && (
+                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                          <h3 className="mb-2 text-base font-semibold text-foreground">Fshi temën?</h3>
+                          <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë temën dhe të gjitha dokumentet e lidhura. Ky veprim nuk mund të zhbëhet.</p>
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="ghost" onClick={() => setDeletingTopicId(null)} disabled={isDeletingTopic}>Anulo</Button>
+                            <Button variant="destructive" onClick={() => handleDeleteTopic(deletingTopicId)} disabled={isDeletingTopic}>
+                              {isDeletingTopic ? "Duke fshirë..." : "Po, Fshi"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Delete Document Confirmation */}
-                    {deletingDocId && (
+                    {deletingDocId && deletingDocTopicId && (
                       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
                         <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
                           <h3 className="mb-2 text-base font-semibold text-foreground">Fshi dokumentin?</h3>
                           <p className="mb-5 text-sm text-muted-foreground">Ky veprim nuk mund të zhbëhet.</p>
                           <div className="flex gap-2 justify-end">
-                            <Button variant="ghost" onClick={() => setDeletingDocId(null)} disabled={isDeletingDoc}>Anulo</Button>
-                            <Button variant="destructive" onClick={() => handleRemoveDocument(deletingDocId)} disabled={isDeletingDoc}>
+                            <Button variant="ghost" onClick={() => { setDeletingDocId(null); setDeletingDocTopicId(null) }} disabled={isDeletingDoc}>Anulo</Button>
+                            <Button variant="destructive" onClick={() => handleRemoveDocument(deletingDocTopicId, deletingDocId)} disabled={isDeletingDoc}>
                               {isDeletingDoc ? "Duke fshirë..." : "Po, Fshi"}
                             </Button>
                           </div>
@@ -3118,7 +3359,199 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </div>
                     )}
 
-                    {/* Student Presence Table */}
+                    {/* Delete Questionnaire Confirmation */}
+                    {deletingQuestionnaireId && (
+                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                          <h3 className="mb-2 text-base font-semibold text-foreground">Fshi pyetësorin?</h3>
+                          <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë pyetësorin dhe të gjitha përgjigjet. Nuk mund të zhbëhet.</p>
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="ghost" onClick={() => setDeletingQuestionnaireId(null)} disabled={isDeletingQuestionnaire}>Anulo</Button>
+                            <Button variant="destructive" onClick={() => handleDeleteQuestionnaire(deletingQuestionnaireId)} disabled={isDeletingQuestionnaire}>
+                              {isDeletingQuestionnaire ? "Duke fshirë..." : "Po, Fshi"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Create Questionnaire Modal */}
+                    {showQuestionnaireModal && (
+                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                        <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-base font-semibold text-foreground">Shto Pyetësor - {questionnaireTopicName}</h3>
+                            <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="flex flex-col gap-1">
+                              <Label className="text-xs">Titulli i Pyetësorit *</Label>
+                              <Input value={questionnaireTitle} onChange={(e) => setQuestionnaireTitle(e.target.value)} placeholder="Titulli..." className="h-8 text-xs" />
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-semibold">Pyetjet ({questionnaireQuestions.length})</Label>
+                                <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={addQuestionnaireQuestion}>
+                                  <Plus className="mr-1 h-2.5 w-2.5" /> Shto Pyetje
+                                </Button>
+                              </div>
+
+                              {questionnaireQuestions.map((q, qIdx) => (
+                                <div key={qIdx} className="rounded-lg border border-border p-3 space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[10px] font-medium text-muted-foreground">Pyetja {qIdx + 1}</span>
+                                    <div className="flex items-center gap-2">
+                                      <select
+                                        value={q.type}
+                                        onChange={(e) => updateQuestionnaireQuestion(qIdx, "type", e.target.value)}
+                                        className="h-6 rounded border border-border bg-card px-1.5 text-[10px]"
+                                      >
+                                        <option value="Options">Me opsione</option>
+                                        <option value="FreeText">Tekst i lirë</option>
+                                        <option value="Stars">Yje (1-5)</option>
+                                      </select>
+                                      {questionnaireQuestions.length > 1 && (
+                                        <button type="button" onClick={() => removeQuestionnaireQuestion(qIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Input
+                                    value={q.text}
+                                    onChange={(e) => updateQuestionnaireQuestion(qIdx, "text", e.target.value)}
+                                    placeholder="Teksti i pyetjes..."
+                                    className="h-7 text-xs"
+                                  />
+                                  {q.type === "Options" && (
+                                    <div className="space-y-1 pl-2">
+                                      {q.options.map((opt, optIdx) => (
+                                        <div key={optIdx} className="flex items-center gap-1">
+                                          <span className="text-[10px] text-muted-foreground w-4">{optIdx + 1}.</span>
+                                          <Input
+                                            value={opt}
+                                            onChange={(e) => updateQuestionOption(qIdx, optIdx, e.target.value)}
+                                            placeholder={`Opsioni ${optIdx + 1}...`}
+                                            className="h-6 text-[10px] flex-1"
+                                          />
+                                          {q.options.length > 2 && (
+                                            <button type="button" onClick={() => removeQuestionOption(qIdx, optIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
+                                              <X className="h-2.5 w-2.5" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      ))}
+                                      <button type="button" onClick={() => addQuestionOption(qIdx)} className="text-[10px] text-primary hover:underline">+ Shto opsion</button>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            {questionnaireError && <p className="text-xs text-destructive">{questionnaireError}</p>}
+
+                            <div className="flex items-center gap-2 justify-end pt-2">
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowQuestionnaireModal(false)} disabled={questionnaireSaving}>Anulo</Button>
+                              <Button size="sm" className="h-7 text-xs" onClick={handleCreateQuestionnaire} disabled={questionnaireSaving || !questionnaireTitle.trim()}>
+                                {questionnaireSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                {questionnaireSaving ? "Duke ruajtur..." : "Ruaj Pyetësorin"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Questionnaire QR Modal */}
+                    {questionnaireQrId && (
+                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl text-center">
+                          <h3 className="mb-4 text-base font-semibold text-foreground">QR Pyetësor</h3>
+                          {questionnaireQrLoading ? (
+                            <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                          ) : questionnaireQrToken ? (
+                            <div className="flex flex-col items-center gap-3">
+                              <QRCodeCanvas id="questionnaire-qr-canvas" value={`IEKA-QZ:${questionnaireQrToken}`} size={220} level="M" />
+                              <button type="button" onClick={() => handlePrintQr("questionnaire-qr-canvas", "Pyetësor QR")} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                <Printer className="h-3 w-3" /> Printo
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-destructive">Gabim gjatë gjenerimit të QR.</p>
+                          )}
+                          <div className="mt-4">
+                            <Button size="sm" variant="ghost" onClick={() => { setQuestionnaireQrId(null); setQuestionnaireQrToken(null) }}>Mbyll</Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Questionnaire Results Modal */}
+                    {showQuestionnaireResults && (
+                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                        <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-base font-semibold text-foreground">
+                              Rezultatet e Pyetësorit
+                              {questionnaireResultsDetail && <span className="text-muted-foreground font-normal"> - {questionnaireResultsDetail.title}</span>}
+                            </h3>
+                            <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                          </div>
+
+                          {questionnaireResultsLoading ? (
+                            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                          ) : questionnaireResponses.length === 0 ? (
+                            <div className="py-8 text-center">
+                              <p className="text-sm text-muted-foreground">Asnjë student nuk ka plotësuar ende pyetësorin.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {questionnaireResponses.map((resp) => (
+                                <div key={resp.responseId} className="rounded-lg border border-border overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedResponseId(prev => prev === resp.responseId ? null : resp.responseId)}
+                                    className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
+                                  >
+                                    <div>
+                                      <span className="text-sm font-medium text-foreground">{resp.firstName} {resp.lastName}</span>
+                                      <span className="ml-2 text-xs text-muted-foreground">{format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}</span>
+                                    </div>
+                                    <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", selectedResponseId === resp.responseId && "rotate-90")} />
+                                  </button>
+                                  {selectedResponseId === resp.responseId && (
+                                    <div className="border-t border-border px-4 py-3 space-y-3 bg-muted/10">
+                                      {resp.answers.map((ans, aIdx) => (
+                                        <div key={aIdx}>
+                                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                                            {aIdx + 1}. {ans.questionText}
+                                            <span className="ml-1 text-[10px]">({ans.questionType === "Options" ? "Opsione" : ans.questionType === "FreeText" ? "Tekst" : "Yje"})</span>
+                                          </p>
+                                          {ans.questionType === "Stars" ? (
+                                            <div className="flex items-center gap-0.5">
+                                              {[1, 2, 3, 4, 5].map((s) => (
+                                                <Star key={s} className={cn("h-4 w-4", s <= parseInt(ans.answer) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30")} />
+                                              ))}
+                                              <span className="ml-1 text-xs text-foreground">{ans.answer}/5</span>
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm text-foreground bg-card rounded px-2 py-1 border border-border">{ans.answer}</p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Student Presence Table with per-topic columns */}
                     <div className="px-5 pb-4">
                       <div className="rounded-xl border border-border overflow-hidden">
                         <button
@@ -3147,26 +3580,82 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     <tr className="border-b border-border text-xs text-muted-foreground">
                                       <th className="py-2 pr-3 text-left font-medium">Emri</th>
                                       <th className="py-2 pr-3 text-left font-medium">Email</th>
-                                      <th className="py-2 text-left font-medium">Prezenca</th>
+                                      {selectedModuleDetail.topics.map((topic) => (
+                                        <th key={topic.id} className="py-2 px-2 text-center font-medium whitespace-nowrap" title={topic.name}>
+                                          {topic.name.length > 15 ? `${topic.name.slice(0, 15)}...` : topic.name}
+                                        </th>
+                                      ))}
+                                      {isPastModule && (
+                                        <th className="py-2 px-2 text-center font-medium whitespace-nowrap">Rezultati</th>
+                                      )}
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {selectedModuleDetail.assignments.map((a) => (
                                       <tr key={a.studentId} className="border-b border-border/50 last:border-0">
-                                        <td className="py-2.5 pr-3 font-medium text-foreground">{a.firstName} {a.lastName}</td>
+                                        <td className="py-2.5 pr-3 font-medium text-foreground whitespace-nowrap">{a.firstName} {a.lastName}</td>
                                         <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
-                                        <td className="py-2.5">
-                                          {a.attendedAt ? (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600">
-                                              <CheckCircle2 className="h-3 w-3" />
-                                              Prezent
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                                              Mungon
-                                            </span>
-                                          )}
-                                        </td>
+                                        {selectedModuleDetail.topics.map((topic) => {
+                                          const attendance = a.topicAttendances?.find(ta => ta.topicId === topic.id)
+                                          return (
+                                            <td key={topic.id} className="py-2.5 px-2 text-center">
+                                              {attendance ? (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                                </span>
+                                              ) : (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                                  --
+                                                </span>
+                                              )}
+                                            </td>
+                                          )
+                                        })}
+                                        {isPastModule && (
+                                          <td className="py-2.5 px-2 text-center">
+                                            {a.result ? (
+                                              <div className="flex flex-col items-center gap-0.5">
+                                                <span className={cn(
+                                                  "rounded-full px-2.5 py-0.5 text-[10px] font-semibold",
+                                                  a.result.toLowerCase() === "kaluar" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
+                                                )}>
+                                                  {a.result}
+                                                </span>
+                                                {a.resultNote && <span className="text-[10px] text-muted-foreground">{a.resultNote}</span>}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setResultStudentId(a.studentId)
+                                                    setResultStudentName(`${a.firstName} ${a.lastName}`)
+                                                    setResultStudentEmail(a.email)
+                                                    setResultStudentCurrent(a.result)
+                                                    setResultValue(a.result)
+                                                    setResultNote(a.resultNote ?? "")
+                                                  }}
+                                                  className="text-[10px] text-primary hover:underline mt-0.5"
+                                                >
+                                                  Ndrysho
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setResultStudentId(a.studentId)
+                                                  setResultStudentName(`${a.firstName} ${a.lastName}`)
+                                                  setResultStudentEmail(a.email)
+                                                  setResultStudentCurrent(null)
+                                                  setResultValue("")
+                                                  setResultNote("")
+                                                }}
+                                                className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                                              >
+                                                <GraduationCap className="h-3 w-3" />
+                                                Jep Rezultat
+                                              </button>
+                                            )}
+                                          </td>
+                                        )}
                                       </tr>
                                     ))}
                                   </tbody>
@@ -3178,7 +3667,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </div>
                     </div>
                   </>
-                )}
+                  )
+                  })()}
               </div>
             </div>
           )}
@@ -3187,305 +3677,377 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
       {activeTab === "attendance" && (
         <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-          <div className="h-fit rounded-2xl border border-border bg-card p-3 sm:p-4">
-            <div className="mb-4 flex flex-col gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Data</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {format(parseISO(attendanceDate), "dd MMM yyyy")}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 justify-center gap-2"
-                  disabled={!attendancePrevDate}
-                  onClick={() => attendancePrevDate && setAttendanceDate(attendancePrevDate)}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Pas
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 justify-center gap-2"
-                  disabled={!attendanceNextDate}
-                  onClick={() => attendanceNextDate && setAttendanceDate(attendanceNextDate)}
-                >
-                  Para
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
+          {/* Left sidebar */}
+          <div className="h-fit rounded-2xl border border-border bg-card p-3 sm:p-4 space-y-4">
+            {/* Module filter */}
+            <div>
+              <Label className="text-xs">Filtro sipas modulit</Label>
+              <select
+                value={attSelectedModuleId}
+                onChange={(e) => setAttSelectedModuleId(e.target.value)}
+                className="mt-1 flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Zgjidh modulin...</option>
+                {attModules.map((m) => (
+                  <option key={m.id} value={m.id}>Viti {m.yearGrade} - {m.title}</option>
+                ))}
+              </select>
             </div>
 
-            {isAdmin && (
-              <div className="mb-4 rounded-xl bg-muted/30 p-3">
-                <Label className="text-xs">Filtro sipas mentorit</Label>
-                <select
-                  value={attendanceMentorId}
-                  onChange={(e) => setAttendanceMentorId(e.target.value)}
-                  className="mt-1 flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="">Të gjithë mentorët</option>
-                  {mentors.map((mentor) => (
-                    <option key={mentor.id} value={mentor.id}>
-                      {mentor.firstName} {mentor.lastName} ({mentor.memberRegistryNumber})
-                    </option>
-                  ))}
-                </select>
+            {/* Topic list */}
+            {attModuleDetailLoading ? (
+              <div className="py-4 text-center text-xs text-muted-foreground">Duke ngarkuar...</div>
+            ) : attModuleDetail && attTopics.length > 0 ? (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-foreground">Temat ({attTopics.length})</p>
+                {attTopics.map((topic) => (
+                  <button
+                    key={topic.id}
+                    type="button"
+                    onClick={() => setAttSelectedTopicId(topic.id)}
+                    className={cn(
+                      "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                      attSelectedTopicId === topic.id
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                        : "border-border hover:bg-muted/50"
+                    )}
+                  >
+                    <p className="text-xs font-medium text-foreground">{topic.name}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                      {topic.scheduledDate && (
+                        <span className="inline-flex items-center gap-0.5">
+                          <CalendarDays className="h-2.5 w-2.5" />
+                          {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                        </span>
+                      )}
+                      <span>Lektori: {topic.lecturer}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-1">
+                      <UserCheck className="h-2.5 w-2.5 text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground">{topic.attendanceCount} prezencë</span>
+                    </div>
+                  </button>
+                ))}
               </div>
-            )}
-
-            <DayCalendar
-              mode="single"
-              selected={parseISO(attendanceDate)}
-              onSelect={(date) => {
-                if (!date) return
-                const next = toDateInputValue(date)
-                if (enabledAttendanceDateSet.has(next)) {
-                  setAttendanceDate(next)
-                }
-              }}
-              disabled={(date) => !enabledAttendanceDateSet.has(toDateInputValue(date))}
-              className="rounded-xl border border-border bg-card p-2 sm:p-3"
-            />
-            <p className="mt-3 text-xs text-muted-foreground">
-              Aktivizohen vetëm datat ku ka studentë të planifikuar.
-            </p>
+            ) : attSelectedModuleId && !attModuleDetailLoading ? (
+              <p className="py-4 text-center text-xs text-muted-foreground italic">Asnjë temë me datë në këtë modul.</p>
+            ) : !attSelectedModuleId ? (
+              <p className="py-4 text-center text-xs text-muted-foreground">Zgjidhni një modul për të parë temat.</p>
+            ) : null}
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-                  <UserCheck className="h-4 w-4 text-primary" />
-                  Prezenca për {format(parseISO(attendanceDate), "dd MMM yyyy")}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {attendanceData?.sessions.length ?? 0} studentë të planifikuar
-                </p>
-                {!attendanceActionsAllowed && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Veprimet e prezencës shfaqen vetëm për datën e sotme.
-                  </p>
+          {/* Right panel */}
+          <div>
+            {!attSelectedModuleId ? (
+              <div className="rounded-xl border border-dashed border-border py-16 text-center">
+                <BookOpen className="mx-auto h-8 w-8 text-muted-foreground/40" />
+                <p className="mt-2 text-sm text-muted-foreground">Zgjidhni një modul nga lista për të menaxhuar prezencën.</p>
+              </div>
+            ) : attModuleDetailLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !attSelectedTopic ? (
+              <div className="rounded-xl border border-dashed border-border py-16 text-center">
+                <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/40" />
+                <p className="mt-2 text-sm text-muted-foreground">Zgjidhni një temë për të parë studentët.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">
+                      Prezenca për: {attSelectedTopic.name}
+                    </h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {attSelectedTopic.scheduledDate && format(parseISO(attSelectedTopic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                      {attSelectedTopic.location ? ` • ${attSelectedTopic.location}` : ""}
+                      {` • Lektori: ${attSelectedTopic.lecturer}`}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {attStudentsForTopic.length} studentë • {attStudentsForTopic.filter(s => s.attended).length} me prezencë
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => handleAttTopicQr(attSelectedTopic.id)}
+                  >
+                    <QrCode className="h-3.5 w-3.5" />
+                    Shfaq QR
+                  </Button>
+                </div>
+
+                {attError && (
+                  <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{attError}</p>
+                )}
+
+                {/* Student list */}
+                {attStudentsForTopic.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border py-10 text-center">
+                    <p className="text-sm text-muted-foreground">Asnjë student i caktuar në këtë modul.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile cards */}
+                    <div className="space-y-2 md:hidden">
+                      {attStudentsForTopic.map((s) => {
+                        const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
+                        return (
+                          <div key={s.studentId} className="rounded-xl border border-border bg-card p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium text-foreground">{s.firstName} {s.lastName}</p>
+                                <p className="text-[11px] text-muted-foreground">{s.email}</p>
+                              </div>
+                              {s.attended ? (
+                                <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-semibold text-green-600 flex items-center gap-1">
+                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                  Prezent
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
+                                  Pa prezencë
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-3 flex gap-2">
+                              <Button
+                                size="sm"
+                                className="h-7 flex-1 text-[11px]"
+                                variant={s.attended ? "default" : "outline"}
+                                disabled={s.attended || isUpdating}
+                                onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                              >
+                                {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="h-7 flex-1 text-[11px]"
+                                variant={!s.attended ? "destructive" : "outline"}
+                                disabled={!s.attended || isUpdating}
+                                onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                              >
+                                {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
+                              </Button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Desktop table */}
+                    <div className="hidden md:block rounded-xl border border-border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
+                            <th className="px-4 py-2.5 text-left font-medium">Studenti</th>
+                            <th className="px-4 py-2.5 text-left font-medium">Email</th>
+                            <th className="px-4 py-2.5 text-center font-medium">Statusi</th>
+                            <th className="px-4 py-2.5 text-center font-medium w-[200px]">Veprime</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {attStudentsForTopic.map((s) => {
+                            const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
+                            return (
+                              <tr key={s.studentId} className="border-b border-border/50 last:border-0">
+                                <td className="px-4 py-2.5 font-medium text-foreground whitespace-nowrap">{s.firstName} {s.lastName}</td>
+                                <td className="px-4 py-2.5 text-muted-foreground">{s.email}</td>
+                                <td className="px-4 py-2.5 text-center">
+                                  {s.attended ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-semibold text-green-600">
+                                      <CheckCircle2 className="h-2.5 w-2.5" />
+                                      Prezent
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
+                                      Pa prezencë
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-7 min-w-[5rem] text-[11px]"
+                                      variant={s.attended ? "default" : "outline"}
+                                      disabled={s.attended || isUpdating}
+                                      onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                                    >
+                                      {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                      Prano
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="h-7 min-w-[5rem] text-[11px]"
+                                      variant={!s.attended ? "destructive" : "outline"}
+                                      disabled={!s.attended || isUpdating}
+                                      onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                                    >
+                                      {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                      Mungesë
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                {isMentor && attendanceActionsAllowed && (
-                  <Button
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Topic Attendance QR Modal */}
+      {/* Result Modal */}
+      {resultStudentId && selectedModuleDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <GraduationCap className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {resultStudentCurrent ? "Ndrysho Rezultatin" : "Jep Rezultatin"}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">{selectedModuleDetail.title}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setResultStudentId(null); setResultValue(""); setResultNote("") }}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Student info */}
+              <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-xs font-semibold text-blue-500">
+                  {resultStudentName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{resultStudentName}</p>
+                  <p className="text-xs text-muted-foreground">{resultStudentEmail}</p>
+                </div>
+              </div>
+
+              {/* Result selection */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-foreground">Rezultati *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2 sm:w-auto"
-                    onClick={() => {
-                      void openMentorAttendanceQrModal()
-                    }}
+                    onClick={() => setResultValue("Kaluar")}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all",
+                      resultValue === "Kaluar"
+                        ? "border-green-500 bg-green-500/10 text-green-600"
+                        : "border-border bg-card text-muted-foreground hover:border-green-500/50 hover:bg-green-500/5"
+                    )}
                   >
-                    <QrCode className="h-4 w-4" />
-                    QR për studentët
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-2 sm:w-auto"
-                  onClick={() => {
-                    setShowAttendanceScanner(true)
-                    setScanError("")
-                    setScanNotice("")
-                    scanInFlightRef.current = false
-                    lastScannedTokenRef.current = null
-                  }}
-                >
-                  <ScanLine className="h-4 w-4" />
-                  Skano QR
-                </Button>
+                    <CheckCircle2 className="h-6 w-6" />
+                    <span className="text-sm font-semibold">Kaluar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResultValue("Ngelur")}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 rounded-lg border-2 px-4 py-3 transition-all",
+                      resultValue === "Ngelur"
+                        ? "border-red-500 bg-red-500/10 text-red-600"
+                        : "border-border bg-card text-muted-foreground hover:border-red-500/50 hover:bg-red-500/5"
+                    )}
+                  >
+                    <XCircle className="h-6 w-6" />
+                    <span className="text-sm font-semibold">Ngelur</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Note */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-foreground">Shënim (opsional)</label>
+                <textarea
+                  value={resultNote}
+                  onChange={(e) => setResultNote(e.target.value)}
+                  placeholder="Shkruani një shënim për studentin..."
+                  rows={3}
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                />
               </div>
             </div>
 
-            {attendanceLoading ? (
-              <p className="text-sm text-muted-foreground">Duke ngarkuar prezencën...</p>
-            ) : attendanceError ? (
-              <p className="text-sm text-destructive">{attendanceError}</p>
-            ) : !attendanceData || attendanceData.sessions.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                Nuk ka studentë të planifikuar për këtë datë.
+            <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setResultStudentId(null); setResultValue(""); setResultNote("") }}
+                disabled={resultSaving}
+              >
+                Anulo
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleSetStudentResult(selectedModuleDetail.id, resultStudentId)}
+                disabled={resultSaving || !resultValue}
+                className={cn(
+                  resultValue === "Kaluar" && "bg-green-600 hover:bg-green-700",
+                  resultValue === "Ngelur" && "bg-red-600 hover:bg-red-700"
+                )}
+              >
+                {resultSaving ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <GraduationCap className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                {resultSaving ? "Duke ruajtur..." : "Ruaj Rezultatin"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {attShowQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl text-center">
+            <h3 className="text-sm font-semibold text-foreground mb-4">QR për Prezencë</h3>
+            {attTopicQrLoading ? (
+              <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+            ) : attTopicQrToken ? (
+              <div className="flex flex-col items-center gap-3">
+                <div className="rounded-xl border border-border bg-white p-5">
+                  <QRCodeCanvas id="att-topic-qr" value={`IEKA-SM:${attTopicQrToken}`} size={200} fgColor="#000000" bgColor="#ffffff" level="Q" />
+                </div>
+                <p className="text-xs text-muted-foreground">Studentët skanojnë këtë kod për prezencën</p>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => handlePrintQr("att-topic-qr", attSelectedTopic?.name ?? "Prezencë QR")}>
+                    <Printer className="mr-1.5 h-3.5 w-3.5" />
+                    Printo
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDownloadQr("att-topic-qr", `prezence-qr-${attSelectedTopicId}.png`)}>
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    Shkarko
+                  </Button>
+                </div>
               </div>
             ) : (
-              <>
-                <div className="space-y-3 md:hidden">
-                  {attendanceData.sessions.map((session) => {
-                    const acceptKey = `${session.id}-attended`
-                    const rejectKey = `${session.id}-rejected`
-                    const isUpdating = attendanceUpdatingKey === acceptKey || attendanceUpdatingKey === rejectKey
-                    const isAttended = session.attendanceStatus === "attended"
-                    const isRejected = session.attendanceStatus === "rejected"
-                    const hasResolvedAttendance = isAttended || isRejected
-                    const displayStatus = getAttendanceDisplayStatus(session)
-
-                    return (
-                      <div key={session.id} className="rounded-2xl border border-border bg-muted/20 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-foreground">
-                              {session.studentFirstName} {session.studentLastName}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {session.studentMemberRegistryNumber}
-                            </p>
-                          </div>
-                          <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-medium", displayStatus.className)}>
-                            {displayStatus.label}
-                          </span>
-                        </div>
-
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                          <div className="rounded-xl border border-border/70 bg-card/70 p-3">
-                            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                              Ora
-                            </span>
-                            <div className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                              <Clock3 className="h-3.5 w-3.5 text-primary" />
-                              {session.startTime} - {session.endTime}
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-border/70 bg-card/70 p-3">
-                            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                              Mentori
-                            </span>
-                            <p className="mt-2 text-sm font-semibold text-foreground">
-                              {session.mentorFirstName} {session.mentorLastName}
-                            </p>
-                          </div>
-                        </div>
-
-                        {session.rejectionReason && (
-                          <p className="mt-3 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                            Arsye refuzimi: {session.rejectionReason}
-                          </p>
-                        )}
-
-                        {attendanceActionsAllowed ? (
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="min-w-[6rem] flex-1"
-                              variant={isAttended ? "default" : "outline"}
-                              disabled={isUpdating || hasResolvedAttendance}
-                              onClick={() => markAttendance(session, "attended")}
-                            >
-                              Prano
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="min-w-[6rem] flex-1"
-                              variant={isRejected ? "destructive" : "outline"}
-                              disabled={isUpdating || hasResolvedAttendance}
-                              onClick={() => markAttendance(session, "rejected")}
-                            >
-                              Mungesë
-                            </Button>
-                          </div>
-                        ) : (
-                          <DisabledAttendanceActions
-                            isAttended={isAttended}
-                            isRejected={isRejected}
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/50">
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Studenti</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Ora</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Mentori</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Statusi</th>
-                        <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Veprime</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {attendanceData.sessions.map((session) => {
-                        const acceptKey = `${session.id}-attended`
-                        const rejectKey = `${session.id}-rejected`
-                        const isUpdating = attendanceUpdatingKey === acceptKey || attendanceUpdatingKey === rejectKey
-                        const isAttended = session.attendanceStatus === "attended"
-                        const isRejected = session.attendanceStatus === "rejected"
-                        const hasResolvedAttendance = isAttended || isRejected
-                        const displayStatus = getAttendanceDisplayStatus(session)
-
-                        return (
-                          <tr key={session.id} className="border-b border-border last:border-0 hover:bg-muted/20">
-                            <td className="px-3 py-2 text-xs">
-                              <div className="font-medium text-foreground">
-                                {session.studentFirstName} {session.studentLastName}
-                              </div>
-                              <div className="text-muted-foreground">{session.studentMemberRegistryNumber}</div>
-                            </td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground">
-                              <div className="inline-flex items-center gap-1">
-                                <Clock3 className="h-3 w-3" />
-                                {session.startTime} - {session.endTime}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-xs text-muted-foreground">
-                              {session.mentorFirstName} {session.mentorLastName}
-                            </td>
-                            <td className="px-3 py-2 text-xs">
-                              <span className={cn("rounded px-2 py-0.5 text-[11px] font-medium", displayStatus.className)}>
-                                {displayStatus.label}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2">
-                              {attendanceActionsAllowed ? (
-                                <div className="flex items-center gap-1.5">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-7 px-2 text-[11px]"
-                                    variant={isAttended ? "default" : "outline"}
-                                    disabled={isUpdating || hasResolvedAttendance}
-                                    onClick={() => markAttendance(session, "attended")}
-                                  >
-                                    Prano
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-7 px-2 text-[11px]"
-                                    variant={isRejected ? "destructive" : "outline"}
-                                    disabled={isUpdating || hasResolvedAttendance}
-                                    onClick={() => markAttendance(session, "rejected")}
-                                  >
-                                    Mungesë
-                                  </Button>
-                                </div>
-                              ) : (
-                                <DisabledAttendanceActions
-                                  compact
-                                  isAttended={isAttended}
-                                  isRejected={isRejected}
-                                />
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+              <p className="text-xs text-destructive">Gabim gjatë gjenerimit të QR.</p>
             )}
+            <div className="mt-4">
+              <Button size="sm" variant="ghost" onClick={() => { setAttShowQrModal(false); setAttTopicQrToken("") }}>Mbyll</Button>
+            </div>
           </div>
         </div>
       )}
@@ -3537,13 +4099,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Telefon</Label>
-                  <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+                  <div className="flex gap-2">
+                    <Input value={editPhonePrefix} onChange={(e) => setEditPhonePrefix(e.target.value)} className="w-20" placeholder="+355" />
+                    <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="69 123 4567" className="flex-1" />
+                  </div>
                 </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
-                  <Label>Mentori *</Label>
+                  <Label>Mentori</Label>
                   <select
                     value={editMentorId}
                     onChange={(e) => setEditMentorId(e.target.value)}
@@ -3861,165 +4423,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   {scheduleSaving ? "Duke ruajtur..." : "Ruaj Orarin"}
                 </Button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {rejectAttendanceSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <div>
-                <h3 className="text-base font-semibold text-foreground">Shëno mungesë</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {rejectAttendanceSession.studentFirstName} {rejectAttendanceSession.studentLastName} • {rejectAttendanceSession.studentMemberRegistryNumber}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeRejectAttendanceModal}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 p-6">
-              <p className="text-xs text-muted-foreground">
-                Sesioni: {format(parseISO(rejectAttendanceSession.date), "dd MMM yyyy")} • {rejectAttendanceSession.startTime} - {rejectAttendanceSession.endTime}
-              </p>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Arsyeja e mungesës (opsionale)</Label>
-                <Textarea
-                  value={rejectAttendanceReason}
-                  onChange={(e) => setRejectAttendanceReason(e.target.value)}
-                  placeholder="Shkruani arsyen e mungesës..."
-                  className="min-h-[100px]"
-                />
-              </div>
-
-              {rejectAttendanceError && <p className="text-sm text-destructive">{rejectAttendanceError}</p>}
-
-              <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-                <Button type="button" variant="ghost" onClick={closeRejectAttendanceModal} disabled={rejectAttendanceSaving}>
-                  Anulo
-                </Button>
-                <Button type="button" variant="destructive" onClick={submitRejectAttendance} disabled={rejectAttendanceSaving}>
-                  {rejectAttendanceSaving ? "Duke ruajtur..." : "Mungesë"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAttendanceScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h3 className="text-sm font-semibold text-foreground">Skano QR për prezencë</h3>
-              <button
-                type="button"
-                onClick={() => setShowAttendanceScanner(false)}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div className="overflow-hidden rounded-xl border border-border bg-black aspect-square">
-                <Scanner
-                  onScan={(result) => {
-                    void handleScannerResult(result)
-                  }}
-                  components={{ onOff: true, torch: true, zoom: false, finder: true }}
-                  styles={{ container: { width: "100%", height: "100%" } }}
-                />
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Ose vendos manualisht token-in e QR nëse po përdorni skaner hardware.
-              </p>
-
-              <div className="flex items-center gap-2">
-                <Input
-                  value={scanManualToken}
-                  onChange={(e) => setScanManualToken(e.target.value)}
-                  placeholder="Vendos token-in QR"
-                  className="h-9 text-xs font-mono"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-9 px-3"
-                  disabled={scanBusy || !scanManualToken.trim()}
-                  onClick={() => {
-                    void scanAttendanceToken(scanManualToken)
-                  }}
-                >
-                  {scanBusy ? "..." : "Konfirmo"}
-                </Button>
-              </div>
-
-              {scanNotice && (
-                <p className="rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700">
-                  {scanNotice}
-                </p>
-              )}
-              {scanError && (
-                <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {scanError}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showMentorAttendanceQr && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">QR i mentorit</h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Studentët e skanojnë për të konfirmuar prezencën e sotme.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMentorAttendanceQr(false)
-                  setMentorAttendanceQrData(null)
-                  setMentorAttendanceQrError("")
-                }}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-5 text-center">
-              {mentorAttendanceQrLoading ? (
-                <p className="text-sm text-muted-foreground">Duke gjeneruar QR...</p>
-              ) : mentorAttendanceQrError ? (
-                <p className="text-sm text-destructive">{mentorAttendanceQrError}</p>
-              ) : mentorAttendanceQrData ? (
-                <div className="space-y-3">
-                  <div className="inline-block rounded-lg border border-border bg-white p-3">
-                    <QRCodeCanvas value={`IEKA-MT:${mentorAttendanceQrData.qrToken}`} size={220} fgColor={"#000000"} bgColor={"#ffffff"} level={"Q"} />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Vlen për {format(parseISO(mentorAttendanceQrData.date), "dd MMM yyyy")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Kodi skadon më {format(parseISO(mentorAttendanceQrData.expiresAt), "dd MMM yyyy HH:mm")}
-                  </p>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
@@ -4622,40 +5025,66 @@ function StudentCalendarView() {
                       )}>
                         Viti {mod.yearGrade}
                       </span>
-                      <h3 className="text-sm font-semibold text-foreground">{mod.topic}</h3>
+                      <h3 className="text-sm font-semibold text-foreground">{mod.title}</h3>
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span>Lektori: <strong className="text-foreground">{mod.lecturer}</strong></span>
-                      {mod.scheduledDate && (
-                        <span className="inline-flex items-center gap-1">
-                          <CalendarDays className="h-3 w-3" />
-                          {format(parseISO(mod.scheduledDate), "dd MMM yyyy, HH:mm")}
-                        </span>
-                      )}
                       {mod.location && (
                         <span className="inline-flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
                           {mod.location}
                         </span>
                       )}
-                      {mod.documentCount > 0 && (
-                        <span>{mod.documentCount} dokument{mod.documentCount > 1 ? "e" : ""}</span>
-                      )}
+                      <span>{mod.topics.length} temë</span>
                     </div>
                   </div>
-                  <div>
-                    {mod.attended ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Prezent
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-                        Në pritje
-                      </span>
-                    )}
-                  </div>
                 </div>
+
+                {/* Nested topics */}
+                {mod.topics.length > 0 && (
+                  <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                    {mod.topics.map((topic) => (
+                      <div key={topic.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground">{topic.name}</p>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                            <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
+                            {topic.scheduledDate && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <CalendarDays className="h-2.5 w-2.5" />
+                                {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                              </span>
+                            )}
+                            {topic.location && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <MapPin className="h-2.5 w-2.5" />
+                                {topic.location}
+                              </span>
+                            )}
+                            {topic.documentCount > 0 && (
+                              <span>{topic.documentCount} dokument{topic.documentCount > 1 ? "e" : ""}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0">
+                          {topic.attended ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              Prezent
+                            </span>
+                          ) : topic.scheduledDate && new Date(topic.scheduledDate) > new Date() ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                              Në pritje
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+                              Pa prezencë
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

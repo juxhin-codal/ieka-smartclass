@@ -79,6 +79,8 @@ export interface AppUser {
   email2?: string | null
   memberRegistryNumber: string
   role: UserRole
+  phonePrefix?: string
+  phoneNumber?: string
   phone?: string
   mentorId?: string | null
   studentTrackingNumber?: number | null
@@ -260,38 +262,95 @@ export interface StudentModuleDocument {
   uploadedAt: string
 }
 
+export interface StudentModuleTopicResponse {
+  id: string
+  name: string
+  lecturer: string
+  scheduledDate?: string | null
+  location?: string | null
+  createdAt: string
+  documents: StudentModuleDocument[]
+  attendanceCount: number
+  questionnaires?: QuestionnaireInfo[]
+}
+
+export interface QuestionnaireInfo {
+  id: string
+  title: string
+  questionCount: number
+  responseCount: number
+}
+
+export interface QuestionnaireDetail {
+  id: string
+  topicId: string
+  title: string
+  createdAt: string
+  questions: QuestionnaireQuestion[]
+  responseCount: number
+}
+
+export interface QuestionnaireQuestion {
+  id: string
+  text: string
+  type: "Options" | "FreeText" | "Stars"
+  order: number
+  options?: string[] | null
+}
+
+export interface QuestionnaireResponseItem {
+  responseId: string
+  studentId: string
+  firstName: string
+  lastName: string
+  submittedAt: string
+  answers: QuestionnaireAnswer[]
+}
+
+export interface QuestionnaireAnswer {
+  questionId: string
+  questionText: string
+  questionType: string
+  answer: string
+}
+
+export interface TopicAttendanceInfo {
+  topicId: string
+  topicName: string
+  attendedAt: string
+}
+
 export interface StudentModuleAssignment {
   studentId: string
   firstName: string
   lastName: string
   email: string
   assignedAt: string
-  attendedAt?: string | null
+  topicAttendances: TopicAttendanceInfo[]
+  result?: string | null
+  resultNote?: string | null
+  resultSetAt?: string | null
 }
 
 export interface StudentModuleResponse {
   id: string
   yearGrade: number
-  topic: string
-  lecturer: string
-  scheduledDate?: string | null
+  title: string
   location?: string | null
   createdAt: string
   createdByName?: string | null
-  documents: StudentModuleDocument[]
+  topics: StudentModuleTopicResponse[]
   assignmentCount: number
 }
 
 export interface StudentModuleDetailResponse {
   id: string
   yearGrade: number
-  topic: string
-  lecturer: string
-  scheduledDate?: string | null
+  title: string
   location?: string | null
   createdAt: string
   createdByName?: string | null
-  documents: StudentModuleDocument[]
+  topics: StudentModuleTopicResponse[]
   assignments: StudentModuleAssignment[]
 }
 
@@ -303,25 +362,32 @@ export interface StudentModuleStudentItem {
 }
 
 export interface StudentModuleQrResponse {
-  moduleId: string
+  topicId: string
   token: string
 }
 
 export interface StudentMyModuleResponse {
   id: string
   yearGrade: number
-  topic: string
+  title: string
+  location?: string | null
+  createdAt: string
+  topics: StudentMyTopicResponse[]
+}
+
+export interface StudentMyTopicResponse {
+  id: string
+  name: string
   lecturer: string
   scheduledDate?: string | null
   location?: string | null
-  createdAt: string
   documentCount: number
   attended: boolean
   attendedAt?: string | null
 }
 
 export interface ScanModuleAttendanceResponse {
-  moduleId: string
+  topicId: string
   studentId: string
   attendedAt: string
 }

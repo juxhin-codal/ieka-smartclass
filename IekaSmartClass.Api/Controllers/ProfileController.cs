@@ -1,4 +1,5 @@
 using IekaSmartClass.Api.Services.Interface;
+using IekaSmartClass.Api.Utilities;
 using IekaSmartClass.Api.Utilities.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,15 +20,18 @@ public class ProfileController(IProfileService profileService, IRequestContext r
         if (_requestContext.UserId == null) return Unauthorized();
 
         var profile = await _profileService.GetMyProfileAsync(_requestContext.UserId.Value);
-        return profile is null
-            ? NotFound()
-            : Ok(new ProfileResponse(
+        if (profile is null) return NotFound();
+
+        var (prefix, number) = PhoneHelper.Split(profile.Phone);
+        return Ok(new ProfileResponse(
                 profile.Id,
                 profile.FirstName,
                 profile.LastName,
                 profile.Email ?? string.Empty,
                 profile.MemberRegistryNumber,
                 profile.Role,
+                prefix,
+                number,
                 profile.Phone,
                 profile.IsEffectivelyActive(),
                 profile.YearlyPaymentPaidYear,
@@ -40,12 +44,16 @@ public class ProfileController(IProfileService profileService, IRequestContext r
     {
         if (_requestContext.UserId == null) return Unauthorized();
 
+        var phone = request.PhonePrefix != null || request.PhoneNumber != null
+            ? PhoneHelper.Combine(request.PhonePrefix, request.PhoneNumber)
+            : request.Phone;
+
         await _profileService.UpdateMyProfileAsync(
             _requestContext.UserId.Value,
             request.FirstName,
             request.LastName,
             request.Email,
-            request.Phone);
+            phone);
 
         return NoContent();
     }
@@ -60,7 +68,7 @@ public class ProfileController(IProfileService profileService, IRequestContext r
     }
 }
 
-public record UpdateProfileRequest(string FirstName, string LastName, string Email, string? Phone);
+public record UpdateProfileRequest(string FirstName, string LastName, string Email, string? PhonePrefix = null, string? PhoneNumber = null, string? Phone = null);
 public record ProfileResponse(
     Guid Id,
     string FirstName,
@@ -68,6 +76,8 @@ public record ProfileResponse(
     string Email,
     string MemberRegistryNumber,
     string Role,
+    string? PhonePrefix,
+    string? PhoneNumber,
     string? Phone,
     bool IsActive,
     int? YearlyPaymentPaidYear,

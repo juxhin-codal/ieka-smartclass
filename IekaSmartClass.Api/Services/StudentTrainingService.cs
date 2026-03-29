@@ -68,30 +68,32 @@ public class StudentTrainingService(
         }
 
         var studentIds = students.Select(x => x.Id).ToList();
-        var sessionsQuery = _sessionRepository.Query()
-            .Where(x => studentIds.Contains(x.StudentId));
 
-        if (IsMentor(actorRole))
-        {
-            sessionsQuery = sessionsQuery.Where(x => x.MentorId == actorUserId);
-        }
-        else if (requestedMentorId.HasValue)
-        {
-            sessionsQuery = sessionsQuery.Where(x => x.MentorId == requestedMentorId.Value);
-        }
-
-        var statsByStudentId = await sessionsQuery
+        // Count total topics per student (across all assigned modules)
+        var totalTopicsByStudent = await _dbContext.StudentModuleAssignments
+            .Where(a => studentIds.Contains(a.StudentId))
+            .Join(
+                _dbContext.StudentModuleTopics,
+                a => a.StudentModuleId,
+                t => t.StudentModuleId,
+                (a, t) => new { a.StudentId })
             .GroupBy(x => x.StudentId)
-            .Select(g => new
-            {
-                StudentId = g.Key,
-                TotalSessions = g.Count(),
-                AttendedSessions = g.Count(x => x.AttendanceStatus == "attended")
-            })
-            .ToDictionaryAsync(
-                x => x.StudentId,
-                x => (x.AttendedSessions, x.TotalSessions),
-                cancellationToken);
+            .Select(g => new { StudentId = g.Key, Total = g.Count() })
+            .ToDictionaryAsync(x => x.StudentId, x => x.Total, cancellationToken);
+
+        // Count attended topics per student
+        var attendedByStudent = await _dbContext.StudentModuleTopicAttendances
+            .Where(a => studentIds.Contains(a.StudentId))
+            .GroupBy(a => a.StudentId)
+            .Select(g => new { StudentId = g.Key, Attended = g.Count() })
+            .ToDictionaryAsync(x => x.StudentId, x => x.Attended, cancellationToken);
+
+        var statsByStudentId = studentIds.ToDictionary(
+            id => id,
+            id => (
+                AttendedSessions: attendedByStudent.TryGetValue(id, out var att) ? att : 0,
+                TotalSessions: totalTopicsByStudent.TryGetValue(id, out var tot) ? tot : 0
+            ));
 
         return students
             .Select(student =>

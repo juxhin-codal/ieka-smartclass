@@ -250,7 +250,7 @@ public class EmailService(
         return SendUserEmailAsync(admin, $"Sesioni u mbyll: {summary.ModuleName} ({summary.SessionDate:dd MMM yyyy})", body, cancellationToken);
     }
 
-    public Task SendStudentModuleNotificationAsync(AppUser student, string moduleTopic, string lecturer, int yearGrade, CancellationToken cancellationToken = default)
+    public Task SendStudentModuleNotificationAsync(AppUser student, string moduleTitle, int yearGrade, CancellationToken cancellationToken = default)
     {
         var yearLabel = yearGrade switch
         {
@@ -268,22 +268,126 @@ public class EmailService(
     <table style='width: 100%; border-collapse: collapse; margin: 16px 0;'>
         <tr>
             <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Moduli</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</td>
+        </tr>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Viti</td>
             <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{yearLabel}</td>
-        </tr>
-        <tr>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Tema</td>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(moduleTopic)}</td>
-        </tr>
-        <tr>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Lektori</td>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(lecturer)}</td>
         </tr>
     </table>
     <p>Ju lutem kontrolloni platformën për materialet e trajnimit.</p>
     <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
 </div>";
 
-        return SendUserEmailAsync(student, $"Modul i ri trajnimi: {moduleTopic} - IEKA SmartClass", body, cancellationToken);
+        return SendUserEmailAsync(student, $"Modul i ri trajnimi: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
+    }
+
+    public Task SendStudentModuleUpdateAsync(AppUser student, string moduleTitle, string changeDescription, CancellationToken cancellationToken = default)
+    {
+        var body = $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #1a365d;'>Përditësim i Modulit</h2>
+    <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
+    <p>Moduli <strong>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</strong> ka ndryshime:</p>
+    <div style='padding: 12px 16px; background: #f7fafc; border-left: 4px solid #3182ce; margin: 16px 0;'>
+        {System.Net.WebUtility.HtmlEncode(changeDescription)}
+    </div>
+    <p>Ju lutem kontrolloni platformën për detaje.</p>
+    <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
+</div>";
+
+        return SendUserEmailAsync(student, $"Përditësim moduli: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
+    }
+
+    public Task SendStudentAddedToModuleAsync(AppUser student, string moduleTitle, int yearGrade, string? location, IReadOnlyList<string> topicNames, CancellationToken cancellationToken = default)
+    {
+        var yearLabel = yearGrade switch
+        {
+            1 => "Viti i Parë",
+            2 => "Viti i Dytë",
+            3 => "Viti i Tretë",
+            _ => $"Viti {yearGrade}"
+        };
+
+        var topicRows = topicNames.Count > 0
+            ? string.Join("", topicNames.Select(t =>
+                $"<tr><td style='padding: 6px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(t)}</td></tr>"))
+            : "<tr><td style='padding: 6px 12px; border: 1px solid #e2e8f0; color: #718096;'>Nuk ka tema ende.</td></tr>";
+
+        var body = $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #1a365d;'>Jeni Shtuar në Modul</h2>
+    <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
+    <p>Jeni shtuar në modulin e mëposhtëm:</p>
+    <table style='width: 100%; border-collapse: collapse; margin: 16px 0;'>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Moduli</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</td>
+        </tr>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Viti</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{yearLabel}</td>
+        </tr>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Vendndodhja</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(location ?? "-")}</td>
+        </tr>
+    </table>
+    <h3 style='color: #2d3748;'>Temat:</h3>
+    <table style='width: 100%; border-collapse: collapse; margin: 8px 0;'>
+        {topicRows}
+    </table>
+    <p>Ju lutem kontrolloni platformën për materialet e trajnimit.</p>
+    <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
+</div>";
+
+        return SendUserEmailAsync(student, $"Jeni shtuar në modulin: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
+    }
+
+    public Task SendStudentRemovedFromModuleAsync(AppUser student, string moduleTitle, CancellationToken cancellationToken = default)
+    {
+        var body = $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #1a365d;'>Hequr nga Moduli</h2>
+    <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
+    <p>Ju njoftojmë se jeni hequr nga moduli <strong>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</strong>.</p>
+    <p>Nëse mendoni se kjo është gabim, ju lutem kontaktoni administratorin.</p>
+    <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
+</div>";
+
+        return SendUserEmailAsync(student, $"Hequr nga moduli: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
+    }
+
+    public Task SendStudentModuleResultAsync(AppUser student, string moduleTitle, string result, string? resultNote, CancellationToken cancellationToken = default)
+    {
+        var noteRow = string.IsNullOrWhiteSpace(resultNote)
+            ? ""
+            : $@"<tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Shënim</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(resultNote)}</td>
+        </tr>";
+
+        var body = $@"
+<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <h2 style='color: #1a365d;'>Rezultati i Modulit</h2>
+    <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
+    <p>Rezultati juaj për modulin <strong>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</strong> është publikuar:</p>
+    <table style='width: 100%; border-collapse: collapse; margin: 16px 0;'>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Moduli</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</td>
+        </tr>
+        <tr>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Rezultati</td>
+            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; font-weight: bold; font-size: 16px;'>{System.Net.WebUtility.HtmlEncode(result)}</td>
+        </tr>
+        {noteRow}
+    </table>
+    <p>Ju lutem kontrolloni platformën për detaje të mëtejshme.</p>
+    <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
+</div>";
+
+        return SendUserEmailAsync(student, $"Rezultati i modulit: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
     }
 
     private Task SendUserEmailAsync(AppUser user, string subject, string body, CancellationToken cancellationToken)
