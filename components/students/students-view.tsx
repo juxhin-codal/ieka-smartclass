@@ -2319,9 +2319,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2">
-                            <code className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-mono text-blue-700">
-                              {getStudentTrackingCode(s) || "—"}
-                            </code>
                             <code className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-mono text-foreground">
                               {s.memberRegistryNumber}
                             </code>
@@ -2334,7 +2331,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         </div>
                       </div>
 
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      <div className="mt-4">
                         <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -2361,15 +2358,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           </div>
                           <p className="mt-2 text-xs text-muted-foreground">
                             {st ? `${st.attended}/${st.total} seanca` : "Pa seanca"}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-border/70 bg-muted/30 p-3">
-                          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                            Mentori
-                          </span>
-                          <p className="mt-2 text-sm font-semibold text-foreground">{mentorName}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {isInactiveStudent ? "Studenti është jo aktiv." : ""}
                           </p>
                         </div>
                       </div>
@@ -4906,134 +4894,158 @@ function StudentCalendarView() {
         const t = selectedTopic.topic
         const docs = t.documents ?? []
         const isToday = t.scheduledDate ? format(parseISO(t.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
+        const isPast = t.scheduledDate ? new Date(t.scheduledDate) < new Date() && !isToday : false
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-            <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-lg">
-              <div className="flex items-center justify-between border-b border-border px-5 py-4">
-                <div className="min-w-0">
-                  <h3 className="text-base font-semibold text-foreground">{t.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">{selectedTopic.moduleName}</p>
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm" onClick={() => setSelectedTopic(null)}>
+            <div
+              className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-2 duration-200 max-h-[92vh] sm:max-h-[80vh] flex flex-col sm:mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Drag handle (mobile) */}
+              <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                <div className="h-1 w-10 rounded-full bg-border" />
+              </div>
+
+              {/* Header */}
+              <div className="flex items-start justify-between gap-3 px-5 pt-2 sm:pt-5 pb-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                    {isToday && (
+                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Sot</span>
+                    )}
+                    {t.attended ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-600">
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        Prezent
+                      </span>
+                    ) : isPast ? (
+                      <span className="rounded-full bg-red-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-red-600">Pa prezencë</span>
+                    ) : (
+                      <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-blue-600">Në pritje</span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground leading-tight">{t.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">{selectedTopic.moduleName}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setSelectedTopic(null)}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 -mr-1 -mt-1"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="max-h-[60vh] overflow-y-auto p-5 space-y-4">
-                {/* Topic info */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">Lektori:</span>
-                    <span className="font-medium text-foreground">{t.lecturer}</span>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4">
+                {/* Info grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lektori</span>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground leading-snug">{t.lecturer}</p>
                   </div>
                   {t.scheduledDate && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-foreground">{format(parseISO(t.scheduledDate), "dd MMM yyyy, HH:mm")}</span>
-                      {isToday && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Sot</span>
-                      )}
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Data</span>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground leading-snug">{format(parseISO(t.scheduledDate), "dd MMM yyyy")}</p>
+                      <p className="text-xs text-muted-foreground">{format(parseISO(t.scheduledDate), "HH:mm")}</p>
                     </div>
                   )}
                   {t.location && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-foreground">{t.location}</span>
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Vendndodhja</span>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground leading-snug">{t.location}</p>
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    {t.attended ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Prezent
-                      </span>
-                    ) : t.scheduledDate && new Date(t.scheduledDate) > new Date() ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600">
-                        Në pritje
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-600">
-                        Pa prezencë
-                      </span>
-                    )}
-                    {t.attended && t.attendedAt && (
-                      <span className="text-[11px] text-muted-foreground">
-                        regjistruar më {format(parseISO(t.attendedAt), "dd MMM yyyy, HH:mm")}
-                      </span>
-                    )}
-                  </div>
+                  {t.attended && t.attendedAt && (
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-600">Prezenca</span>
+                      </div>
+                      <p className="text-sm font-semibold text-emerald-700 leading-snug">{format(parseISO(t.attendedAt), "dd MMM yyyy")}</p>
+                      <p className="text-xs text-emerald-600">{format(parseISO(t.attendedAt), "HH:mm")}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Scan QR for today's topic */}
                 {isToday && !t.attended && (
-                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                    <p className="text-xs text-muted-foreground mb-2">Kjo temë është sot. Skanoni kodin QR për të regjistruar prezencën.</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5"
-                      onClick={() => {
-                        setSelectedTopic(null)
-                        setShowModuleScanner(true)
-                        setModuleScanNotice("")
-                        setModuleScanError("")
-                        setModuleScanManualToken("")
-                      }}
-                    >
-                      <ScanLine className="h-3.5 w-3.5" />
-                      Skano
-                    </Button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTopic(null)
+                      setShowModuleScanner(true)
+                      setModuleScanNotice("")
+                      setModuleScanError("")
+                      setModuleScanManualToken("")
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/60 active:scale-[0.98]"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <ScanLine className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Skano kodin QR</p>
+                      <p className="text-xs text-muted-foreground">Regjistro prezencën për këtë temë</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+                  </button>
                 )}
 
                 {/* Documents */}
                 {docs.length > 0 ? (
                   <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 mb-2.5">
                       <FileText className="h-3.5 w-3.5 text-primary" />
-                      Dokumentet ({docs.length})
-                    </h4>
-                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dokumentet ({docs.length})</h4>
+                    </div>
+                    <div className="space-y-1.5">
                       {docs.map((doc) => (
-                        <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                        <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 transition-colors hover:bg-muted/30">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                            <FileText className="h-4 w-4 text-blue-500" />
+                          </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                              <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
-                            </div>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                            <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                            <p className="text-[11px] text-muted-foreground">
                               {(doc.sizeBytes / 1024).toFixed(0)} KB • {format(parseISO(doc.uploadedAt), "dd MMM yyyy")}
                             </p>
                           </div>
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="h-8 gap-1.5 shrink-0"
+                            className="h-8 w-8 p-0 shrink-0 hover:bg-primary/10"
                             disabled={downloadingDocId === doc.id}
                             onClick={() => void handleDownloadDocument(doc)}
                           >
-                            <Download className="h-3.5 w-3.5" />
-                            {downloadingDocId === doc.id ? "..." : "Shkarko"}
+                            <Download className={cn("h-4 w-4 text-primary", downloadingDocId === doc.id && "animate-pulse")} />
                           </Button>
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : t.documentCount > 0 ? (
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      Dokumentet ({t.documentCount})
-                    </h4>
-                    <p className="text-xs text-muted-foreground italic">Rinisni serverin e backend-it për të parë dokumentet.</p>
+                  <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 p-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                      <FileText className="h-4 w-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{t.documentCount} dokument{t.documentCount > 1 ? "e" : ""}</p>
+                      <p className="text-[11px] text-muted-foreground">Disponohen pas rinisjes së serverit</p>
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">Nuk ka dokumente për këtë temë.</p>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
