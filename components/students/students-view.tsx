@@ -3092,7 +3092,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {selectedModuleDetail.topics.map((topic) => (
+                          {selectedModuleDetail.topics.map((topic) => {
+                            const isTopicPast = (() => {
+                              if (!topic.scheduledDate) return false
+                              const todayStr = new Date().toISOString().slice(0, 10)
+                              return new Date(topic.scheduledDate).toISOString().slice(0, 10) < todayStr
+                            })()
+                            return (
                             <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
                               {editingTopicId === topic.id ? (
                                 /* Edit Topic Inline */
@@ -3169,7 +3175,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         </span>
                                       </div>
                                     </div>
-                                    {!isPastModule && (
+                                    {!isTopicPast && (
                                     <div className="flex items-center gap-1 shrink-0">
                                       <button
                                         type="button"
@@ -3207,7 +3213,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         <span className="text-xs font-semibold text-foreground">Dokumente</span>
                                         <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{topic.documents.length}</span>
                                       </div>
-                                      {!isPastModule && (
+                                      {!isTopicPast && (
                                       <div>
                                         <input
                                           type="file"
@@ -3249,7 +3255,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                               <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                                               <span className="truncate">{doc.fileName}</span>
                                             </button>
-                                            {!isPastModule && (
+                                            {!isTopicPast && (
                                             <button
                                               type="button"
                                               onClick={() => { setDeletingDocId(doc.id); setDeletingDocTopicId(topic.id) }}
@@ -3274,7 +3280,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         <span className="text-xs font-semibold text-foreground">Pyetësorët</span>
                                         <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{(topic.questionnaires ?? []).length}</span>
                                       </div>
-                                      {!isPastModule && (
+                                      {!isTopicPast && (
                                       <button
                                         type="button"
                                         onClick={() => openCreateQuestionnaire(topic.id, topic.name)}
@@ -3311,7 +3317,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                               >
                                                 <Eye className="h-3 w-3" />
                                               </button>
-                                              {!isPastModule && (
+                                              {!isTopicPast && (
                                               <button
                                                 type="button"
                                                 onClick={() => setDeletingQuestionnaireId(q.id)}
@@ -3332,7 +3338,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 </div>
                               )}
                             </div>
-                          ))}
+                          )})}
                         </div>
                       )}
                     </div>

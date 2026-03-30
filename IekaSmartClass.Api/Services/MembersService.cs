@@ -430,6 +430,8 @@ public class MembersService(
         await RemoveUserEventReservationsAsync(id);
         await RemoveUserTrainingDataAsync(id);
         await RemoveUserFeedbackAsync(id);
+        await RemoveUserModuleDataAsync(id);
+        await RemoveUserNotificationsAsync(id);
         await ClearMentorLinksAsync(id);
 
         await _dbContext.SaveChangesAsync();
@@ -914,6 +916,36 @@ public class MembersService(
         {
             _dbContext.EventFeedbacks.RemoveRange(feedbacks);
         }
+    }
+
+    private async Task RemoveUserModuleDataAsync(Guid userId)
+    {
+        var answers = await _dbContext.TopicQuestionnaireAnswers
+            .Where(a => _dbContext.TopicQuestionnaireResponses
+                .Where(r => r.StudentId == userId)
+                .Select(r => r.Id)
+                .Contains(a.ResponseId))
+            .ToListAsync();
+        if (answers.Count > 0) _dbContext.TopicQuestionnaireAnswers.RemoveRange(answers);
+
+        var responses = await _dbContext.TopicQuestionnaireResponses
+            .Where(x => x.StudentId == userId).ToListAsync();
+        if (responses.Count > 0) _dbContext.TopicQuestionnaireResponses.RemoveRange(responses);
+
+        var attendances = await _dbContext.StudentModuleTopicAttendances
+            .Where(x => x.StudentId == userId).ToListAsync();
+        if (attendances.Count > 0) _dbContext.StudentModuleTopicAttendances.RemoveRange(attendances);
+
+        var assignments = await _dbContext.StudentModuleAssignments
+            .Where(x => x.StudentId == userId).ToListAsync();
+        if (assignments.Count > 0) _dbContext.StudentModuleAssignments.RemoveRange(assignments);
+    }
+
+    private async Task RemoveUserNotificationsAsync(Guid userId)
+    {
+        var notifications = await _dbContext.UserNotifications
+            .Where(x => x.UserId == userId).ToListAsync();
+        if (notifications.Count > 0) _dbContext.UserNotifications.RemoveRange(notifications);
     }
 
     private async Task ClearMentorLinksAsync(Guid mentorId)
