@@ -371,47 +371,58 @@ export function MembersView() {
                 </div>
 
                 {/* Subtabs */}
-                <div className="mb-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-5">
-                    {subTabs.map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => { setActiveSubTab(tab.key); setCurrentPage(1); setSearch("") }}
-                            className={cn(
-                                "group relative overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-all",
-                                activeSubTab === tab.key
-                                    ? "border-primary/30 bg-card text-foreground shadow-md"
-                                    : "border-border bg-card/90 text-foreground hover:-translate-y-0.5 hover:border-primary/20 hover:bg-card hover:shadow-sm"
-                            )}
-                        >
-                            <div
-                                className={cn(
-                                    "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity",
-                                    tab.accentClassName,
-                                    activeSubTab === tab.key ? "opacity-100" : "group-hover:opacity-100/70"
-                                )}
-                            />
-                            <div className="relative flex items-center gap-3">
-                                <div className={cn(
-                                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border",
-                                    activeSubTab === tab.key
-                                        ? tab.iconClassName
-                                        : "border-border bg-muted/60 text-muted-foreground"
-                                )}>
-                                    <tab.icon className="h-4 w-4" />
-                                </div>
+                <div className="mb-6 flex flex-col gap-1.5 sm:gap-2.5 xl:grid xl:grid-cols-5">
+                    {/* Row 1: Aktiv + Jo Aktiv | Row 2: Admin + Lektor + Mentor on mobile */}
+                    {[subTabs.slice(0, 2), subTabs.slice(2)].map((row, rowIdx) => (
+                        <div key={rowIdx} className={cn(
+                            "grid gap-1.5 sm:gap-2.5",
+                            rowIdx === 0 ? "grid-cols-2" : "grid-cols-3 sm:grid-cols-3",
+                            "xl:contents"
+                        )}>
+                            {row.map(tab => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => { setActiveSubTab(tab.key); setCurrentPage(1); setSearch("") }}
+                                    className={cn(
+                                        "group relative overflow-hidden rounded-xl border text-left transition-all",
+                                        "px-2 py-1.5 sm:px-3 sm:py-2.5",
+                                        activeSubTab === tab.key
+                                            ? "border-primary/30 bg-card text-foreground shadow-md"
+                                            : "border-border bg-card/90 text-foreground hover:-translate-y-0.5 hover:border-primary/20 hover:bg-card hover:shadow-sm"
+                                    )}
+                                >
+                                    <div
+                                        className={cn(
+                                            "pointer-events-none absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity",
+                                            tab.accentClassName,
+                                            activeSubTab === tab.key ? "opacity-100" : "group-hover:opacity-100/70"
+                                        )}
+                                    />
+                                    <div className="relative flex items-center gap-1.5 sm:gap-3">
+                                        <div className={cn(
+                                            "flex shrink-0 items-center justify-center rounded-lg border",
+                                            "h-6 w-6 sm:h-8 sm:w-8",
+                                            activeSubTab === tab.key
+                                                ? tab.iconClassName
+                                                : "border-border bg-muted/60 text-muted-foreground"
+                                        )}>
+                                            <tab.icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                                        </div>
 
-                                <p className="min-w-0 flex-1 text-[13px] font-semibold leading-tight text-foreground">
-                                    {tab.label}
-                                </p>
+                                        <p className="min-w-0 flex-1 text-[11px] font-semibold leading-tight text-foreground sm:text-[13px]">
+                                            {tab.label}
+                                        </p>
 
-                                <span className={cn(
-                                    "inline-flex min-w-[2rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                                    activeSubTab === tab.key ? tab.badgeClassName : "bg-muted text-foreground"
-                                )}>
-                                    {subTabCounts[tab.key]}
-                                </span>
-                            </div>
-                        </button>
+                                        <span className={cn(
+                                            "inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1 py-0.5 text-[10px] font-semibold sm:min-w-[2rem] sm:px-2 sm:text-[11px]",
+                                            activeSubTab === tab.key ? tab.badgeClassName : "bg-muted text-foreground"
+                                        )}>
+                                            {subTabCounts[tab.key]}
+                                        </span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
                     ))}
                 </div>
 
