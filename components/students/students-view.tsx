@@ -1472,7 +1472,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         phone: newPhone.trim() || undefined,
         phonePrefix: newPhonePrefix.trim() || "+355",
         phoneNumber: newPhone.trim() || undefined,
-        mentorId: newMentorId,
+        mentorId: newMentorId || null,
         validUntilMonth: validToDate,
         studentTrackingNumber: newStudentTrackingNumber,
         studentNumber: newRegistry.trim().toUpperCase(),
