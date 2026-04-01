@@ -62,7 +62,7 @@ jobs:
           NETBIRD_SETUP_KEY: ${{ secrets.NETBIRD_SETUP_KEY }}
         run: |
           curl -fsSL https://pkgs.netbird.io/install.sh | sudo sh
-          sudo netbird up --setup-key "$NETBIRD_SETUP_KEY"
+          sudo netbird up --management-url https://netbird.iteam.al --setup-key "$NETBIRD_SETUP_KEY"
           sleep 5
           sudo netbird status
 
