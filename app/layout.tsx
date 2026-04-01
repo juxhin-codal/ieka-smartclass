@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Providers } from './providers'
@@ -7,10 +7,18 @@ import './globals.css'
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
+export const viewport: Viewport = {
+  themeColor: '#1e3a8a',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+}
+
 export const metadata: Metadata = {
   title: 'IEKA SmartClass - Sistemi i Menaxhimit të Trajnimeve',
   description: 'Platforma zyrtare për rezervimin e sesioneve të trajnimit, regjistrimin e prezencës dhe ndjekjen e orëve të zhvillimit të vazhdueshëm profesional (CPD) për Institutin e Ekspertëve Kontabël të Autorizuar.',
   keywords: ['IEKA', 'SmartClass', 'Trajnime', 'CPD', 'Ekspertë Kontabël', 'Zhvillim Profesional'],
+  manifest: '/manifest.json',
   icons: {
     icon: '/favicon.png',
     apple: '/apple-icon.png',

@@ -20,7 +20,7 @@ export function EditMemberForm({ user, onClose }: EditMemberFormProps) {
     const { updateMember, deleteUser, users } = useEvents()
 
     function getDefaultStudentValidUntilMonth() {
-        return `${new Date().getFullYear() + 3}-09`
+        return `${new Date().getFullYear() + 3}-12`
     }
 
     const [firstName, setFirstName] = useState(user.firstName)

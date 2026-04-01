@@ -105,7 +105,7 @@ const translations: Record<string, Record<Lang, string>> = {
     "login.step2": { sq: "Telefoni", en: "Phone" },
     "login.stepOtp": { sq: "Kodi OTP", en: "OTP" },
     "login.otpTitle": { sq: "Verifikimi OTP", en: "OTP Verification" },
-    "login.otpSubtitle": { sq: "Vendosni kodin 6-shifror të dërguar në email dhe WhatsApp.", en: "Enter the 6-digit code sent to email and WhatsApp." },
+    "login.otpSubtitle": { sq: "Vendosni kodin 6-shifror të dërguar në email.", en: "Enter the 6-digit code sent to email." },
     "login.otpSent": { sq: "Kodi OTP u dërgua me sukses.", en: "OTP code sent successfully." },
     "login.otpSentTo": { sq: "Kodi u dërgua te:", en: "Code sent to:" },
     "login.otp": { sq: "Kodi OTP", en: "OTP Code" },

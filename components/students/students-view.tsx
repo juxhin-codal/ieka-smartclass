@@ -175,9 +175,9 @@ type YearGrade = 1 | 2 | 3
 
 function getYearBreakdown(startYear: number) {
   return [
-    { grade: 1 as YearGrade, label: "Viti i Parë", from: startYear, to: startYear + 1, range: `Shtator ${startYear} – Shtator ${startYear + 1}` },
-    { grade: 2 as YearGrade, label: "Viti i Dytë", from: startYear + 1, to: startYear + 2, range: `Shtator ${startYear + 1} – Shtator ${startYear + 2}` },
-    { grade: 3 as YearGrade, label: "Viti i Tretë", from: startYear + 2, to: startYear + 3, range: `Shtator ${startYear + 2} – Shtator ${startYear + 3}` },
+    { grade: 1 as YearGrade, label: "Viti i Parë", from: startYear, to: startYear + 1, range: `Janar ${startYear} – Dhjetor ${startYear}` },
+    { grade: 2 as YearGrade, label: "Viti i Dytë", from: startYear + 1, to: startYear + 2, range: `Janar ${startYear + 1} – Dhjetor ${startYear + 1}` },
+    { grade: 3 as YearGrade, label: "Viti i Tretë", from: startYear + 2, to: startYear + 3, range: `Janar ${startYear + 2} – Dhjetor ${startYear + 2}` },
   ]
 }
 
@@ -186,11 +186,11 @@ function getYearGradeDates(grade: YearGrade) {
   const thisYear = now.getFullYear()
   switch (grade) {
     case 1:
-      return { from: `${thisYear - 1}-09-01`, to: `${thisYear}-09-01`, fromLabel: `Shtator ${thisYear - 1}`, toLabel: `Shtator ${thisYear}` }
+      return { from: `${thisYear - 1}-01-01`, to: `${thisYear - 1}-12-31`, fromLabel: `Janar ${thisYear - 1}`, toLabel: `Dhjetor ${thisYear - 1}` }
     case 2:
-      return { from: `${thisYear}-09-01`, to: `${thisYear + 1}-09-01`, fromLabel: `Shtator ${thisYear}`, toLabel: `Shtator ${thisYear + 1}` }
+      return { from: `${thisYear}-01-01`, to: `${thisYear}-12-31`, fromLabel: `Janar ${thisYear}`, toLabel: `Dhjetor ${thisYear}` }
     case 3:
-      return { from: `${thisYear + 1}-09-01`, to: `${thisYear + 2}-09-01`, fromLabel: `Shtator ${thisYear + 1}`, toLabel: `Shtator ${thisYear + 2}` }
+      return { from: `${thisYear + 1}-01-01`, to: `${thisYear + 1}-12-31`, fromLabel: `Janar ${thisYear + 1}`, toLabel: `Dhjetor ${thisYear + 1}` }
   }
 }
 
@@ -272,8 +272,8 @@ function toStudentValidUntilMonth(studentEndYear: number | null) {
     return null
   }
 
-  // Student validity ends in September of the end year (start + 3)
-  return `${studentEndYear}-09`
+  // Student validity ends in December of the end year
+  return `${studentEndYear}-12`
 }
 
 function toDateInputValue(date: Date) {
@@ -1353,8 +1353,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attSelectedTopic = useMemo(() =>
     attTopics.find(t => t.id === attSelectedTopicId)
-      ?? (attModuleDetail?.topics.find(t => t.id === attSelectedTopicId) ?? null)
-  , [attTopics, attSelectedTopicId, attModuleDetail])
+    ?? (attModuleDetail?.topics.find(t => t.id === attSelectedTopicId) ?? null)
+    , [attTopics, attSelectedTopicId, attModuleDetail])
 
   const attStudentsForTopic = useMemo(() => {
     if (!attModuleDetail || !attSelectedTopicId) return []
@@ -1871,7 +1871,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   useEffect(() => {
     if (activeTab !== "attendance") return
     void loadAttModules()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
   useEffect(() => {
@@ -1882,7 +1882,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setAttSelectedTopicId("")
     }
     void loadAttModuleDetail(attSelectedModuleId)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attSelectedModuleId])
 
   async function handleMarkAttendance(topicId: string, studentId: string) {
@@ -2161,7 +2161,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">1</span>
                         <span className="text-xs font-medium text-foreground">Viti i Parë</span>
                         <div className="ml-auto flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground">Shtator</span>
+                          <span className="text-xs text-muted-foreground">Janar</span>
                           <select
                             value={newStudentStartYear}
                             onChange={(e) => {
@@ -2183,7 +2183,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             ))}
                           </select>
                           {newStudentStartYearNumber && (() => {
-                            return <span className="text-xs text-muted-foreground">– Shtator {newStudentStartYearNumber + 1}</span>
+                            return <span className="text-xs text-muted-foreground">– Dhjetor {newStudentStartYearNumber}</span>
                           })()}
                         </div>
                       </div>
@@ -2201,7 +2201,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">2</span>
                               <span className="text-xs font-medium text-foreground">Viti i Dytë</span>
                               <div className="ml-auto flex items-center gap-1">
-                                <span className="text-xs text-muted-foreground">Shtator</span>
+                                <span className="text-xs text-muted-foreground">Janar</span>
                                 <select
                                   value={newYear2StartYear || ""}
                                   onChange={(e) => {
@@ -2220,7 +2220,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     <option key={`new-y2-${yr}`} value={yr}>{yr}</option>
                                   ))}
                                 </select>
-                                <span className="text-xs text-muted-foreground">– Shtator {y2 + 1}</span>
+                                <span className="text-xs text-muted-foreground">– Dhjetor {y2}</span>
                               </div>
                             </div>
                             {/* Year 3 - editable, must be > Y2 */}
@@ -2228,7 +2228,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">3</span>
                               <span className="text-xs font-medium text-foreground">Viti i Tretë</span>
                               <div className="ml-auto flex items-center gap-1">
-                                <span className="text-xs text-muted-foreground">Shtator</span>
+                                <span className="text-xs text-muted-foreground">Janar</span>
                                 <select
                                   value={newYear3StartYear || ""}
                                   onChange={(e) => setNewYear3StartYear(e.target.value)}
@@ -2239,7 +2239,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     <option key={`new-y3-${yr}`} value={yr}>{yr}</option>
                                   ))}
                                 </select>
-                                <span className="text-xs text-muted-foreground">– Shtator {y3 + 1}</span>
+                                <span className="text-xs text-muted-foreground">– Dhjetor {y3}</span>
                               </div>
                             </div>
                           </>
@@ -2254,8 +2254,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-50 dark:bg-amber-500/5 px-3 py-2.5">
                           <p className="text-xs text-amber-800 dark:text-amber-300">
                             <strong>Shënim:</strong> Studenti do të jetë i vlefshëm nga{" "}
-                            <strong>Shtator {newStudentStartYearNumber}</strong> deri në{" "}
-                            <strong>Shtator {noteY3 + 1}</strong>.
+                            <strong>Janar {newStudentStartYearNumber}</strong> deri në{" "}
+                            <strong>Dhjetor {noteY3}</strong>.
                             Pas kësaj periudhe, llogaria e studentit do të skadojë automatikisht.
                           </p>
                         </div>
@@ -2987,704 +2987,705 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     .map(t => new Date(t.scheduledDate!))
                   const isPastModule = topicDates.length > 0 && topicDates.every(d => d.toISOString().slice(0, 10) < todayStr)
                   return (
-                  <>
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-3 border-b border-border p-5">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className={cn(
-                            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                            selectedModuleDetail.yearGrade === 1
-                              ? "bg-blue-500/10 text-blue-600"
-                              : selectedModuleDetail.yearGrade === 2
-                                ? "bg-purple-500/10 text-purple-600"
-                                : "bg-emerald-500/10 text-emerald-600"
-                          )}>
-                            {formatYearGradeLabel(selectedModuleDetail.yearGrade)}
-                          </span>
-                          <h3 className="text-lg font-semibold text-foreground">{selectedModuleDetail.title}</h3>
-                          {isPastModule && (
-                            <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-600">I përfunduar</span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          {selectedModuleDetail.location && (
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {selectedModuleDetail.location}
+                    <>
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className={cn(
+                              "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                              selectedModuleDetail.yearGrade === 1
+                                ? "bg-blue-500/10 text-blue-600"
+                                : selectedModuleDetail.yearGrade === 2
+                                  ? "bg-purple-500/10 text-purple-600"
+                                  : "bg-emerald-500/10 text-emerald-600"
+                            )}>
+                              {formatYearGradeLabel(selectedModuleDetail.yearGrade)}
                             </span>
-                          )}
-                          {selectedModuleDetail.createdByName && (
-                            <span>Krijuar nga: {selectedModuleDetail.createdByName}</span>
-                          )}
+                            <h3 className="text-lg font-semibold text-foreground">{selectedModuleDetail.title}</h3>
+                            {isPastModule && (
+                              <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-600">I përfunduar</span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            {selectedModuleDetail.location && (
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {selectedModuleDetail.location}
+                              </span>
+                            )}
+                            {selectedModuleDetail.createdByName && (
+                              <span>Krijuar nga: {selectedModuleDetail.createdByName}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedModuleDetail(null); setTopicQrTokens({}); setTopicQrError("") }}
+                            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedModuleDetail(null); setTopicQrTokens({}); setTopicQrError("") }}
-                          className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
-                        >
-                          <X className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </div>
 
-                    {/* Topics Section */}
-                    <div className="px-5 py-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="h-4 w-4 text-primary" />
-                          <p className="text-sm font-semibold text-foreground">Temat ({selectedModuleDetail.topics.length})</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => { setShowAddTopicForm(true); setNewTopicName(""); setNewTopicLecturer(""); setNewTopicScheduledDate(""); setNewTopicScheduledTime("09:00"); setNewTopicLocation("") }}
-                        >
-                          <Plus className="mr-1 h-3 w-3" />
-                          Shto Temë
-                        </Button>
-                      </div>
-
-                      {/* Add Topic Form */}
-                      {showAddTopicForm && (
-                        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Emri i Temës *</Label>
-                              <Input value={newTopicName} onChange={(e) => setNewTopicName(e.target.value)} placeholder="Emri i temës..." className="h-8 text-xs" />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Lektori *</Label>
-                              <Input value={newTopicLecturer} onChange={(e) => setNewTopicLecturer(e.target.value)} placeholder="Emri i lektorit..." className="h-8 text-xs" />
-                            </div>
+                      {/* Topics Section */}
+                      <div className="px-5 py-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <BookOpen className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">Temat ({selectedModuleDetail.topics.length})</p>
                           </div>
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Data</Label>
-                              <Input type="date" value={newTopicScheduledDate} onChange={(e) => setNewTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Ora</Label>
-                              <Input type="time" value={newTopicScheduledTime} onChange={(e) => setNewTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Vendndodhja</Label>
-                              <Input value={newTopicLocation} onChange={(e) => setNewTopicLocation(e.target.value)} placeholder="Vendndodhja..." className="h-8 text-xs" />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 justify-end">
-                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAddTopicForm(false)} disabled={topicSaving}>Anulo</Button>
-                            <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim()}>
-                              {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                              {topicSaving ? "Duke ruajtur..." : "Ruaj Temën"}
-                            </Button>
-                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => { setShowAddTopicForm(true); setNewTopicName(""); setNewTopicLecturer(""); setNewTopicScheduledDate(""); setNewTopicScheduledTime("09:00"); setNewTopicLocation("") }}
+                          >
+                            <Plus className="mr-1 h-3 w-3" />
+                            Shto Temë
+                          </Button>
                         </div>
-                      )}
 
-                      {/* Topic List */}
-                      {selectedModuleDetail.topics.length === 0 && !showAddTopicForm ? (
-                        <div className="rounded-xl border border-dashed border-border py-8 text-center">
-                          <p className="text-xs text-muted-foreground">Asnjë temë akoma. Shtoni temën e parë.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {selectedModuleDetail.topics.map((topic) => {
-                            const isTopicPast = (() => {
-                              if (!topic.scheduledDate) return false
-                              const todayStr = new Date().toISOString().slice(0, 10)
-                              return new Date(topic.scheduledDate).toISOString().slice(0, 10) < todayStr
-                            })()
-                            return (
-                            <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
-                              {editingTopicId === topic.id ? (
-                                /* Edit Topic Inline */
-                                <div className="p-4 space-y-3 bg-muted/20">
-                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                    <div className="flex flex-col gap-1">
-                                      <Label className="text-xs">Emri i Temës *</Label>
-                                      <Input value={editTopicName} onChange={(e) => setEditTopicName(e.target.value)} className="h-8 text-xs" />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <Label className="text-xs">Lektori *</Label>
-                                      <Input value={editTopicLecturer} onChange={(e) => setEditTopicLecturer(e.target.value)} className="h-8 text-xs" />
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                    <div className="flex flex-col gap-1">
-                                      <Label className="text-xs">Data</Label>
-                                      <Input type="date" value={editTopicScheduledDate} onChange={(e) => setEditTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <Label className="text-xs">Ora</Label>
-                                      <Input type="time" value={editTopicScheduledTime} onChange={(e) => setEditTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                      <Label className="text-xs">Vendndodhja</Label>
-                                      <Input value={editTopicLocation} onChange={(e) => setEditTopicLocation(e.target.value)} className="h-8 text-xs" />
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2 justify-end">
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>
-                                    <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim()}>
-                                      {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                      {topicSaving ? "Duke ruajtur..." : "Ruaj"}
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                /* Display Topic */
-                                <div className="px-4 py-3">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <p className="text-sm font-semibold text-foreground">{topic.name}</p>
-                                        {topic.scheduledDate && (() => {
-                                          const topicDate = new Date(topic.scheduledDate!)
-                                          const now = new Date()
-                                          const isUpcoming = topicDate > now
-                                          return isUpcoming ? (
-                                            <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
-                                          ) : topic.attendanceCount > 0 ? (
-                                            <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Me prezencë</span>
-                                          ) : (
-                                            <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Pa prezencë</span>
-                                          )
-                                        })()}
-                                      </div>
-                                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                        <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
-                                        {topic.scheduledDate && (
-                                          <span className="inline-flex items-center gap-1">
-                                            <CalendarDays className="h-3 w-3" />
-                                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
-                                          </span>
-                                        )}
-                                        {topic.location && (
-                                          <span className="inline-flex items-center gap-1">
-                                            <MapPin className="h-3 w-3" />
-                                            {topic.location}
-                                          </span>
-                                        )}
-                                        <span className="inline-flex items-center gap-1">
-                                          <UserCheck className="h-3 w-3" />
-                                          {topic.attendanceCount} prezencë
-                                        </span>
-                                      </div>
-                                    </div>
-                                    {!isTopicPast && (
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenQrPopup(topic.id, topic.name, selectedModuleDetail.yearGrade)}
-                                        className="rounded-md p-1 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                                        title="Shfaq QR"
-                                      >
-                                        <QrCode className="h-3.5 w-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => startEditTopic(topic)}
-                                        className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                        title="Ndrysho"
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setDeletingTopicId(topic.id)}
-                                        className="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                        title="Fshi temën"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </button>
-                                    </div>
-                                    )}
-                                  </div>
-
-                                  {/* ── Documents Section ── */}
-                                  <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-1.5">
-                                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <span className="text-xs font-semibold text-foreground">Dokumente</span>
-                                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{topic.documents.length}</span>
-                                      </div>
-                                      {!isTopicPast && (
-                                      <div>
-                                        <input
-                                          type="file"
-                                          multiple
-                                          id={`topic-file-upload-${topic.id}`}
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            if (e.target.files && e.target.files.length > 0) {
-                                              handleUploadTopicDocs(topic.id, Array.from(e.target.files))
-                                              e.target.value = ""
-                                            }
-                                          }}
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={() => document.getElementById(`topic-file-upload-${topic.id}`)?.click()}
-                                          disabled={uploadingDocs && uploadingDocsTopicId === topic.id}
-                                          className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
-                                        >
-                                          {uploadingDocs && uploadingDocsTopicId === topic.id ? (
-                                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                          ) : (
-                                            <Plus className="h-2.5 w-2.5" />
-                                          )}
-                                          Ngarko
-                                        </button>
-                                      </div>
-                                      )}
-                                    </div>
-                                    {topic.documents.length > 0 ? (
-                                      <div className="space-y-1">
-                                        {topic.documents.map((doc) => (
-                                          <div key={doc.id} className="group flex items-center justify-between gap-2 rounded-md border border-border/50 bg-card px-2.5 py-1.5 text-[11px] hover:bg-muted/30 transition-colors">
-                                            <button
-                                              type="button"
-                                              onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
-                                              className="inline-flex items-center gap-1.5 min-w-0 hover:underline text-foreground"
-                                            >
-                                              <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
-                                              <span className="truncate">{doc.fileName}</span>
-                                            </button>
-                                            {!isTopicPast && (
-                                            <button
-                                              type="button"
-                                              onClick={() => { setDeletingDocId(doc.id); setDeletingDocTopicId(topic.id) }}
-                                              className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity shrink-0"
-                                            >
-                                              <X className="h-3 w-3" />
-                                            </button>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-[11px] text-muted-foreground italic">Asnjë dokument i ngarkuar.</p>
-                                    )}
-                                  </div>
-
-                                  {/* ── Questionnaires Section ── */}
-                                  <div className="mt-2 rounded-lg border border-primary/20 bg-primary/[0.02] p-3">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-1.5">
-                                        <ClipboardList className="h-3.5 w-3.5 text-primary" />
-                                        <span className="text-xs font-semibold text-foreground">Pyetësorët</span>
-                                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{(topic.questionnaires ?? []).length}</span>
-                                      </div>
-                                      {!isTopicPast && (
-                                      <button
-                                        type="button"
-                                        onClick={() => openCreateQuestionnaire(topic.id, topic.name)}
-                                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
-                                      >
-                                        <Plus className="h-2.5 w-2.5" />
-                                        Shto Pyetësor
-                                      </button>
-                                      )}
-                                    </div>
-                                    {(topic.questionnaires ?? []).length > 0 ? (
-                                      <div className="space-y-1.5">
-                                        {(topic.questionnaires ?? []).map((q) => (
-                                          <div key={q.id} className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-card px-2.5 py-2 text-[11px] hover:bg-primary/5 transition-colors">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                              <ClipboardList className="h-3 w-3 text-primary shrink-0" />
-                                              <span className="font-medium text-foreground truncate">{q.title}</span>
-                                              <span className="text-muted-foreground shrink-0">({q.questionCount} pyetje • {q.responseCount} përgjigje)</span>
-                                            </div>
-                                            <div className="flex items-center gap-0.5 shrink-0">
-                                              <button
-                                                type="button"
-                                                onClick={() => openQuestionnaireQr(q.id)}
-                                                className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
-                                                title="QR Pyetësor"
-                                              >
-                                                <QrCode className="h-3 w-3" />
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => openQuestionnaireResults(q.id)}
-                                                className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
-                                                title="Shiko Rezultatet"
-                                              >
-                                                <Eye className="h-3 w-3" />
-                                              </button>
-                                              {!isTopicPast && (
-                                              <button
-                                                type="button"
-                                                onClick={() => setDeletingQuestionnaireId(q.id)}
-                                                className="rounded-md p-1 text-destructive hover:bg-destructive/10 transition-colors"
-                                                title="Fshi Pyetësorin"
-                                              >
-                                                <Trash2 className="h-3 w-3" />
-                                              </button>
-                                              )}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <p className="text-[11px] text-muted-foreground italic">Asnjë pyetësor i shtuar.</p>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )})}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Delete Topic Confirmation */}
-                    {deletingTopicId && (
-                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
-                          <h3 className="mb-2 text-base font-semibold text-foreground">Fshi temën?</h3>
-                          <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë temën dhe të gjitha dokumentet e lidhura. Ky veprim nuk mund të zhbëhet.</p>
-                          <div className="flex gap-2 justify-end">
-                            <Button variant="ghost" onClick={() => setDeletingTopicId(null)} disabled={isDeletingTopic}>Anulo</Button>
-                            <Button variant="destructive" onClick={() => handleDeleteTopic(deletingTopicId)} disabled={isDeletingTopic}>
-                              {isDeletingTopic ? "Duke fshirë..." : "Po, Fshi"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Delete Document Confirmation */}
-                    {deletingDocId && deletingDocTopicId && (
-                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
-                          <h3 className="mb-2 text-base font-semibold text-foreground">Fshi dokumentin?</h3>
-                          <p className="mb-5 text-sm text-muted-foreground">Ky veprim nuk mund të zhbëhet.</p>
-                          <div className="flex gap-2 justify-end">
-                            <Button variant="ghost" onClick={() => { setDeletingDocId(null); setDeletingDocTopicId(null) }} disabled={isDeletingDoc}>Anulo</Button>
-                            <Button variant="destructive" onClick={() => handleRemoveDocument(deletingDocTopicId, deletingDocId)} disabled={isDeletingDoc}>
-                              {isDeletingDoc ? "Duke fshirë..." : "Po, Fshi"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Delete Questionnaire Confirmation */}
-                    {deletingQuestionnaireId && (
-                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
-                          <h3 className="mb-2 text-base font-semibold text-foreground">Fshi pyetësorin?</h3>
-                          <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë pyetësorin dhe të gjitha përgjigjet. Nuk mund të zhbëhet.</p>
-                          <div className="flex gap-2 justify-end">
-                            <Button variant="ghost" onClick={() => setDeletingQuestionnaireId(null)} disabled={isDeletingQuestionnaire}>Anulo</Button>
-                            <Button variant="destructive" onClick={() => handleDeleteQuestionnaire(deletingQuestionnaireId)} disabled={isDeletingQuestionnaire}>
-                              {isDeletingQuestionnaire ? "Duke fshirë..." : "Po, Fshi"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Create Questionnaire Modal */}
-                    {showQuestionnaireModal && (
-                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                        <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-base font-semibold text-foreground">Shto Pyetësor - {questionnaireTopicName}</h3>
-                            <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
-                          </div>
-
-                          <div className="space-y-4">
-                            <div className="flex flex-col gap-1">
-                              <Label className="text-xs">Titulli i Pyetësorit *</Label>
-                              <Input value={questionnaireTitle} onChange={(e) => setQuestionnaireTitle(e.target.value)} placeholder="Titulli..." className="h-8 text-xs" />
-                            </div>
-
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-xs font-semibold">Pyetjet ({questionnaireQuestions.length})</Label>
-                                <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={addQuestionnaireQuestion}>
-                                  <Plus className="mr-1 h-2.5 w-2.5" /> Shto Pyetje
-                                </Button>
+                        {/* Add Topic Form */}
+                        {showAddTopicForm && (
+                          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                              <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Emri i Temës *</Label>
+                                <Input value={newTopicName} onChange={(e) => setNewTopicName(e.target.value)} placeholder="Emri i temës..." className="h-8 text-xs" />
                               </div>
+                              <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Lektori *</Label>
+                                <Input value={newTopicLecturer} onChange={(e) => setNewTopicLecturer(e.target.value)} placeholder="Emri i lektorit..." className="h-8 text-xs" />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Data</Label>
+                                <Input type="date" value={newTopicScheduledDate} onChange={(e) => setNewTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Ora</Label>
+                                <Input type="time" value={newTopicScheduledTime} onChange={(e) => setNewTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Vendndodhja</Label>
+                                <Input value={newTopicLocation} onChange={(e) => setNewTopicLocation(e.target.value)} placeholder="Vendndodhja..." className="h-8 text-xs" />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 justify-end">
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAddTopicForm(false)} disabled={topicSaving}>Anulo</Button>
+                              <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim()}>
+                                {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                {topicSaving ? "Duke ruajtur..." : "Ruaj Temën"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
 
-                              {questionnaireQuestions.map((q, qIdx) => (
-                                <div key={qIdx} className="rounded-lg border border-border p-3 space-y-2">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[10px] font-medium text-muted-foreground">Pyetja {qIdx + 1}</span>
-                                    <div className="flex items-center gap-2">
-                                      <select
-                                        value={q.type}
-                                        onChange={(e) => updateQuestionnaireQuestion(qIdx, "type", e.target.value)}
-                                        className="h-6 rounded border border-border bg-card px-1.5 text-[10px]"
-                                      >
-                                        <option value="Options">Me opsione</option>
-                                        <option value="FreeText">Tekst i lirë</option>
-                                        <option value="Stars">Yje (1-5)</option>
-                                      </select>
-                                      {questionnaireQuestions.length > 1 && (
-                                        <button type="button" onClick={() => removeQuestionnaireQuestion(qIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
-                                      )}
+                        {/* Topic List */}
+                        {selectedModuleDetail.topics.length === 0 && !showAddTopicForm ? (
+                          <div className="rounded-xl border border-dashed border-border py-8 text-center">
+                            <p className="text-xs text-muted-foreground">Asnjë temë akoma. Shtoni temën e parë.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {selectedModuleDetail.topics.map((topic) => {
+                              const isTopicPast = (() => {
+                                if (!topic.scheduledDate) return false
+                                const todayStr = new Date().toISOString().slice(0, 10)
+                                return new Date(topic.scheduledDate).toISOString().slice(0, 10) < todayStr
+                              })()
+                              return (
+                                <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
+                                  {editingTopicId === topic.id ? (
+                                    /* Edit Topic Inline */
+                                    <div className="p-4 space-y-3 bg-muted/20">
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div className="flex flex-col gap-1">
+                                          <Label className="text-xs">Emri i Temës *</Label>
+                                          <Input value={editTopicName} onChange={(e) => setEditTopicName(e.target.value)} className="h-8 text-xs" />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                          <Label className="text-xs">Lektori *</Label>
+                                          <Input value={editTopicLecturer} onChange={(e) => setEditTopicLecturer(e.target.value)} className="h-8 text-xs" />
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                        <div className="flex flex-col gap-1">
+                                          <Label className="text-xs">Data</Label>
+                                          <Input type="date" value={editTopicScheduledDate} onChange={(e) => setEditTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                          <Label className="text-xs">Ora</Label>
+                                          <Input type="time" value={editTopicScheduledTime} onChange={(e) => setEditTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                          <Label className="text-xs">Vendndodhja</Label>
+                                          <Input value={editTopicLocation} onChange={(e) => setEditTopicLocation(e.target.value)} className="h-8 text-xs" />
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 justify-end">
+                                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>
+                                        <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim()}>
+                                          {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                          {topicSaving ? "Duke ruajtur..." : "Ruaj"}
+                                        </Button>
+                                      </div>
                                     </div>
-                                  </div>
-                                  <Input
-                                    value={q.text}
-                                    onChange={(e) => updateQuestionnaireQuestion(qIdx, "text", e.target.value)}
-                                    placeholder="Teksti i pyetjes..."
-                                    className="h-7 text-xs"
-                                  />
-                                  {q.type === "Options" && (
-                                    <div className="space-y-1 pl-2">
-                                      {q.options.map((opt, optIdx) => (
-                                        <div key={optIdx} className="flex items-center gap-1">
-                                          <span className="text-[10px] text-muted-foreground w-4">{optIdx + 1}.</span>
-                                          <Input
-                                            value={opt}
-                                            onChange={(e) => updateQuestionOption(qIdx, optIdx, e.target.value)}
-                                            placeholder={`Opsioni ${optIdx + 1}...`}
-                                            className="h-6 text-[10px] flex-1"
-                                          />
-                                          {q.options.length > 2 && (
-                                            <button type="button" onClick={() => removeQuestionOption(qIdx, optIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
-                                              <X className="h-2.5 w-2.5" />
+                                  ) : (
+                                    /* Display Topic */
+                                    <div className="px-4 py-3">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <p className="text-sm font-semibold text-foreground">{topic.name}</p>
+                                            {topic.scheduledDate && (() => {
+                                              const topicDate = new Date(topic.scheduledDate!)
+                                              const now = new Date()
+                                              const isUpcoming = topicDate > now
+                                              return isUpcoming ? (
+                                                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
+                                              ) : topic.attendanceCount > 0 ? (
+                                                <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Me prezencë</span>
+                                              ) : (
+                                                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Pa prezencë</span>
+                                              )
+                                            })()}
+                                          </div>
+                                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                            <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
+                                            {topic.scheduledDate && (
+                                              <span className="inline-flex items-center gap-1">
+                                                <CalendarDays className="h-3 w-3" />
+                                                {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                                              </span>
+                                            )}
+                                            {topic.location && (
+                                              <span className="inline-flex items-center gap-1">
+                                                <MapPin className="h-3 w-3" />
+                                                {topic.location}
+                                              </span>
+                                            )}
+                                            <span className="inline-flex items-center gap-1">
+                                              <UserCheck className="h-3 w-3" />
+                                              {topic.attendanceCount} prezencë
+                                            </span>
+                                          </div>
+                                        </div>
+                                        {!isTopicPast && (
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenQrPopup(topic.id, topic.name, selectedModuleDetail.yearGrade)}
+                                              className="rounded-md p-1 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                              title="Shfaq QR"
+                                            >
+                                              <QrCode className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => startEditTopic(topic)}
+                                              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                              title="Ndrysho"
+                                            >
+                                              <Pencil className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setDeletingTopicId(topic.id)}
+                                              className="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                              title="Fshi temën"
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* ── Documents Section ── */}
+                                      <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-1.5">
+                                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span className="text-xs font-semibold text-foreground">Dokumente</span>
+                                            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{topic.documents.length}</span>
+                                          </div>
+                                          {!isTopicPast && (
+                                            <div>
+                                              <input
+                                                type="file"
+                                                multiple
+                                                id={`topic-file-upload-${topic.id}`}
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                  if (e.target.files && e.target.files.length > 0) {
+                                                    handleUploadTopicDocs(topic.id, Array.from(e.target.files))
+                                                    e.target.value = ""
+                                                  }
+                                                }}
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => document.getElementById(`topic-file-upload-${topic.id}`)?.click()}
+                                                disabled={uploadingDocs && uploadingDocsTopicId === topic.id}
+                                                className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                                              >
+                                                {uploadingDocs && uploadingDocsTopicId === topic.id ? (
+                                                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                                ) : (
+                                                  <Plus className="h-2.5 w-2.5" />
+                                                )}
+                                                Ngarko
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                        {topic.documents.length > 0 ? (
+                                          <div className="space-y-1">
+                                            {topic.documents.map((doc) => (
+                                              <div key={doc.id} className="group flex items-center justify-between gap-2 rounded-md border border-border/50 bg-card px-2.5 py-1.5 text-[11px] hover:bg-muted/30 transition-colors">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
+                                                  className="inline-flex items-center gap-1.5 min-w-0 hover:underline text-foreground"
+                                                >
+                                                  <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                                                  <span className="truncate">{doc.fileName}</span>
+                                                </button>
+                                                {!isTopicPast && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => { setDeletingDocId(doc.id); setDeletingDocTopicId(topic.id) }}
+                                                    className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity shrink-0"
+                                                  >
+                                                    <X className="h-3 w-3" />
+                                                  </button>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[11px] text-muted-foreground italic">Asnjë dokument i ngarkuar.</p>
+                                        )}
+                                      </div>
+
+                                      {/* ── Questionnaires Section ── */}
+                                      <div className="mt-2 rounded-lg border border-primary/20 bg-primary/[0.02] p-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-1.5">
+                                            <ClipboardList className="h-3.5 w-3.5 text-primary" />
+                                            <span className="text-xs font-semibold text-foreground">Pyetësorët</span>
+                                            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{(topic.questionnaires ?? []).length}</span>
+                                          </div>
+                                          {!isTopicPast && (
+                                            <button
+                                              type="button"
+                                              onClick={() => openCreateQuestionnaire(topic.id, topic.name)}
+                                              className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                                            >
+                                              <Plus className="h-2.5 w-2.5" />
+                                              Shto Pyetësor
                                             </button>
                                           )}
                                         </div>
-                                      ))}
-                                      <button type="button" onClick={() => addQuestionOption(qIdx)} className="text-[10px] text-primary hover:underline">+ Shto opsion</button>
+                                        {(topic.questionnaires ?? []).length > 0 ? (
+                                          <div className="space-y-1.5">
+                                            {(topic.questionnaires ?? []).map((q) => (
+                                              <div key={q.id} className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-card px-2.5 py-2 text-[11px] hover:bg-primary/5 transition-colors">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                  <ClipboardList className="h-3 w-3 text-primary shrink-0" />
+                                                  <span className="font-medium text-foreground truncate">{q.title}</span>
+                                                  <span className="text-muted-foreground shrink-0">({q.questionCount} pyetje • {q.responseCount} përgjigje)</span>
+                                                </div>
+                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => openQuestionnaireQr(q.id)}
+                                                    className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
+                                                    title="QR Pyetësor"
+                                                  >
+                                                    <QrCode className="h-3 w-3" />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => openQuestionnaireResults(q.id)}
+                                                    className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
+                                                    title="Shiko Rezultatet"
+                                                  >
+                                                    <Eye className="h-3 w-3" />
+                                                  </button>
+                                                  {!isTopicPast && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setDeletingQuestionnaireId(q.id)}
+                                                      className="rounded-md p-1 text-destructive hover:bg-destructive/10 transition-colors"
+                                                      title="Fshi Pyetësorin"
+                                                    >
+                                                      <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[11px] text-muted-foreground italic">Asnjë pyetësor i shtuar.</p>
+                                        )}
+                                      </div>
                                     </div>
                                   )}
                                 </div>
-                              ))}
-                            </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
 
-                            {questionnaireError && <p className="text-xs text-destructive">{questionnaireError}</p>}
-
-                            <div className="flex items-center gap-2 justify-end pt-2">
-                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowQuestionnaireModal(false)} disabled={questionnaireSaving}>Anulo</Button>
-                              <Button size="sm" className="h-7 text-xs" onClick={handleCreateQuestionnaire} disabled={questionnaireSaving || !questionnaireTitle.trim()}>
-                                {questionnaireSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                {questionnaireSaving ? "Duke ruajtur..." : "Ruaj Pyetësorin"}
+                      {/* Delete Topic Confirmation */}
+                      {deletingTopicId && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi temën?</h3>
+                            <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë temën dhe të gjitha dokumentet e lidhura. Ky veprim nuk mund të zhbëhet.</p>
+                            <div className="flex gap-2 justify-end">
+                              <Button variant="ghost" onClick={() => setDeletingTopicId(null)} disabled={isDeletingTopic}>Anulo</Button>
+                              <Button variant="destructive" onClick={() => handleDeleteTopic(deletingTopicId)} disabled={isDeletingTopic}>
+                                {isDeletingTopic ? "Duke fshirë..." : "Po, Fshi"}
                               </Button>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {/* Questionnaire QR Modal */}
-                    {questionnaireQrId && (
-                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl text-center">
-                          <h3 className="mb-4 text-base font-semibold text-foreground">QR Pyetësor</h3>
-                          {questionnaireQrLoading ? (
-                            <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                          ) : questionnaireQrToken ? (
-                            <div className="flex flex-col items-center gap-3">
-                              <QRCodeCanvas id="questionnaire-qr-canvas" value={`${typeof window !== "undefined" ? window.location.origin : ""}/scan/questionnaire?token=${encodeURIComponent(questionnaireQrToken)}`} size={220} level="M" />
-                              <button type="button" onClick={() => handlePrintQr("questionnaire-qr-canvas", "Pyetësor QR")} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                                <Printer className="h-3 w-3" /> Printo
-                              </button>
+                      {/* Delete Document Confirmation */}
+                      {deletingDocId && deletingDocTopicId && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi dokumentin?</h3>
+                            <p className="mb-5 text-sm text-muted-foreground">Ky veprim nuk mund të zhbëhet.</p>
+                            <div className="flex gap-2 justify-end">
+                              <Button variant="ghost" onClick={() => { setDeletingDocId(null); setDeletingDocTopicId(null) }} disabled={isDeletingDoc}>Anulo</Button>
+                              <Button variant="destructive" onClick={() => handleRemoveDocument(deletingDocTopicId, deletingDocId)} disabled={isDeletingDoc}>
+                                {isDeletingDoc ? "Duke fshirë..." : "Po, Fshi"}
+                              </Button>
                             </div>
-                          ) : (
-                            <p className="text-xs text-destructive">Gabim gjatë gjenerimit të QR.</p>
-                          )}
-                          <div className="mt-4">
-                            <Button size="sm" variant="ghost" onClick={() => { setQuestionnaireQrId(null); setQuestionnaireQrToken(null) }}>Mbyll</Button>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {/* Questionnaire Results Modal */}
-                    {showQuestionnaireResults && (
-                      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                        <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-base font-semibold text-foreground">
-                              Rezultatet e Pyetësorit
-                              {questionnaireResultsDetail && <span className="text-muted-foreground font-normal"> - {questionnaireResultsDetail.title}</span>}
-                            </h3>
-                            <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
-                          </div>
-
-                          {questionnaireResultsLoading ? (
-                            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                          ) : questionnaireResponses.length === 0 ? (
-                            <div className="py-8 text-center">
-                              <p className="text-sm text-muted-foreground">Asnjë student nuk ka plotësuar ende pyetësorin.</p>
+                      {/* Delete Questionnaire Confirmation */}
+                      {deletingQuestionnaireId && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+                            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi pyetësorin?</h3>
+                            <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë pyetësorin dhe të gjitha përgjigjet. Nuk mund të zhbëhet.</p>
+                            <div className="flex gap-2 justify-end">
+                              <Button variant="ghost" onClick={() => setDeletingQuestionnaireId(null)} disabled={isDeletingQuestionnaire}>Anulo</Button>
+                              <Button variant="destructive" onClick={() => handleDeleteQuestionnaire(deletingQuestionnaireId)} disabled={isDeletingQuestionnaire}>
+                                {isDeletingQuestionnaire ? "Duke fshirë..." : "Po, Fshi"}
+                              </Button>
                             </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {questionnaireResponses.map((resp) => (
-                                <div key={resp.responseId} className="rounded-lg border border-border overflow-hidden">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedResponseId(prev => prev === resp.responseId ? null : resp.responseId)}
-                                    className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
-                                  >
-                                    <div>
-                                      <span className="text-sm font-medium text-foreground">{resp.firstName} {resp.lastName}</span>
-                                      <span className="ml-2 text-xs text-muted-foreground">{format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}</span>
-                                    </div>
-                                    <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", selectedResponseId === resp.responseId && "rotate-90")} />
-                                  </button>
-                                  {selectedResponseId === resp.responseId && (
-                                    <div className="border-t border-border px-4 py-3 space-y-3 bg-muted/10">
-                                      {resp.answers.map((ans, aIdx) => (
-                                        <div key={aIdx}>
-                                          <p className="text-xs font-medium text-muted-foreground mb-1">
-                                            {aIdx + 1}. {ans.questionText}
-                                            <span className="ml-1 text-[10px]">({ans.questionType === "Options" ? "Opsione" : ans.questionType === "FreeText" ? "Tekst" : "Yje"})</span>
-                                          </p>
-                                          {ans.questionType === "Stars" ? (
-                                            <div className="flex items-center gap-0.5">
-                                              {[1, 2, 3, 4, 5].map((s) => (
-                                                <Star key={s} className={cn("h-4 w-4", s <= parseInt(ans.answer) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30")} />
-                                              ))}
-                                              <span className="ml-1 text-xs text-foreground">{ans.answer}/5</span>
-                                            </div>
-                                          ) : (
-                                            <p className="text-sm text-foreground bg-card rounded px-2 py-1 border border-border">{ans.answer}</p>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Create Questionnaire Modal */}
+                      {showQuestionnaireModal && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                          <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-base font-semibold text-foreground">Shto Pyetësor - {questionnaireTopicName}</h3>
+                              <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                            </div>
+
+                            <div className="space-y-4">
+                              <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Titulli i Pyetësorit *</Label>
+                                <Input value={questionnaireTitle} onChange={(e) => setQuestionnaireTitle(e.target.value)} placeholder="Titulli..." className="h-8 text-xs" />
+                              </div>
+
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs font-semibold">Pyetjet ({questionnaireQuestions.length})</Label>
+                                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={addQuestionnaireQuestion}>
+                                    <Plus className="mr-1 h-2.5 w-2.5" /> Shto Pyetje
+                                  </Button>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
 
-                    {/* Student Presence Table with per-topic columns */}
-                    <div className="px-5 pb-4">
-                      <div className="rounded-xl border border-border overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setModuleDetailStudentsExpanded(v => !v)}
-                          className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-left"
-                        >
-                          <div className="flex items-center gap-2">
-                            <UserCheck className="h-4 w-4 text-primary" />
-                            <p className="text-sm font-semibold text-foreground">
-                              Studentët ({selectedModuleDetail.assignments.length})
-                            </p>
+                                {questionnaireQuestions.map((q, qIdx) => (
+                                  <div key={qIdx} className="rounded-lg border border-border p-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-[10px] font-medium text-muted-foreground">Pyetja {qIdx + 1}</span>
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          value={q.type}
+                                          onChange={(e) => updateQuestionnaireQuestion(qIdx, "type", e.target.value)}
+                                          className="h-6 rounded border border-border bg-card px-1.5 text-[10px]"
+                                        >
+                                          <option value="Options">Me opsione</option>
+                                          <option value="FreeText">Tekst i lirë</option>
+                                          <option value="Stars">Yje (1-5)</option>
+                                        </select>
+                                        {questionnaireQuestions.length > 1 && (
+                                          <button type="button" onClick={() => removeQuestionnaireQuestion(qIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <Input
+                                      value={q.text}
+                                      onChange={(e) => updateQuestionnaireQuestion(qIdx, "text", e.target.value)}
+                                      placeholder="Teksti i pyetjes..."
+                                      className="h-7 text-xs"
+                                    />
+                                    {q.type === "Options" && (
+                                      <div className="space-y-1 pl-2">
+                                        {q.options.map((opt, optIdx) => (
+                                          <div key={optIdx} className="flex items-center gap-1">
+                                            <span className="text-[10px] text-muted-foreground w-4">{optIdx + 1}.</span>
+                                            <Input
+                                              value={opt}
+                                              onChange={(e) => updateQuestionOption(qIdx, optIdx, e.target.value)}
+                                              placeholder={`Opsioni ${optIdx + 1}...`}
+                                              className="h-6 text-[10px] flex-1"
+                                            />
+                                            {q.options.length > 2 && (
+                                              <button type="button" onClick={() => removeQuestionOption(qIdx, optIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
+                                                <X className="h-2.5 w-2.5" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        ))}
+                                        <button type="button" onClick={() => addQuestionOption(qIdx)} className="text-[10px] text-primary hover:underline">+ Shto opsion</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {questionnaireError && <p className="text-xs text-destructive">{questionnaireError}</p>}
+
+                              <div className="flex items-center gap-2 justify-end pt-2">
+                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowQuestionnaireModal(false)} disabled={questionnaireSaving}>Anulo</Button>
+                                <Button size="sm" className="h-7 text-xs" onClick={handleCreateQuestionnaire} disabled={questionnaireSaving || !questionnaireTitle.trim()}>
+                                  {questionnaireSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                  {questionnaireSaving ? "Duke ruajtur..." : "Ruaj Pyetësorin"}
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                          <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", moduleDetailStudentsExpanded && "rotate-90")} />
-                        </button>
-                        {moduleDetailStudentsExpanded && (
-                          <div className="border-t border-border">
-                            {selectedModuleDetail.assignments.length === 0 ? (
-                              <div className="px-4 py-4 text-center">
-                                <p className="text-xs text-muted-foreground">Asnjë student i caktuar në këtë modul.</p>
+                        </div>
+                      )}
+
+                      {/* Questionnaire QR Modal */}
+                      {questionnaireQrId && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl text-center">
+                            <h3 className="mb-4 text-base font-semibold text-foreground">QR Pyetësor</h3>
+                            {questionnaireQrLoading ? (
+                              <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                            ) : questionnaireQrToken ? (
+                              <div className="flex flex-col items-center gap-3">
+                                <QRCodeCanvas id="questionnaire-qr-canvas" value={`${typeof window !== "undefined" ? window.location.origin : ""}/scan/questionnaire?token=${encodeURIComponent(questionnaireQrToken)}`} size={220} level="M" />
+                                <button type="button" onClick={() => handlePrintQr("questionnaire-qr-canvas", "Pyetësor QR")} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                  <Printer className="h-3 w-3" /> Printo
+                                </button>
                               </div>
                             ) : (
-                              <div className="overflow-x-auto px-4 py-3">
-                                <table className="w-full text-sm">
-                                  <thead>
-                                    <tr className="border-b border-border text-xs text-muted-foreground">
-                                      <th className="py-2 pr-3 text-left font-medium">Emri</th>
-                                      <th className="py-2 pr-3 text-left font-medium">Email</th>
-                                      {selectedModuleDetail.topics.map((topic) => (
-                                        <th key={topic.id} className="py-2 px-2 text-center font-medium whitespace-nowrap" title={topic.name}>
-                                          {topic.name.length > 15 ? `${topic.name.slice(0, 15)}...` : topic.name}
-                                        </th>
-                                      ))}
-                                      {isPastModule && (
-                                        <th className="py-2 px-2 text-center font-medium whitespace-nowrap">Rezultati</th>
-                                      )}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {selectedModuleDetail.assignments.map((a) => (
-                                      <tr key={a.studentId} className="border-b border-border/50 last:border-0">
-                                        <td className="py-2.5 pr-3 font-medium text-foreground whitespace-nowrap">{a.firstName} {a.lastName}</td>
-                                        <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
-                                        {selectedModuleDetail.topics.map((topic) => {
-                                          const attendance = a.topicAttendances?.find(ta => ta.topicId === topic.id)
-                                          return (
-                                            <td key={topic.id} className="py-2.5 px-2 text-center">
-                                              {attendance ? (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                                                  <CheckCircle2 className="h-2.5 w-2.5" />
-                                                </span>
-                                              ) : (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                                                  --
-                                                </span>
-                                              )}
-                                            </td>
-                                          )
-                                        })}
+                              <p className="text-xs text-destructive">Gabim gjatë gjenerimit të QR.</p>
+                            )}
+                            <div className="mt-4">
+                              <Button size="sm" variant="ghost" onClick={() => { setQuestionnaireQrId(null); setQuestionnaireQrToken(null) }}>Mbyll</Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Questionnaire Results Modal */}
+                      {showQuestionnaireResults && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+                          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-base font-semibold text-foreground">
+                                Rezultatet e Pyetësorit
+                                {questionnaireResultsDetail && <span className="text-muted-foreground font-normal"> - {questionnaireResultsDetail.title}</span>}
+                              </h3>
+                              <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                            </div>
+
+                            {questionnaireResultsLoading ? (
+                              <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                            ) : questionnaireResponses.length === 0 ? (
+                              <div className="py-8 text-center">
+                                <p className="text-sm text-muted-foreground">Asnjë student nuk ka plotësuar ende pyetësorin.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {questionnaireResponses.map((resp) => (
+                                  <div key={resp.responseId} className="rounded-lg border border-border overflow-hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedResponseId(prev => prev === resp.responseId ? null : resp.responseId)}
+                                      className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-muted/30 transition-colors"
+                                    >
+                                      <div>
+                                        <span className="text-sm font-medium text-foreground">{resp.firstName} {resp.lastName}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">{format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}</span>
+                                      </div>
+                                      <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", selectedResponseId === resp.responseId && "rotate-90")} />
+                                    </button>
+                                    {selectedResponseId === resp.responseId && (
+                                      <div className="border-t border-border px-4 py-3 space-y-3 bg-muted/10">
+                                        {resp.answers.map((ans, aIdx) => (
+                                          <div key={aIdx}>
+                                            <p className="text-xs font-medium text-muted-foreground mb-1">
+                                              {aIdx + 1}. {ans.questionText}
+                                              <span className="ml-1 text-[10px]">({ans.questionType === "Options" ? "Opsione" : ans.questionType === "FreeText" ? "Tekst" : "Yje"})</span>
+                                            </p>
+                                            {ans.questionType === "Stars" ? (
+                                              <div className="flex items-center gap-0.5">
+                                                {[1, 2, 3, 4, 5].map((s) => (
+                                                  <Star key={s} className={cn("h-4 w-4", s <= parseInt(ans.answer) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30")} />
+                                                ))}
+                                                <span className="ml-1 text-xs text-foreground">{ans.answer}/5</span>
+                                              </div>
+                                            ) : (
+                                              <p className="text-sm text-foreground bg-card rounded px-2 py-1 border border-border">{ans.answer}</p>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Student Presence Table with per-topic columns */}
+                      <div className="px-5 pb-4">
+                        <div className="rounded-xl border border-border overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setModuleDetailStudentsExpanded(v => !v)}
+                            className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-left"
+                          >
+                            <div className="flex items-center gap-2">
+                              <UserCheck className="h-4 w-4 text-primary" />
+                              <p className="text-sm font-semibold text-foreground">
+                                Studentët ({selectedModuleDetail.assignments.length})
+                              </p>
+                            </div>
+                            <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", moduleDetailStudentsExpanded && "rotate-90")} />
+                          </button>
+                          {moduleDetailStudentsExpanded && (
+                            <div className="border-t border-border">
+                              {selectedModuleDetail.assignments.length === 0 ? (
+                                <div className="px-4 py-4 text-center">
+                                  <p className="text-xs text-muted-foreground">Asnjë student i caktuar në këtë modul.</p>
+                                </div>
+                              ) : (
+                                <div className="overflow-x-auto px-4 py-3">
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr className="border-b border-border text-xs text-muted-foreground">
+                                        <th className="py-2 pr-3 text-left font-medium">Emri</th>
+                                        <th className="py-2 pr-3 text-left font-medium">Email</th>
+                                        {selectedModuleDetail.topics.map((topic) => (
+                                          <th key={topic.id} className="py-2 px-2 text-center font-medium whitespace-nowrap" title={topic.name}>
+                                            {topic.name.length > 15 ? `${topic.name.slice(0, 15)}...` : topic.name}
+                                          </th>
+                                        ))}
                                         {isPastModule && (
-                                          <td className="py-2.5 px-2 text-center">
-                                            {a.result ? (
-                                              <div className="flex flex-col items-center gap-0.5">
-                                                <span className={cn(
-                                                  "rounded-full px-2.5 py-0.5 text-[10px] font-semibold",
-                                                  a.result.toLowerCase() === "kaluar" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
-                                                )}>
-                                                  {a.result}
-                                                </span>
-                                                {a.resultNote && <span className="text-[10px] text-muted-foreground">{a.resultNote}</span>}
+                                          <th className="py-2 px-2 text-center font-medium whitespace-nowrap">Rezultati</th>
+                                        )}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {selectedModuleDetail.assignments.map((a) => (
+                                        <tr key={a.studentId} className="border-b border-border/50 last:border-0">
+                                          <td className="py-2.5 pr-3 font-medium text-foreground whitespace-nowrap">{a.firstName} {a.lastName}</td>
+                                          <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
+                                          {selectedModuleDetail.topics.map((topic) => {
+                                            const attendance = a.topicAttendances?.find(ta => ta.topicId === topic.id)
+                                            return (
+                                              <td key={topic.id} className="py-2.5 px-2 text-center">
+                                                {attendance ? (
+                                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                                                    <CheckCircle2 className="h-2.5 w-2.5" />
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                                    --
+                                                  </span>
+                                                )}
+                                              </td>
+                                            )
+                                          })}
+                                          {isPastModule && (
+                                            <td className="py-2.5 px-2 text-center">
+                                              {a.result ? (
+                                                <div className="flex flex-col items-center gap-0.5">
+                                                  <span className={cn(
+                                                    "rounded-full px-2.5 py-0.5 text-[10px] font-semibold",
+                                                    a.result.toLowerCase() === "kaluar" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
+                                                  )}>
+                                                    {a.result}
+                                                  </span>
+                                                  {a.resultNote && <span className="text-[10px] text-muted-foreground">{a.resultNote}</span>}
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setResultStudentId(a.studentId)
+                                                      setResultStudentName(`${a.firstName} ${a.lastName}`)
+                                                      setResultStudentEmail(a.email)
+                                                      setResultStudentCurrent(a.result ?? null)
+                                                      setResultValue(a.result ?? "")
+                                                      setResultNote(a.resultNote ?? "")
+                                                    }}
+                                                    className="text-[10px] text-primary hover:underline mt-0.5"
+                                                  >
+                                                    Ndrysho
+                                                  </button>
+                                                </div>
+                                              ) : (
                                                 <button
                                                   type="button"
                                                   onClick={() => {
                                                     setResultStudentId(a.studentId)
                                                     setResultStudentName(`${a.firstName} ${a.lastName}`)
                                                     setResultStudentEmail(a.email)
-                                                    setResultStudentCurrent(a.result ?? null)
-                                                    setResultValue(a.result ?? "")
-                                                    setResultNote(a.resultNote ?? "")
+                                                    setResultStudentCurrent(null)
+                                                    setResultValue("")
+                                                    setResultNote("")
                                                   }}
-                                                  className="text-[10px] text-primary hover:underline mt-0.5"
+                                                  className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
                                                 >
-                                                  Ndrysho
+                                                  <GraduationCap className="h-3 w-3" />
+                                                  Jep Rezultat
                                                 </button>
-                                              </div>
-                                            ) : (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setResultStudentId(a.studentId)
-                                                  setResultStudentName(`${a.firstName} ${a.lastName}`)
-                                                  setResultStudentEmail(a.email)
-                                                  setResultStudentCurrent(null)
-                                                  setResultValue("")
-                                                  setResultNote("")
-                                                }}
-                                                className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
-                                              >
-                                                <GraduationCap className="h-3 w-3" />
-                                                Jep Rezultat
-                                              </button>
-                                            )}
-                                          </td>
-                                        )}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                              )}
+                                            </td>
+                                          )}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </>
+                    </>
                   )
-                  })()}
+                })()}
               </div>
             </div>
           )}
@@ -3721,33 +3722,33 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 {attTopics.map((topic) => {
                   const isPast = topic.scheduledDate ? new Date(topic.scheduledDate) < new Date() : false
                   return (
-                  <button
-                    key={topic.id}
-                    type="button"
-                    onClick={() => setAttSelectedTopicId(topic.id)}
-                    className={cn(
-                      "w-full rounded-lg border px-3 py-2 text-left transition-colors",
-                      attSelectedTopicId === topic.id
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                        : "border-border hover:bg-muted/50"
-                    )}
-                  >
-                    <p className="text-xs font-medium text-foreground">{topic.name}</p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                      {topic.scheduledDate && (
-                        <span className="inline-flex items-center gap-0.5">
-                          <CalendarDays className="h-2.5 w-2.5" />
-                          {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
-                        </span>
+                    <button
+                      key={topic.id}
+                      type="button"
+                      onClick={() => setAttSelectedTopicId(topic.id)}
+                      className={cn(
+                        "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                        attSelectedTopicId === topic.id
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                          : "border-border hover:bg-muted/50"
                       )}
-                      <span>Lektori: {topic.lecturer}</span>
-                      {isPast && <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">E kaluar</span>}
-                    </div>
-                    <div className="mt-1 flex items-center gap-1">
-                      <UserCheck className="h-2.5 w-2.5 text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground">{topic.attendanceCount} prezencë</span>
-                    </div>
-                  </button>
+                    >
+                      <p className="text-xs font-medium text-foreground">{topic.name}</p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                        {topic.scheduledDate && (
+                          <span className="inline-flex items-center gap-0.5">
+                            <CalendarDays className="h-2.5 w-2.5" />
+                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                          </span>
+                        )}
+                        <span>Lektori: {topic.lecturer}</span>
+                        {isPast && <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">E kaluar</span>}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <UserCheck className="h-2.5 w-2.5 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground">{topic.attendanceCount} prezencë</span>
+                      </div>
+                    </button>
                   )
                 })}
               </div>
@@ -3759,37 +3760,37 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 {attAllTopics.map((topic) => {
                   const isPast = topic.scheduledDate ? new Date(topic.scheduledDate) < new Date() : false
                   return (
-                  <button
-                    key={topic.id}
-                    type="button"
-                    onClick={() => {
-                      setAttSelectedTopicId(topic.id)
-                      void loadAttModuleDetail(topic.moduleId)
-                    }}
-                    className={cn(
-                      "w-full rounded-lg border px-3 py-2 text-left transition-colors",
-                      attSelectedTopicId === topic.id
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                        : "border-border hover:bg-muted/50"
-                    )}
-                  >
-                    <p className="text-xs font-medium text-foreground">{topic.name}</p>
-                    <p className="text-[10px] text-primary/70 font-medium">{topic.moduleTitle}</p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                      {topic.scheduledDate && (
-                        <span className="inline-flex items-center gap-0.5">
-                          <CalendarDays className="h-2.5 w-2.5" />
-                          {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
-                        </span>
+                    <button
+                      key={topic.id}
+                      type="button"
+                      onClick={() => {
+                        setAttSelectedTopicId(topic.id)
+                        void loadAttModuleDetail(topic.moduleId)
+                      }}
+                      className={cn(
+                        "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                        attSelectedTopicId === topic.id
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                          : "border-border hover:bg-muted/50"
                       )}
-                      <span>Lektori: {topic.lecturer}</span>
-                      {isPast && <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">E kaluar</span>}
-                    </div>
-                    <div className="mt-1 flex items-center gap-1">
-                      <UserCheck className="h-2.5 w-2.5 text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground">{topic.attendanceCount} prezencë</span>
-                    </div>
-                  </button>
+                    >
+                      <p className="text-xs font-medium text-foreground">{topic.name}</p>
+                      <p className="text-[10px] text-primary/70 font-medium">{topic.moduleTitle}</p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                        {topic.scheduledDate && (
+                          <span className="inline-flex items-center gap-0.5">
+                            <CalendarDays className="h-2.5 w-2.5" />
+                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                          </span>
+                        )}
+                        <span>Lektori: {topic.lecturer}</span>
+                        {isPast && <span className="rounded bg-muted px-1 py-0.5 text-[9px] font-medium text-muted-foreground">E kaluar</span>}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <UserCheck className="h-2.5 w-2.5 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground">{topic.attendanceCount} prezencë</span>
+                      </div>
+                    </button>
                   )
                 })}
               </div>
@@ -3861,125 +3862,125 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   const q = attStudentSearch.toLowerCase().trim()
                   const filtered = q
                     ? attStudentsForTopic.filter(s =>
-                        `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
-                        s.email.toLowerCase().includes(q)
-                      )
+                      `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+                      s.email.toLowerCase().includes(q)
+                    )
                     : attStudentsForTopic
                   return filtered.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border py-10 text-center">
-                    <p className="text-sm text-muted-foreground">{q ? "Asnjë student nuk përputhet me kërkimin" : "Asnjë student i caktuar në këtë modul."}</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Mobile cards */}
-                    <div className="space-y-2 md:hidden">
-                      {filtered.map((s) => {
-                        const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
-                        return (
-                          <div key={s.studentId} className="rounded-xl border border-border bg-card p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-medium text-foreground">{s.firstName} {s.lastName}</p>
-                                <p className="text-[11px] text-muted-foreground">{s.email}</p>
+                    <div className="rounded-xl border border-dashed border-border py-10 text-center">
+                      <p className="text-sm text-muted-foreground">{q ? "Asnjë student nuk përputhet me kërkimin" : "Asnjë student i caktuar në këtë modul."}</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Mobile cards */}
+                      <div className="space-y-2 md:hidden">
+                        {filtered.map((s) => {
+                          const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
+                          return (
+                            <div key={s.studentId} className="rounded-xl border border-border bg-card p-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-medium text-foreground">{s.firstName} {s.lastName}</p>
+                                  <p className="text-[11px] text-muted-foreground">{s.email}</p>
+                                </div>
+                                {s.attended ? (
+                                  <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-semibold text-green-600 flex items-center gap-1">
+                                    <CheckCircle2 className="h-2.5 w-2.5" />
+                                    Prezent
+                                  </span>
+                                ) : (
+                                  <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
+                                    Pa prezencë
+                                  </span>
+                                )}
                               </div>
-                              {s.attended ? (
-                                <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-semibold text-green-600 flex items-center gap-1">
-                                  <CheckCircle2 className="h-2.5 w-2.5" />
-                                  Prezent
-                                </span>
-                              ) : (
-                                <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
-                                  Pa prezencë
-                                </span>
-                              )}
+                              <div className="mt-3 flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-7 flex-1 text-[11px]"
+                                  variant={s.attended ? "default" : "outline"}
+                                  disabled={s.attended || isUpdating || !attIsTopicToday}
+                                  onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                                >
+                                  {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 flex-1 text-[11px]"
+                                  variant={!s.attended ? "destructive" : "outline"}
+                                  disabled={!s.attended || isUpdating || !attIsTopicToday}
+                                  onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                                >
+                                  {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
+                                </Button>
+                              </div>
                             </div>
-                            <div className="mt-3 flex gap-2">
-                              <Button
-                                size="sm"
-                                className="h-7 flex-1 text-[11px]"
-                                variant={s.attended ? "default" : "outline"}
-                                disabled={s.attended || isUpdating || !attIsTopicToday}
-                                onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
-                              >
-                                {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="h-7 flex-1 text-[11px]"
-                                variant={!s.attended ? "destructive" : "outline"}
-                                disabled={!s.attended || isUpdating || !attIsTopicToday}
-                                onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
-                              >
-                                {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                          )
+                        })}
+                      </div>
 
-                    {/* Desktop table */}
-                    <div className="hidden md:block rounded-xl border border-border overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
-                            <th className="px-4 py-2.5 text-left font-medium">Studenti</th>
-                            <th className="px-4 py-2.5 text-left font-medium">Email</th>
-                            <th className="px-4 py-2.5 text-center font-medium">Statusi</th>
-                            <th className="px-4 py-2.5 text-center font-medium w-[200px]">Veprime</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filtered.map((s) => {
-                            const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
-                            return (
-                              <tr key={s.studentId} className="border-b border-border/50 last:border-0">
-                                <td className="px-4 py-2.5 font-medium text-foreground whitespace-nowrap">{s.firstName} {s.lastName}</td>
-                                <td className="px-4 py-2.5 text-muted-foreground">{s.email}</td>
-                                <td className="px-4 py-2.5 text-center">
-                                  {s.attended ? (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-semibold text-green-600">
-                                      <CheckCircle2 className="h-2.5 w-2.5" />
-                                      Prezent
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
-                                      Pa prezencë
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-2.5">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      className="h-7 min-w-[5rem] text-[11px]"
-                                      variant={s.attended ? "default" : "outline"}
-                                      disabled={s.attended || isUpdating || !attIsTopicToday}
-                                      onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
-                                    >
-                                      {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                      Prano
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      className="h-7 min-w-[5rem] text-[11px]"
-                                      variant={!s.attended ? "destructive" : "outline"}
-                                      disabled={!s.attended || isUpdating || !attIsTopicToday}
-                                      onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
-                                    >
-                                      {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                      Mungesë
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </>
-                )
+                      {/* Desktop table */}
+                      <div className="hidden md:block rounded-xl border border-border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
+                              <th className="px-4 py-2.5 text-left font-medium">Studenti</th>
+                              <th className="px-4 py-2.5 text-left font-medium">Email</th>
+                              <th className="px-4 py-2.5 text-center font-medium">Statusi</th>
+                              <th className="px-4 py-2.5 text-center font-medium w-[200px]">Veprime</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map((s) => {
+                              const isUpdating = attUpdatingKey?.startsWith(`${attSelectedTopicId}-${s.studentId}`) ?? false
+                              return (
+                                <tr key={s.studentId} className="border-b border-border/50 last:border-0">
+                                  <td className="px-4 py-2.5 font-medium text-foreground whitespace-nowrap">{s.firstName} {s.lastName}</td>
+                                  <td className="px-4 py-2.5 text-muted-foreground">{s.email}</td>
+                                  <td className="px-4 py-2.5 text-center">
+                                    {s.attended ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-semibold text-green-600">
+                                        <CheckCircle2 className="h-2.5 w-2.5" />
+                                        Prezent
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
+                                        Pa prezencë
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2.5">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Button
+                                        size="sm"
+                                        className="h-7 min-w-[5rem] text-[11px]"
+                                        variant={s.attended ? "default" : "outline"}
+                                        disabled={s.attended || isUpdating || !attIsTopicToday}
+                                        onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                                      >
+                                        {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                        Prano
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        className="h-7 min-w-[5rem] text-[11px]"
+                                        variant={!s.attended ? "destructive" : "outline"}
+                                        disabled={!s.attended || isUpdating || !attIsTopicToday}
+                                        onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                                      >
+                                        {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                        Mungesë
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )
                 })()}
               </div>
             )}
@@ -4219,7 +4220,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">1</span>
                     <span className="text-xs font-medium text-foreground">Viti i Parë</span>
                     <div className="ml-auto flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">Shtator</span>
+                      <span className="text-xs text-muted-foreground">Janar</span>
                       <select
                         value={editStudentStartYear}
                         onChange={(e) => {
@@ -4242,7 +4243,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         ))}
                       </select>
                       {editStudentStartYearNumber && (() => {
-                        return <span className="text-xs text-muted-foreground">– Shtator {editStudentStartYearNumber + 1}</span>
+                        return <span className="text-xs text-muted-foreground">– Dhjetor {editStudentStartYearNumber}</span>
                       })()}
                     </div>
                   </div>
@@ -4260,7 +4261,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">2</span>
                           <span className="text-xs font-medium text-foreground">Viti i Dytë</span>
                           <div className="ml-auto flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">Shtator</span>
+                            <span className="text-xs text-muted-foreground">Janar</span>
                             <select
                               value={editYear2StartYear || ""}
                               onChange={(e) => {
@@ -4279,7 +4280,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 <option key={`edit-y2-${yr}`} value={yr}>{yr}</option>
                               ))}
                             </select>
-                            <span className="text-xs text-muted-foreground">– Shtator {y2 + 1}</span>
+                            <span className="text-xs text-muted-foreground">– Dhjetor {y2}</span>
                           </div>
                         </div>
                         {/* Year 3 - editable, must be > Y2 */}
@@ -4287,7 +4288,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">3</span>
                           <span className="text-xs font-medium text-foreground">Viti i Tretë</span>
                           <div className="ml-auto flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">Shtator</span>
+                            <span className="text-xs text-muted-foreground">Janar</span>
                             <select
                               value={editYear3StartYear || ""}
                               onChange={(e) => setEditYear3StartYear(e.target.value)}
@@ -4298,7 +4299,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 <option key={`edit-y3-${yr}`} value={yr}>{yr}</option>
                               ))}
                             </select>
-                            <span className="text-xs text-muted-foreground">– Shtator {y3 + 1}</span>
+                            <span className="text-xs text-muted-foreground">– Dhjetor {y3}</span>
                           </div>
                         </div>
                       </>
@@ -4311,7 +4312,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   const y3 = parseStudentYear(editYear3StartYear) || y2 + 1
                   return (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Llogaria vlefshme: Shtator {y1} – Shtator {y3 + 1}
+                      Llogaria vlefshme: Janar {y1} – Dhjetor {y3}
                     </p>
                   )
                 })()}
@@ -4689,405 +4690,405 @@ function StudentCalendarView() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
       <>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
-            <Library className="h-5 w-5 text-primary" />
-            Modulet e Mia
-          </h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">Modulet ku jeni caktuar, temat dhe dokumentet</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+              <Library className="h-5 w-5 text-primary" />
+              Modulet e Mia
+            </h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">Modulet ku jeni caktuar, temat dhe dokumentet</p>
+          </div>
         </div>
-      </div>
 
-      {moduleScanNotice && (
-        <p className="mb-3 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700">
-          {moduleScanNotice}
-        </p>
-      )}
+        {moduleScanNotice && (
+          <p className="mb-3 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700">
+            {moduleScanNotice}
+          </p>
+        )}
 
-      {/* Upcoming topics dates */}
-      {!myModulesLoading && upcomingTopics.length > 0 && (
-        <div className="mb-5 rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-primary" />
-            Datat e ardhshme
-          </h3>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Data</th>
-                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Tema</th>
-                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Moduli</th>
-                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Vendndodhja</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upcomingTopics.slice(0, 8).map((t, i) => (
-                  <tr key={i} className="border-b border-border last:border-0">
-                    <td className="px-3 py-2 text-xs text-foreground">{format(parseISO(t.date), "dd MMM yyyy, HH:mm")}</td>
-                    <td className="px-3 py-2 text-xs text-foreground font-medium">{t.topicName}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{t.moduleName}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{t.location ?? "—"}</td>
+        {/* Upcoming topics dates */}
+        {!myModulesLoading && upcomingTopics.length > 0 && (
+          <div className="mb-5 rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              Datat e ardhshme
+            </h3>
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Data</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Tema</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Moduli</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Vendndodhja</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {myModulesLoading ? (
-        <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
-          Duke ngarkuar modulet...
-        </div>
-      ) : myModules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
-          <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">Nuk keni asnjë modul të caktuar akoma.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {myModules.map((mod) => (
-            <div key={mod.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={cn(
-                      "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                      mod.yearGrade === 1
-                        ? "bg-blue-500/10 text-blue-600"
-                        : mod.yearGrade === 2
-                          ? "bg-purple-500/10 text-purple-600"
-                          : "bg-emerald-500/10 text-emerald-600"
-                    )}>
-                      Viti {mod.yearGrade}
-                    </span>
-                    <h3 className="text-sm font-semibold text-foreground">{mod.title}</h3>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    {mod.location && (
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {mod.location}
-                      </span>
-                    )}
-                    <span>{mod.topics.length} temë</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Nested topics */}
-              {mod.topics.length > 0 && (
-                <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-                  {mod.topics.map((topic) => (
-                    <button
-                      key={topic.id}
-                      type="button"
-                      onClick={() => setSelectedTopic({ topic, moduleName: mod.title })}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/60 cursor-pointer"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-foreground">{topic.name}</p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                          <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
-                          {topic.scheduledDate && (
-                            <span className="inline-flex items-center gap-0.5">
-                              <CalendarDays className="h-2.5 w-2.5" />
-                              {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
-                            </span>
-                          )}
-                          {topic.location && (
-                            <span className="inline-flex items-center gap-0.5">
-                              <MapPin className="h-2.5 w-2.5" />
-                              {topic.location}
-                            </span>
-                          )}
-                          {topic.documentCount > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-primary">
-                              <FileText className="h-2.5 w-2.5" />
-                              {topic.documentCount} dokument{topic.documentCount > 1 ? "e" : ""}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="shrink-0 flex items-center gap-2">
-                        {(() => {
-                          const topicIsToday = topic.scheduledDate ? format(parseISO(topic.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
-                          return topicIsToday && !topic.attended ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setShowModuleScanner(true)
-                                    setModuleScanNotice("")
-                                    setModuleScanError("")
-                                    setModuleScanManualToken("")
-                                  }}
-                                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); setShowModuleScanner(true); setModuleScanNotice(""); setModuleScanError(""); setModuleScanManualToken("") } }}
-                                  className="inline-flex items-center justify-center rounded-md p-1 text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-                                >
-                                  <ScanLine className="h-3.5 w-3.5" />
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">Skano</TooltipContent>
-                            </Tooltip>
-                          ) : null
-                        })()}
-                        {topic.attended ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
-                            <CheckCircle2 className="h-2.5 w-2.5" />
-                            Prezent
-                          </span>
-                        ) : topic.scheduledDate && new Date(topic.scheduledDate) > new Date() ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
-                            Në pritje
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">
-                            Pa prezencë
-                          </span>
-                        )}
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    </button>
+                </thead>
+                <tbody>
+                  {upcomingTopics.slice(0, 8).map((t, i) => (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="px-3 py-2 text-xs text-foreground">{format(parseISO(t.date), "dd MMM yyyy, HH:mm")}</td>
+                      <td className="px-3 py-2 text-xs text-foreground font-medium">{t.topicName}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{t.moduleName}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{t.location ?? "—"}</td>
+                    </tr>
                   ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Module QR Scanner Modal */}
-      {showModuleScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Skano Kodin QR të Modulit</h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">Skanoni kodin QR që shfaqet nga mentori/admini</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowModuleScanner(false)
-                  setModuleScanError("")
-                }}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div className="aspect-square overflow-hidden rounded-lg border border-border">
-                <Scanner
-                  onScan={(result) => {
-                    handleModuleScannerResult(result)
-                  }}
-                  components={{ onOff: true, torch: true, zoom: false, finder: true }}
-                  styles={{ container: { width: "100%", height: "100%" } }}
-                />
-              </div>
-
-              <p className="text-xs text-muted-foreground text-center">ose vendosni kodin manualisht:</p>
-
-              <div className="flex items-center gap-2">
-                <Input
-                  value={moduleScanManualToken}
-                  onChange={(e) => setModuleScanManualToken(e.target.value)}
-                  placeholder="Vendos token-in QR të modulit"
-                  className="h-9 text-xs font-mono"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-9 px-3"
-                  disabled={moduleScanBusy || !moduleScanManualToken.trim()}
-                  onClick={() => {
-                    void scanModuleToken(moduleScanManualToken)
-                  }}
-                >
-                  {moduleScanBusy ? "..." : "Konfirmo"}
-                </Button>
-              </div>
-
-              {moduleScanError && (
-                <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {moduleScanError}
-                </p>
-              )}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Topic Detail Modal */}
-      {selectedTopic && (() => {
-        const t = selectedTopic.topic
-        const docs = t.documents ?? []
-        const isToday = t.scheduledDate ? format(parseISO(t.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
-        const isPast = t.scheduledDate ? new Date(t.scheduledDate) < new Date() && !isToday : false
-        return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm" onClick={() => setSelectedTopic(null)}>
-            <div
-              className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-2 duration-200 max-h-[92vh] sm:max-h-[80vh] flex flex-col sm:mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Drag handle (mobile) */}
-              <div className="flex justify-center pt-3 pb-1 sm:hidden">
-                <div className="h-1 w-10 rounded-full bg-border" />
-              </div>
-
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3 px-5 pt-2 sm:pt-5 pb-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                    {isToday && (
-                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Sot</span>
-                    )}
-                    {t.attended ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-600">
-                        <CheckCircle2 className="h-2.5 w-2.5" />
-                        Prezent
+        {myModulesLoading ? (
+          <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
+            Duke ngarkuar modulet...
+          </div>
+        ) : myModules.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+            <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">Nuk keni asnjë modul të caktuar akoma.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {myModules.map((mod) => (
+              <div key={mod.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={cn(
+                        "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                        mod.yearGrade === 1
+                          ? "bg-blue-500/10 text-blue-600"
+                          : mod.yearGrade === 2
+                            ? "bg-purple-500/10 text-purple-600"
+                            : "bg-emerald-500/10 text-emerald-600"
+                      )}>
+                        Viti {mod.yearGrade}
                       </span>
-                    ) : isPast ? (
-                      <span className="rounded-full bg-red-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-red-600">Pa prezencë</span>
-                    ) : (
-                      <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-blue-600">Në pritje</span>
-                    )}
+                      <h3 className="text-sm font-semibold text-foreground">{mod.title}</h3>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {mod.location && (
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {mod.location}
+                        </span>
+                      )}
+                      <span>{mod.topics.length} temë</span>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-bold text-foreground leading-tight">{t.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">{selectedTopic.moduleName}</p>
+                </div>
+
+                {/* Nested topics */}
+                {mod.topics.length > 0 && (
+                  <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                    {mod.topics.map((topic) => (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        onClick={() => setSelectedTopic({ topic, moduleName: mod.title })}
+                        className="flex w-full items-center justify-between gap-2 rounded-lg bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/60 cursor-pointer"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground">{topic.name}</p>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                            <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
+                            {topic.scheduledDate && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <CalendarDays className="h-2.5 w-2.5" />
+                                {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                              </span>
+                            )}
+                            {topic.location && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <MapPin className="h-2.5 w-2.5" />
+                                {topic.location}
+                              </span>
+                            )}
+                            {topic.documentCount > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-primary">
+                                <FileText className="h-2.5 w-2.5" />
+                                {topic.documentCount} dokument{topic.documentCount > 1 ? "e" : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-2">
+                          {(() => {
+                            const topicIsToday = topic.scheduledDate ? format(parseISO(topic.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
+                            return topicIsToday && !topic.attended ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setShowModuleScanner(true)
+                                      setModuleScanNotice("")
+                                      setModuleScanError("")
+                                      setModuleScanManualToken("")
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); setShowModuleScanner(true); setModuleScanNotice(""); setModuleScanError(""); setModuleScanManualToken("") } }}
+                                    className="inline-flex items-center justify-center rounded-md p-1 text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                                  >
+                                    <ScanLine className="h-3.5 w-3.5" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Skano</TooltipContent>
+                              </Tooltip>
+                            ) : null
+                          })()}
+                          {topic.attended ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                              <CheckCircle2 className="h-2.5 w-2.5" />
+                              Prezent
+                            </span>
+                          ) : topic.scheduledDate && new Date(topic.scheduledDate) > new Date() ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                              Në pritje
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+                              Pa prezencë
+                            </span>
+                          )}
+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Module QR Scanner Modal */}
+        {showModuleScanner && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50 px-4 py-6 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-xl border border-border bg-card shadow-lg">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Skano Kodin QR të Modulit</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Skanoni kodin QR që shfaqet nga mentori/admini</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedTopic(null)}
-                  className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 -mr-1 -mt-1"
+                  onClick={() => {
+                    setShowModuleScanner(false)
+                    setModuleScanError("")
+                  }}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Body */}
-              <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4">
-                {/* Info grid */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lektori</span>
-                    </div>
-                    <p className="text-sm font-semibold text-foreground leading-snug">{t.lecturer}</p>
-                  </div>
-                  {t.scheduledDate && (
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Data</span>
-                      </div>
-                      <p className="text-sm font-semibold text-foreground leading-snug">{format(parseISO(t.scheduledDate), "dd MMM yyyy")}</p>
-                      <p className="text-xs text-muted-foreground">{format(parseISO(t.scheduledDate), "HH:mm")}</p>
-                    </div>
-                  )}
-                  {t.location && (
-                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Vendndodhja</span>
-                      </div>
-                      <p className="text-sm font-semibold text-foreground leading-snug">{t.location}</p>
-                    </div>
-                  )}
-                  {t.attended && t.attendedAt && (
-                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-600">Prezenca</span>
-                      </div>
-                      <p className="text-sm font-semibold text-emerald-700 leading-snug">{format(parseISO(t.attendedAt), "dd MMM yyyy")}</p>
-                      <p className="text-xs text-emerald-600">{format(parseISO(t.attendedAt), "HH:mm")}</p>
-                    </div>
-                  )}
+              <div className="p-4 space-y-3">
+                <div className="aspect-square overflow-hidden rounded-lg border border-border">
+                  <Scanner
+                    onScan={(result) => {
+                      handleModuleScannerResult(result)
+                    }}
+                    components={{ onOff: true, torch: true, zoom: false, finder: true }}
+                    styles={{ container: { width: "100%", height: "100%" } }}
+                  />
                 </div>
 
-                {/* Scan QR for today's topic */}
-                {isToday && !t.attended && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedTopic(null)
-                      setShowModuleScanner(true)
-                      setModuleScanNotice("")
-                      setModuleScanError("")
-                      setModuleScanManualToken("")
-                    }}
-                    className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/60 active:scale-[0.98]"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <ScanLine className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Skano kodin QR</p>
-                      <p className="text-xs text-muted-foreground">Regjistro prezencën për këtë temë</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
-                  </button>
-                )}
+                <p className="text-xs text-muted-foreground text-center">ose vendosni kodin manualisht:</p>
 
-                {/* Documents */}
-                {docs.length > 0 ? (
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-2.5">
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dokumentet ({docs.length})</h4>
-                    </div>
-                    <div className="space-y-1.5">
-                      {docs.map((doc) => (
-                        <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 transition-colors hover:bg-muted/30">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                            <FileText className="h-4 w-4 text-blue-500" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {(doc.sizeBytes / 1024).toFixed(0)} KB • {format(parseISO(doc.uploadedAt), "dd MMM yyyy")}
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 shrink-0 hover:bg-primary/10"
-                            disabled={downloadingDocId === doc.id}
-                            onClick={() => void handleDownloadDocument(doc)}
-                          >
-                            <Download className={cn("h-4 w-4 text-primary", downloadingDocId === doc.id && "animate-pulse")} />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : t.documentCount > 0 ? (
-                  <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 p-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{t.documentCount} dokument{t.documentCount > 1 ? "e" : ""}</p>
-                      <p className="text-[11px] text-muted-foreground">Disponohen pas rinisjes së serverit</p>
-                    </div>
-                  </div>
-                ) : null}
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={moduleScanManualToken}
+                    onChange={(e) => setModuleScanManualToken(e.target.value)}
+                    placeholder="Vendos token-in QR të modulit"
+                    className="h-9 text-xs font-mono"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 px-3"
+                    disabled={moduleScanBusy || !moduleScanManualToken.trim()}
+                    onClick={() => {
+                      void scanModuleToken(moduleScanManualToken)
+                    }}
+                  >
+                    {moduleScanBusy ? "..." : "Konfirmo"}
+                  </Button>
+                </div>
+
+                {moduleScanError && (
+                  <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    {moduleScanError}
+                  </p>
+                )}
               </div>
             </div>
           </div>
-        )
-      })()}
+        )}
+
+        {/* Topic Detail Modal */}
+        {selectedTopic && (() => {
+          const t = selectedTopic.topic
+          const docs = t.documents ?? []
+          const isToday = t.scheduledDate ? format(parseISO(t.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
+          const isPast = t.scheduledDate ? new Date(t.scheduledDate) < new Date() && !isToday : false
+          return (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm" onClick={() => setSelectedTopic(null)}>
+              <div
+                className="w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-2xl animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-2 duration-200 max-h-[92vh] sm:max-h-[80vh] flex flex-col sm:mx-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Drag handle (mobile) */}
+                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                  <div className="h-1 w-10 rounded-full bg-border" />
+                </div>
+
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 px-5 pt-2 sm:pt-5 pb-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      {isToday && (
+                        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Sot</span>
+                      )}
+                      {t.attended ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-600">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          Prezent
+                        </span>
+                      ) : isPast ? (
+                        <span className="rounded-full bg-red-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-red-600">Pa prezencë</span>
+                      ) : (
+                        <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-blue-600">Në pritje</span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-foreground leading-tight">{t.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{selectedTopic.moduleName}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTopic(null)}
+                    className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 -mr-1 -mt-1"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4">
+                  {/* Info grid */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lektori</span>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground leading-snug">{t.lecturer}</p>
+                    </div>
+                    {t.scheduledDate && (
+                      <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Data</span>
+                        </div>
+                        <p className="text-sm font-semibold text-foreground leading-snug">{format(parseISO(t.scheduledDate), "dd MMM yyyy")}</p>
+                        <p className="text-xs text-muted-foreground">{format(parseISO(t.scheduledDate), "HH:mm")}</p>
+                      </div>
+                    )}
+                    {t.location && (
+                      <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Vendndodhja</span>
+                        </div>
+                        <p className="text-sm font-semibold text-foreground leading-snug">{t.location}</p>
+                      </div>
+                    )}
+                    {t.attended && t.attendedAt && (
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-600">Prezenca</span>
+                        </div>
+                        <p className="text-sm font-semibold text-emerald-700 leading-snug">{format(parseISO(t.attendedAt), "dd MMM yyyy")}</p>
+                        <p className="text-xs text-emerald-600">{format(parseISO(t.attendedAt), "HH:mm")}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Scan QR for today's topic */}
+                  {isToday && !t.attended && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTopic(null)
+                        setShowModuleScanner(true)
+                        setModuleScanNotice("")
+                        setModuleScanError("")
+                        setModuleScanManualToken("")
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-4 text-left transition-colors hover:bg-primary/10 hover:border-primary/60 active:scale-[0.98]"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                        <ScanLine className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Skano kodin QR</p>
+                        <p className="text-xs text-muted-foreground">Regjistro prezencën për këtë temë</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto shrink-0" />
+                    </button>
+                  )}
+
+                  {/* Documents */}
+                  {docs.length > 0 ? (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <FileText className="h-3.5 w-3.5 text-primary" />
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dokumentet ({docs.length})</h4>
+                      </div>
+                      <div className="space-y-1.5">
+                        {docs.map((doc) => (
+                          <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 transition-colors hover:bg-muted/30">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                              <FileText className="h-4 w-4 text-blue-500" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {(doc.sizeBytes / 1024).toFixed(0)} KB • {format(parseISO(doc.uploadedAt), "dd MMM yyyy")}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 shrink-0 hover:bg-primary/10"
+                              disabled={downloadingDocId === doc.id}
+                              onClick={() => void handleDownloadDocument(doc)}
+                            >
+                              <Download className={cn("h-4 w-4 text-primary", downloadingDocId === doc.id && "animate-pulse")} />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : t.documentCount > 0 ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 p-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                        <FileText className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{t.documentCount} dokument{t.documentCount > 1 ? "e" : ""}</p>
+                        <p className="text-[11px] text-muted-foreground">Disponohen pas rinisjes së serverit</p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
       </>
     </div>
   )
