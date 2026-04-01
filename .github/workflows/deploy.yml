@@ -62,19 +62,20 @@ jobs:
           NETBIRD_SETUP_KEY: ${{ secrets.NETBIRD_SETUP_KEY }}
         run: |
           curl -fsSL https://pkgs.netbird.io/install.sh | sudo sh
-          sudo netbird service stop || true
-          sudo netbird service install 2>/dev/null || true
-          sudo netbird service start
-          sudo netbird up --management-url https://netbird.iteam.al --setup-key "$NETBIRD_SETUP_KEY" &
+          sudo netbird service stop 2>/dev/null || true
+          sudo netbird up --management-url https://netbird.iteam.al --setup-key "$NETBIRD_SETUP_KEY" --log-level error &
           for i in $(seq 1 30); do
-            if sudo netbird status | grep -q "Connected"; then
+            if sudo netbird status 2>/dev/null | grep -q "Management: Connected"; then
               echo "Netbird connected!"
-              break
+              sudo netbird status
+              exit 0
             fi
-            echo "Waiting for Netbird connection... ($i/30)"
+            echo "Waiting for Netbird... ($i/30)"
             sleep 2
           done
+          echo "Netbird failed to connect:"
           sudo netbird status
+          exit 1
 
       - name: Create release archive
         run: |
