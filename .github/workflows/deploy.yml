@@ -60,97 +60,49 @@ jobs:
       - name: Create release archive
         run: tar --exclude-vcs --exclude='.gitignore' --exclude='.env' -czf release.tgz .
 
-      - name: Create deployment environment file
-        env:
-          APP_PORT: ${{ secrets.APP_PORT }}
-          PUBLIC_FRONTEND_URL: ${{ secrets.PUBLIC_FRONTEND_URL }}
-          PUBLIC_FILES_BASE_URL: ${{ secrets.PUBLIC_FILES_BASE_URL }}
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-          API_INTERNAL_URL: ${{ secrets.API_INTERNAL_URL }}
-          STORAGE_USE_BLOB_STORAGE: ${{ secrets.STORAGE_USE_BLOB_STORAGE }}
-          HOST_DB_PATH: ${{ secrets.HOST_DB_PATH }}
-          HOST_STORAGE_PATH: ${{ secrets.HOST_STORAGE_PATH }}
-          HOST_BACKUP_PATH: ${{ secrets.HOST_BACKUP_PATH }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
-          JWT_AUDIENCE: ${{ secrets.JWT_AUDIENCE }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USE_SSL: ${{ secrets.SMTP_USE_SSL }}
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM_ADDRESS: ${{ secrets.SMTP_FROM_ADDRESS }}
-          SMTP_FROM_NAME: ${{ secrets.SMTP_FROM_NAME }}
-          TWO_FACTOR_ENABLED: ${{ secrets.TWO_FACTOR_ENABLED }}
-          BACKUP_INTERVAL_SECONDS: ${{ secrets.BACKUP_INTERVAL_SECONDS }}
-          BACKUP_RETENTION_DAYS: ${{ secrets.BACKUP_RETENTION_DAYS }}
-        run: |
-          : > deploy.env
-          printf 'APP_PORT=%s\n' "${APP_PORT:-8080}" >> deploy.env
-          printf 'PUBLIC_FRONTEND_URL=%s\n' "${PUBLIC_FRONTEND_URL:-http://localhost:8080}" >> deploy.env
-          printf 'PUBLIC_FILES_BASE_URL=%s\n' "${PUBLIC_FILES_BASE_URL:-/api/LearningStorage/download}" >> deploy.env
-          printf 'NEXT_PUBLIC_API_URL=%s\n' "${NEXT_PUBLIC_API_URL:-/api}" >> deploy.env
-          printf 'API_INTERNAL_URL=%s\n' "${API_INTERNAL_URL:-http://api:8080}" >> deploy.env
-          printf 'STORAGE_USE_BLOB_STORAGE=%s\n' "${STORAGE_USE_BLOB_STORAGE:-false}" >> deploy.env
-          printf 'HOST_DB_PATH=%s\n' "${HOST_DB_PATH:-/storage/ieka/db}" >> deploy.env
-          printf 'HOST_STORAGE_PATH=%s\n' "${HOST_STORAGE_PATH:-/storage/ieka/files}" >> deploy.env
-          printf 'HOST_BACKUP_PATH=%s\n' "${HOST_BACKUP_PATH:-/storage/ieka/backups}" >> deploy.env
-          printf 'DB_NAME=%s\n' "${DB_NAME:-IekaSmartClassDb}" >> deploy.env
-          printf 'MSSQL_SA_PASSWORD=%s\n' "${MSSQL_SA_PASSWORD}" >> deploy.env
-          printf 'JWT_SECRET=%s\n' "${JWT_SECRET}" >> deploy.env
-          printf 'JWT_ISSUER=%s\n' "${JWT_ISSUER:-IekaSmartClass.Api}" >> deploy.env
-          printf 'JWT_AUDIENCE=%s\n' "${JWT_AUDIENCE:-IekaSmartClass.Web}" >> deploy.env
-          printf 'SMTP_HOST=%s\n' "${SMTP_HOST:-smtp.gmail.com}" >> deploy.env
-          printf 'SMTP_PORT=%s\n' "${SMTP_PORT:-587}" >> deploy.env
-          printf 'SMTP_USE_SSL=%s\n' "${SMTP_USE_SSL:-true}" >> deploy.env
-          printf 'SMTP_USERNAME=%s\n' "${SMTP_USERNAME:-}" >> deploy.env
-          printf 'SMTP_PASSWORD=%s\n' "${SMTP_PASSWORD:-}" >> deploy.env
-          printf 'SMTP_FROM_ADDRESS=%s\n' "${SMTP_FROM_ADDRESS:-}" >> deploy.env
-          printf 'SMTP_FROM_NAME=%s\n' "${SMTP_FROM_NAME:-IEKA SmartClass}" >> deploy.env
-          printf 'TWO_FACTOR_ENABLED=%s\n' "${TWO_FACTOR_ENABLED:-true}" >> deploy.env
-          printf 'BACKUP_INTERVAL_SECONDS=%s\n' "${BACKUP_INTERVAL_SECONDS:-86400}" >> deploy.env
-          printf 'BACKUP_RETENTION_DAYS=%s\n' "${BACKUP_RETENTION_DAYS:-14}" >> deploy.env
-
       - name: Trust server host key
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload release archive
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
         run: |
-          sshpass -p "$DEPLOY_PASSWORD" scp -P "${DEPLOY_PORT:-22}" release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/ieka-events-release.tgz"
-          sshpass -p "$DEPLOY_PASSWORD" scp -P "${DEPLOY_PORT:-22}" deploy.env "$DEPLOY_USER@$DEPLOY_HOST:/tmp/ieka-events.env"
+          sshpass -p "$DEPLOY_PASSWORD" scp release.tgz "$DEPLOY_USER@$DEPLOY_HOST:/tmp/ieka-events-release.tgz"
 
       - name: Deploy over SSH
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          HOST_DB_PATH: ${{ secrets.HOST_DB_PATH }}
-          HOST_STORAGE_PATH: ${{ secrets.HOST_STORAGE_PATH }}
-          HOST_BACKUP_PATH: ${{ secrets.HOST_BACKUP_PATH }}
         run: |
-          sshpass -p "$DEPLOY_PASSWORD" ssh -p "${DEPLOY_PORT:-22}" "$DEPLOY_USER@$DEPLOY_HOST" /bin/bash <<EOF
+          sshpass -p "$DEPLOY_PASSWORD" ssh "$DEPLOY_USER@$DEPLOY_HOST" /bin/bash <<'EOF'
           set -euo pipefail
-          mkdir -p "${DEPLOY_PATH}"
-          mkdir -p "${HOST_DB_PATH:-/storage/ieka/db}" "${HOST_STORAGE_PATH:-/storage/ieka/files}" "${HOST_BACKUP_PATH:-/storage/ieka/backups}"
-          find "${DEPLOY_PATH}" -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} +
-          tar -xzf /tmp/ieka-events-release.tgz -C "${DEPLOY_PATH}"
+          DEPLOY_PATH="/opt/ieka-smartclass"
+
+          mkdir -p "$DEPLOY_PATH"
+
+          if [ ! -f "$DEPLOY_PATH/.env" ]; then
+            echo "ERROR: $DEPLOY_PATH/.env not found on server."
+            echo "Create it manually first. See deploy/server-setup.md for instructions."
+            exit 1
+          fi
+
+          cp "$DEPLOY_PATH/.env" /tmp/ieka-env-backup
+          find "$DEPLOY_PATH" -mindepth 1 -maxdepth 1 ! -name '.env' -exec rm -rf {} +
+          tar -xzf /tmp/ieka-events-release.tgz -C "$DEPLOY_PATH"
           rm -f /tmp/ieka-events-release.tgz
-          mv /tmp/ieka-events.env "${DEPLOY_PATH}/.env"
-          cd "${DEPLOY_PATH}"
+          mv /tmp/ieka-env-backup "$DEPLOY_PATH/.env"
+
+          source "$DEPLOY_PATH/.env"
+          mkdir -p "${HOST_DB_PATH:-/storage/ieka/db}" "${HOST_STORAGE_PATH:-/storage/ieka/files}" "${HOST_BACKUP_PATH:-/storage/ieka/backups}"
+
+          cd "$DEPLOY_PATH"
           docker compose pull db backup nginx
           docker compose up -d --build --remove-orphans
           docker compose ps
@@ -160,9 +112,7 @@ jobs:
         if: failure()
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          sshpass -p "$DEPLOY_PASSWORD" ssh -p "${DEPLOY_PORT:-22}" "$DEPLOY_USER@$DEPLOY_HOST" "cd '${DEPLOY_PATH}' && docker compose logs --no-color --tail=200 db api web nginx backup"
+          sshpass -p "$DEPLOY_PASSWORD" ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd /opt/ieka-smartclass && docker compose logs --no-color --tail=200 db api web nginx backup"
