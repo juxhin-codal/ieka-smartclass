@@ -57,6 +57,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sshpass
 
+      - name: Connect to Netbird
+        env:
+          NETBIRD_SETUP_KEY: ${{ secrets.NETBIRD_SETUP_KEY }}
+        run: |
+          curl -fsSL https://pkgs.netbird.io/install.sh | sudo sh
+          sudo netbird up --setup-key "$NETBIRD_SETUP_KEY"
+          sleep 5
+          sudo netbird status
+
       - name: Create release archive
         run: |
           set +e
