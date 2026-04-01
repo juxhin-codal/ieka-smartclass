@@ -59,6 +59,7 @@ jobs:
 
       - name: Create release archive
         run: |
+          set +e
           tar --exclude-vcs \
             --exclude='.gitignore' \
             --exclude='.env' \
@@ -67,6 +68,8 @@ jobs:
             --exclude='bin' \
             --exclude='obj' \
             -czf release.tgz .
+          rc=$?
+          if [ $rc -eq 2 ]; then exit 2; fi
           ls -lh release.tgz
 
       - name: Trust server host key
