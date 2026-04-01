@@ -62,8 +62,9 @@ jobs:
           NETBIRD_SETUP_KEY: ${{ secrets.NETBIRD_SETUP_KEY }}
         run: |
           curl -fsSL https://pkgs.netbird.io/install.sh | sudo sh
-          sudo netbird service stop 2>/dev/null || true
-          sudo netbird up --management-url https://netbird.iteam.al --setup-key "$NETBIRD_SETUP_KEY" --log-level error &
+          sudo netbird service install 2>/dev/null || true
+          sudo netbird service start 2>/dev/null || true
+          sudo netbird up --management-url https://netbird.iteam.al --setup-key "$NETBIRD_SETUP_KEY" &
           for i in $(seq 1 30); do
             if sudo netbird status 2>/dev/null | grep -q "Management: Connected"; then
               echo "Netbird connected!"
