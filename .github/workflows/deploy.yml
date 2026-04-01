@@ -58,7 +58,16 @@ jobs:
           sudo apt-get install -y sshpass
 
       - name: Create release archive
-        run: tar --exclude-vcs --exclude='.gitignore' --exclude='.env' -czf release.tgz .
+        run: |
+          tar --exclude-vcs \
+            --exclude='.gitignore' \
+            --exclude='.env' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='bin' \
+            --exclude='obj' \
+            -czf release.tgz .
+          ls -lh release.tgz
 
       - name: Trust server host key
         env:
