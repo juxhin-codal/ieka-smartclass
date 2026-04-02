@@ -1004,4 +1004,53 @@ public class StudentModuleService(
             }
         }
     }
+
+    public async Task<ReassignResult> ReassignAllStudentModulesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        var students = await _db.Users
+            .Where(u => u.Role == "Student" && u.IsActive && u.StudentStartYear != null)
+            .ToListAsync(cancellationToken);
+
+        var modules = await _db.StudentModules
+            .Include(m => m.Assignments)
+            .Include(m => m.Topics).ThenInclude(t => t.Attendances)
+            .ToListAsync(cancellationToken);
+
+        var removed = 0;
+        var added = 0;
+
+        foreach (var student in students)
+        {
+            var yearGrade = GetStudentCurrentYearGrade(student, now);
+
+            foreach (var module in modules)
+            {
+                var isAssigned = module.Assignments.Any(a => a.StudentId == student.Id);
+                var isCorrectYear = module.YearGrade == yearGrade;
+
+                if (isAssigned && !isCorrectYear)
+                {
+                    // Remove wrong year assignment (only if student has no attendance in this module)
+                    var hasAttendance = module.Topics.Any(t => t.Attendances.Any(a => a.StudentId == student.Id));
+                    if (!hasAttendance)
+                    {
+                        var assignment = module.Assignments.First(a => a.StudentId == student.Id);
+                        _db.StudentModuleAssignments.Remove(assignment);
+                        removed++;
+                    }
+                }
+                else if (!isAssigned && isCorrectYear)
+                {
+                    // Add missing assignment for correct year
+                    _db.StudentModuleAssignments.Add(new StudentModuleAssignment(module.Id, student.Id));
+                    added++;
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return new ReassignResult(added, removed);
+    }
 }

@@ -50,7 +50,12 @@ public interface IStudentModuleService
 
     // Auto-assign new student to existing modules matching their year grade
     Task AutoAssignStudentToModulesAsync(Guid studentId, CancellationToken cancellationToken = default);
+
+    // Reassign all students to correct modules based on Jan-Dec year grade logic
+    Task<ReassignResult> ReassignAllStudentModulesAsync(CancellationToken cancellationToken = default);
 }
+
+public sealed record ReassignResult(int Added, int Removed);
 
 public sealed record CreateStudentModuleInput(
     int YearGrade,

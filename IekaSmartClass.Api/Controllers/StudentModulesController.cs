@@ -349,6 +349,14 @@ public class StudentModulesController(
 
     // ── Student management (add/remove from existing modules) ────────────
 
+    [HttpPost("reassign-all")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ReassignAllStudents(CancellationToken cancellationToken)
+    {
+        var result = await _studentModuleService.ReassignAllStudentModulesAsync(cancellationToken);
+        return Ok(new { result.Added, result.Removed });
+    }
+
     [HttpPost("{moduleId:guid}/students")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AddStudentsToModule(
