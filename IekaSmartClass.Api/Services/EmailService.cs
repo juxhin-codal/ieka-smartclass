@@ -273,6 +273,7 @@ public class EmailService(
         </tr>
     </table>
     <p>Ju lutem kontrolloni platformën për materialet e trajnimit.</p>
+    {BuildPlatformButton()}
     <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
 </div>";
 
@@ -290,6 +291,7 @@ public class EmailService(
         {System.Net.WebUtility.HtmlEncode(changeDescription)}
     </div>
     <p>Ju lutem kontrolloni platformën për detaje.</p>
+    {BuildPlatformButton()}
     <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
 </div>";
 
@@ -335,6 +337,7 @@ public class EmailService(
         {topicRows}
     </table>
     <p>Ju lutem kontrolloni platformën për materialet e trajnimit.</p>
+    {BuildPlatformButton()}
     <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
 </div>";
 
@@ -349,6 +352,7 @@ public class EmailService(
     <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
     <p>Ju njoftojmë se jeni hequr nga moduli <strong>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</strong>.</p>
     <p>Nëse mendoni se kjo është gabim, ju lutem kontaktoni administratorin.</p>
+    {BuildPlatformButton()}
     <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
 </div>";
 
@@ -381,6 +385,7 @@ public class EmailService(
         {noteRow}
     </table>
     <p>Ju lutem kontrolloni platformën për detaje të mëtejshme.</p>
+    {BuildPlatformButton()}
     <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
 </div>";
 
@@ -536,7 +541,8 @@ public class EmailService(
 
         var mergedTokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["APP_NAME"] = _settings.AppName
+            ["APP_NAME"] = _settings.AppName,
+            ["PLATFORM_URL"] = (_settings.FrontendBaseUrl ?? "http://localhost:3000").TrimEnd('/')
         };
 
         if (tokens is not null)
@@ -560,6 +566,20 @@ public class EmailService(
     private static string ReplaceToken(string template, string token, string value)
     {
         return Regex.Replace(template, @"\{\{\s*" + Regex.Escape(token) + @"\s*\}\}", value);
+    }
+
+    private string BuildPlatformButton()
+    {
+        var url = System.Net.WebUtility.HtmlEncode((_settings.FrontendBaseUrl ?? "http://localhost:3000").TrimEnd('/'));
+        return $@"<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:20px 0 0;'>
+        <tr>
+            <td style='background-color:#0f2138;border-radius:6px;'>
+                <a href='{url}' style='display:inline-block;padding:12px 24px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;'>
+                    Hap Platformën
+                </a>
+            </td>
+        </tr>
+    </table>";
     }
 
     private static string BuildScheduleRows(IReadOnlyList<TrainingScheduleEmailItem> sessions)

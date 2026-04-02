@@ -485,6 +485,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [attModuleDetail, setAttModuleDetail] = useState<StudentModuleDetailResponse | null>(null)
   const [attModuleDetailLoading, setAttModuleDetailLoading] = useState(false)
   const [attSelectedTopicId, setAttSelectedTopicId] = useState("")
+  const [attShowPast, setAttShowPast] = useState(false)
   const [attUpdatingKey, setAttUpdatingKey] = useState<string | null>(null)
   const [attError, setAttError] = useState("")
   const [attStudentSearch, setAttStudentSearch] = useState("")
@@ -1313,14 +1314,20 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   )
 
   // Module-topic attendance computed values
-  const attAllTopics = useMemo(() => {
+  const attAllTopicsRaw = useMemo(() => {
     if (!attModules.length) return []
     return attModules
       .flatMap(m => m.topics.filter(t => t.scheduledDate).map(t => ({ ...t, moduleId: m.id, moduleTitle: `Viti ${m.yearGrade} - ${m.title}` })))
       .sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
   }, [attModules])
 
-  const attTopics = useMemo(() => {
+  const attAllTopics = useMemo(() => {
+    if (attShowPast) return attAllTopicsRaw
+    const now = new Date().toISOString()
+    return attAllTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate >= now)
+  }, [attAllTopicsRaw, attShowPast])
+
+  const attTopicsRaw = useMemo(() => {
     if (attSelectedModuleId && attModuleDetail) {
       return [...attModuleDetail.topics]
         .filter(t => t.scheduledDate)
@@ -1328,6 +1335,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     }
     return []
   }, [attModuleDetail, attSelectedModuleId])
+
+  const attTopics = useMemo(() => {
+    if (attShowPast) return attTopicsRaw
+    const now = new Date().toISOString()
+    return attTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate >= now)
+  }, [attTopicsRaw, attShowPast])
 
   const attSelectedTopic = useMemo(() =>
     attTopics.find(t => t.id === attSelectedTopicId)
@@ -3077,7 +3090,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           </div>
                         ) : (
                           <div className="space-y-2">
-                            {selectedModuleDetail.topics.map((topic) => {
+                            {[...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => {
                               const isTopicPast = (() => {
                                 if (!topic.scheduledDate) return false
                                 const todayStr = new Date().toISOString().slice(0, 10)
@@ -3534,7 +3547,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       <tr className="border-b border-border text-xs text-muted-foreground">
                                         <th className="py-2 pr-3 text-left font-medium">Emri</th>
                                         <th className="py-2 pr-3 text-left font-medium">Email</th>
-                                        {selectedModuleDetail.topics.map((topic) => (
+                                        {[...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => (
                                           <th key={topic.id} className="py-2 px-2 text-center font-medium whitespace-nowrap" title={topic.name}>
                                             {topic.name.length > 15 ? `${topic.name.slice(0, 15)}...` : topic.name}
                                           </th>
@@ -3549,7 +3562,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         <tr key={a.studentId} className="border-b border-border/50 last:border-0">
                                           <td className="py-2.5 pr-3 font-medium text-foreground whitespace-nowrap">{a.firstName} {a.lastName}</td>
                                           <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
-                                          {selectedModuleDetail.topics.map((topic) => {
+                                          {[...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => {
                                             const attendance = a.topicAttendances?.find(ta => ta.topicId === topic.id)
                                             const wasBeforeAssignment = topic.scheduledDate && a.assignedAt
                                               ? new Date(topic.scheduledDate) < new Date(a.assignedAt)
@@ -3702,6 +3715,17 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 ))}
               </select>
             </div>
+
+            {/* Past topics filter */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={attShowPast}
+                onChange={(e) => setAttShowPast(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border"
+              />
+              <span className="text-xs text-muted-foreground">Shfaq të kaluarat</span>
+            </label>
 
             {/* Topic list */}
             {attModulesLoading ? (
