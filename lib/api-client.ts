@@ -66,13 +66,20 @@ function resolveApiUrl(endpoint: string) {
 }
 
 function resolveAnyUrl(url: string) {
-    // Convert absolute download URLs to relative (e.g. when DB has old Azure URLs)
+    // Convert absolute download URLs to relative path first (e.g. old Azure URLs stored in DB)
     const downloadMarker = "/api/LearningStorage/download/"
+    let resolved = url
     const idx = url.indexOf(downloadMarker)
     if (idx > 0 && (url.startsWith("http://") || url.startsWith("https://"))) {
-        return url.substring(idx)
+        resolved = url.substring(idx)
     }
-    return url
+
+    // Resolve relative /api/ paths to full URL so they work in PWA standalone mode
+    if (resolved.startsWith("/api/") && typeof window !== "undefined") {
+        return `${window.location.origin}${resolved}`
+    }
+
+    return resolved
 }
 
 function buildHeaders(options: RequestInit = {}) {
