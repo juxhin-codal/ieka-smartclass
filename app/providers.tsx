@@ -8,7 +8,9 @@ import { I18nProvider } from "@/lib/i18n"
 export function Providers({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(() => { })
+            navigator.serviceWorker.register('/sw.js').then((reg) => {
+                reg.update()
+            }).catch(() => { })
         }
     }, [])
 
