@@ -166,11 +166,20 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
   }
 
   // Compute topic-level stats across all modules
-  const allTopics = studentModules.flatMap(m => m.topics ?? [])
+  const allTopics = studentModules.flatMap(m =>
+    (m.topics ?? []).map(t => ({ ...t, assignedAt: m.assignedAt }))
+  )
   const attendedTopics = allTopics.filter(t => t.attended)
   const now = new Date()
   const upcomingTopics = allTopics.filter(t => !t.attended && t.scheduledDate && new Date(t.scheduledDate) > now)
-  const missedTopics = allTopics.filter(t => !t.attended && (!t.scheduledDate || new Date(t.scheduledDate) <= now))
+  // Only count as missed if the topic was after the student was assigned to the module
+  const missedTopics = allTopics.filter(t => {
+    if (t.attended) return false
+    if (t.scheduledDate && new Date(t.scheduledDate) > now) return false
+    // If topic was before student was assigned, don't count as missed
+    if (t.scheduledDate && t.assignedAt && new Date(t.scheduledDate) < new Date(t.assignedAt)) return false
+    return true
+  })
 
   const totalDocs = allTopicDocs.length + studentDocs.length
 

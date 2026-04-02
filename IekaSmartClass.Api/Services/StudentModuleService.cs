@@ -923,22 +923,85 @@ public class StudentModuleService(
             .Where(u => u.Role == "Student" && u.IsActive && u.StudentStartYear != null)
             .ToListAsync(cancellationToken);
 
-        return yearGrade switch
+        return students.Where(u => GetStudentCurrentYearGrade(u, now) == yearGrade).ToList();
+    }
+
+    /// <summary>
+    /// Returns the current year grade (1, 2, or 3) for a student based on Jan-Dec calendar periods, or 0 if not in any active period.
+    /// </summary>
+    private static int GetStudentCurrentYearGrade(AppUser student, DateTime now)
+    {
+        if (student.StudentStartYear is null) return 0;
+
+        var y1 = student.StudentStartYear.Value;
+        var y2 = student.StudentYear2StartYear ?? y1 + 1;
+        var y3 = student.StudentYear3StartYear ?? y2 + 1;
+
+        // Year 1: Jan 1 of y1 to Dec 31 of y1
+        if (now >= new DateTime(y1, 1, 1) && now < new DateTime(y2, 1, 1))
+            return 1;
+
+        // Year 2: Jan 1 of y2 to Dec 31 of y2
+        if (now >= new DateTime(y2, 1, 1) && now < new DateTime(y3, 1, 1))
+            return 2;
+
+        // Year 3: Jan 1 of y3 to Dec 31 of y3
+        if (now >= new DateTime(y3, 1, 1) && now < new DateTime(y3 + 1, 1, 1))
+            return 3;
+
+        return 0;
+    }
+
+    public async Task AutoAssignStudentToModulesAsync(Guid studentId, CancellationToken cancellationToken = default)
+    {
+        var student = await _db.Users
+            .FirstOrDefaultAsync(u => u.Id == studentId && u.Role == "Student" && u.IsActive, cancellationToken);
+        if (student?.StudentStartYear is null) return;
+
+        var yearGrade = GetStudentCurrentYearGrade(student, DateTime.UtcNow);
+        if (yearGrade == 0) return;
+
+        // Find all modules for this year grade that have upcoming topics
+        var modules = await _db.StudentModules
+            .Include(m => m.Assignments)
+            .Include(m => m.Topics)
+            .Where(m => m.YearGrade == yearGrade)
+            .ToListAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var assigned = new List<StudentModule>();
+
+        foreach (var module in modules)
         {
-            1 => students.Where(u =>
-                now >= new DateTime(u.StudentStartYear!.Value, 9, 1) &&
-                now < new DateTime(u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1, 9, 1)).ToList(),
+            // Skip if already assigned
+            if (module.Assignments.Any(a => a.StudentId == studentId)) continue;
 
-            2 => students.Where(u =>
-                now >= new DateTime(u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1, 9, 1) &&
-                now < new DateTime(
-                    u.StudentYear3StartYear ?? (u.StudentYear2StartYear ?? u.StudentStartYear!.Value + 1) + 1, 9, 1)).ToList(),
+            // Only auto-assign to modules that have at least one upcoming topic
+            var hasUpcoming = module.Topics.Any(t => t.ScheduledDate.HasValue && t.ScheduledDate.Value > now);
+            if (!hasUpcoming) continue;
 
-            3 => students.Where(u =>
-                now >= new DateTime(u.StudentYear3StartYear ?? u.StudentStartYear!.Value + 2, 9, 1) &&
-                now < new DateTime((u.StudentYear3StartYear ?? u.StudentStartYear!.Value + 2) + 1, 9, 1)).ToList(),
+            _db.StudentModuleAssignments.Add(new StudentModuleAssignment(module.Id, studentId));
+            assigned.Add(module);
+        }
 
-            _ => []
-        };
+        if (assigned.Count > 0)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+
+            // Notify student about each assigned module
+            foreach (var module in assigned)
+            {
+                try
+                {
+                    var topicNames = module.Topics.Select(t => t.Name).ToList();
+                    await _emailService.SendStudentAddedToModuleAsync(
+                        student, module.Title, module.YearGrade, module.Location, topicNames, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send auto-assign notification for module {ModuleId} to student {StudentId}", module.Id, studentId);
+                }
+            }
+        }
     }
 }

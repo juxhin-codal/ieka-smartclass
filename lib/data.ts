@@ -391,6 +391,7 @@ export interface StudentMyModuleResponse {
   location?: string | null
   createdAt: string
   topics: StudentMyTopicResponse[]
+  assignedAt?: string | null
   result?: string | null
   resultNote?: string | null
   resultSetAt?: string | null

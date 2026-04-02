@@ -1336,11 +1336,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attStudentsForTopic = useMemo(() => {
     if (!attModuleDetail || !attSelectedTopicId) return []
-    return attModuleDetail.assignments.map(a => ({
-      ...a,
-      attended: a.topicAttendances.some(ta => ta.topicId === attSelectedTopicId),
-      attendedAt: a.topicAttendances.find(ta => ta.topicId === attSelectedTopicId)?.attendedAt ?? null,
-    }))
+    const topic = attModuleDetail.topics.find(t => t.id === attSelectedTopicId)
+    return attModuleDetail.assignments.map(a => {
+      const wasBeforeAssignment = topic?.scheduledDate && a.assignedAt
+        ? new Date(topic.scheduledDate) < new Date(a.assignedAt)
+        : false
+      return {
+        ...a,
+        attended: a.topicAttendances.some(ta => ta.topicId === attSelectedTopicId),
+        attendedAt: a.topicAttendances.find(ta => ta.topicId === attSelectedTopicId)?.attendedAt ?? null,
+        wasBeforeAssignment,
+      }
+    })
   }, [attModuleDetail, attSelectedTopicId])
 
   const attIsPastTopic = useMemo(() => {
@@ -3322,54 +3329,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         )}
                       </div>
 
-                      {/* Delete Topic Confirmation */}
-                      {deletingTopicId && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
-                            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi temën?</h3>
-                            <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë temën dhe të gjitha dokumentet e lidhura. Ky veprim nuk mund të zhbëhet.</p>
-                            <div className="flex gap-2 justify-end">
-                              <Button variant="ghost" onClick={() => setDeletingTopicId(null)} disabled={isDeletingTopic}>Anulo</Button>
-                              <Button variant="destructive" onClick={() => handleDeleteTopic(deletingTopicId)} disabled={isDeletingTopic}>
-                                {isDeletingTopic ? "Duke fshirë..." : "Po, Fshi"}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Delete Document Confirmation */}
-                      {deletingDocId && deletingDocTopicId && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
-                            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi dokumentin?</h3>
-                            <p className="mb-5 text-sm text-muted-foreground">Ky veprim nuk mund të zhbëhet.</p>
-                            <div className="flex gap-2 justify-end">
-                              <Button variant="ghost" onClick={() => { setDeletingDocId(null); setDeletingDocTopicId(null) }} disabled={isDeletingDoc}>Anulo</Button>
-                              <Button variant="destructive" onClick={() => handleRemoveDocument(deletingDocTopicId, deletingDocId)} disabled={isDeletingDoc}>
-                                {isDeletingDoc ? "Duke fshirë..." : "Po, Fshi"}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Delete Questionnaire Confirmation */}
-                      {deletingQuestionnaireId && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
-                          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
-                            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi pyetësorin?</h3>
-                            <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë pyetësorin dhe të gjitha përgjigjet. Nuk mund të zhbëhet.</p>
-                            <div className="flex gap-2 justify-end">
-                              <Button variant="ghost" onClick={() => setDeletingQuestionnaireId(null)} disabled={isDeletingQuestionnaire}>Anulo</Button>
-                              <Button variant="destructive" onClick={() => handleDeleteQuestionnaire(deletingQuestionnaireId)} disabled={isDeletingQuestionnaire}>
-                                {isDeletingQuestionnaire ? "Duke fshirë..." : "Po, Fshi"}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Create Questionnaire Modal */}
                       {showQuestionnaireModal && (
                         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
@@ -3592,11 +3551,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                           <td className="py-2.5 pr-3 text-muted-foreground">{a.email}</td>
                                           {selectedModuleDetail.topics.map((topic) => {
                                             const attendance = a.topicAttendances?.find(ta => ta.topicId === topic.id)
+                                            const wasBeforeAssignment = topic.scheduledDate && a.assignedAt
+                                              ? new Date(topic.scheduledDate) < new Date(a.assignedAt)
+                                              : false
                                             return (
                                               <td key={topic.id} className="py-2.5 px-2 text-center">
                                                 {attendance ? (
                                                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
                                                     <CheckCircle2 className="h-2.5 w-2.5" />
+                                                  </span>
+                                                ) : wasBeforeAssignment ? (
+                                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground/50" title="I pa regjistruar në këtë datë">
+                                                    —
                                                   </span>
                                                 ) : (
                                                   <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
@@ -3670,10 +3636,58 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         </>
       )}
 
+      {/* Delete Topic Confirmation - outside parent modal for correct mobile positioning */}
+      {deletingTopicId && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi temën?</h3>
+            <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë temën dhe të gjitha dokumentet e lidhura. Ky veprim nuk mund të zhbëhet.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setDeletingTopicId(null)} disabled={isDeletingTopic}>Anulo</Button>
+              <Button variant="destructive" onClick={() => handleDeleteTopic(deletingTopicId)} disabled={isDeletingTopic}>
+                {isDeletingTopic ? "Duke fshirë..." : "Po, Fshi"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Document Confirmation */}
+      {deletingDocId && deletingDocTopicId && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi dokumentin?</h3>
+            <p className="mb-5 text-sm text-muted-foreground">Ky veprim nuk mund të zhbëhet.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setDeletingDocId(null); setDeletingDocTopicId(null) }} disabled={isDeletingDoc}>Anulo</Button>
+              <Button variant="destructive" onClick={() => handleRemoveDocument(deletingDocTopicId, deletingDocId)} disabled={isDeletingDoc}>
+                {isDeletingDoc ? "Duke fshirë..." : "Po, Fshi"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Questionnaire Confirmation */}
+      {deletingQuestionnaireId && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold text-foreground">Fshi pyetësorin?</h3>
+            <p className="mb-5 text-sm text-muted-foreground">Ky veprim do të fshijë pyetësorin dhe të gjitha përgjigjet. Nuk mund të zhbëhet.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setDeletingQuestionnaireId(null)} disabled={isDeletingQuestionnaire}>Anulo</Button>
+              <Button variant="destructive" onClick={() => handleDeleteQuestionnaire(deletingQuestionnaireId)} disabled={isDeletingQuestionnaire}>
+                {isDeletingQuestionnaire ? "Duke fshirë..." : "Po, Fshi"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === "attendance" && (
         <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-          {/* Left sidebar */}
-          <div className="h-fit rounded-2xl border border-border bg-card p-3 sm:p-4 space-y-4">
+          {/* Left sidebar - hidden on mobile when a topic is selected */}
+          <div className={cn("h-fit rounded-2xl border border-border bg-card p-3 sm:p-4 space-y-4", attSelectedTopicId && "hidden lg:block")}>
             {/* Module filter */}
             <div>
               <Label className="text-xs">Filtro sipas modulit</Label>
@@ -3790,6 +3804,15 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Mobile back button */}
+                <button
+                  type="button"
+                  onClick={() => setAttSelectedTopicId("")}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline lg:hidden"
+                >
+                  <ChevronRight className="h-3.5 w-3.5 rotate-180" />
+                  Kthehu te temat
+                </button>
                 {/* Header */}
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -3866,12 +3889,17 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     <CheckCircle2 className="h-2.5 w-2.5" />
                                     Prezent
                                   </span>
+                                ) : s.wasBeforeAssignment ? (
+                                  <span className="rounded-full bg-muted/50 px-2.5 py-1 text-[10px] text-muted-foreground/50">
+                                    I pa regjistruar
+                                  </span>
                                 ) : (
                                   <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
                                     Pa prezencë
                                   </span>
                                 )}
                               </div>
+                              {!s.wasBeforeAssignment && (
                               <div className="mt-3 flex gap-2">
                                 <Button
                                   size="sm"
@@ -3892,6 +3920,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
                                 </Button>
                               </div>
+                              )}
                             </div>
                           )
                         })}
@@ -3921,6 +3950,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         <CheckCircle2 className="h-2.5 w-2.5" />
                                         Prezent
                                       </span>
+                                    ) : s.wasBeforeAssignment ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-muted/50 px-2.5 py-1 text-[10px] text-muted-foreground/50">
+                                        I pa regjistruar
+                                      </span>
                                     ) : (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
                                         Pa prezencë
@@ -3928,6 +3961,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     )}
                                   </td>
                                   <td className="px-4 py-2.5">
+                                    {s.wasBeforeAssignment ? (
+                                      <div className="text-center text-[10px] text-muted-foreground/50">—</div>
+                                    ) : (
                                     <div className="flex items-center justify-center gap-2">
                                       <Button
                                         size="sm"
@@ -3950,6 +3986,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         Mungesë
                                       </Button>
                                     </div>
+                                    )}
                                   </td>
                                 </tr>
                               )

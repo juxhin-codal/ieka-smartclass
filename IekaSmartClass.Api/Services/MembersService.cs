@@ -19,6 +19,7 @@ public class MembersService(
     UserManager<AppUser> userManager,
     IEmailService emailService,
     INotificationService notificationService,
+    IStudentModuleService studentModuleService,
     ILogger<MembersService> logger) : IMembersService
 {
     private readonly IRepository<AppUser> _userRepository = userRepository;
@@ -162,6 +163,19 @@ public class MembersService(
         {
             await userManager.DeleteAsync(user);
             throw new InvalidOperationException("Failed to send confirmation email.");
+        }
+
+        // Auto-assign new student to existing modules matching their year grade
+        if (isStudent)
+        {
+            try
+            {
+                await studentModuleService.AutoAssignStudentToModulesAsync(user.Id, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to auto-assign modules for new student {StudentId}", user.Id);
+            }
         }
 
         return user.Id;

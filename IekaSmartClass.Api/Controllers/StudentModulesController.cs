@@ -464,7 +464,10 @@ public class StudentModulesController(
     public async Task<IActionResult> GetStudentModules(Guid studentId, CancellationToken cancellationToken)
     {
         var modules = await _studentModuleService.GetMyModulesAsync(studentId, cancellationToken);
-        return Ok(modules.Select(m => new StudentMyModuleResponse(
+        return Ok(modules.Select(m =>
+        {
+            var assignment = m.Assignments.FirstOrDefault(a => a.StudentId == studentId);
+            return new StudentMyModuleResponse(
             m.Id,
             m.YearGrade,
             m.Title,
@@ -480,7 +483,9 @@ public class StudentModulesController(
                 t.Attendances.Any(a => a.StudentId == studentId),
                 t.Attendances.FirstOrDefault(a => a.StudentId == studentId)?.AttendedAt.ToString("o"),
                 t.Documents.Select(d => new StudentModuleDocumentResponse(
-                    d.Id, d.FileName, d.FileUrl, d.RelativePath, d.SizeBytes, d.UploadedAt.ToString("o"))).ToList())).ToList())));
+                    d.Id, d.FileName, d.FileUrl, d.RelativePath, d.SizeBytes, d.UploadedAt.ToString("o"))).ToList())).ToList(),
+            assignment?.AssignedAt.ToString("o"));
+        }));
     }
 
     [HttpGet("my-modules")]
@@ -512,6 +517,7 @@ public class StudentModulesController(
                     t.Attendances.FirstOrDefault(a => a.StudentId == context.UserId.Value)?.AttendedAt.ToString("o"),
                     t.Documents.Select(d => new StudentModuleDocumentResponse(
                         d.Id, d.FileName, d.FileUrl, d.RelativePath, d.SizeBytes, d.UploadedAt.ToString("o"))).ToList())).ToList(),
+                assignment?.AssignedAt.ToString("o"),
                 assignment?.Result,
                 assignment?.ResultNote,
                 assignment?.ResultSetAt?.ToString("o"));
@@ -857,6 +863,7 @@ public record StudentMyModuleResponse(
     string? Location,
     string CreatedAt,
     List<StudentMyTopicResponse> Topics,
+    string? AssignedAt = null,
     string? Result = null,
     string? ResultNote = null,
     string? ResultSetAt = null);

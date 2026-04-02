@@ -47,6 +47,9 @@ public interface IStudentModuleService
     Task<IReadOnlyList<TopicQuestionnaireResponse>> GetQuestionnaireResponsesAsync(Guid questionnaireId, CancellationToken cancellationToken = default);
     Task<(TopicQuestionnaire Questionnaire, bool AlreadyAnswered)> GetQuestionnaireByQrTokenAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TopicQuestionnaireResponse>> GetMyQuestionnaireResponsesAsync(Guid studentId, CancellationToken cancellationToken = default);
+
+    // Auto-assign new student to existing modules matching their year grade
+    Task AutoAssignStudentToModulesAsync(Guid studentId, CancellationToken cancellationToken = default);
 }
 
 public sealed record CreateStudentModuleInput(
