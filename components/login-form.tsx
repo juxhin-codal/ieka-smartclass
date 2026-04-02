@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { EmailDomainHints } from "@/components/ui/email-domain-hints"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, BookOpen, Eye, EyeOff, KeyRound, Loader2, Lock, QrCode, Shield } from "lucide-react"
 
@@ -217,6 +218,7 @@ export function LoginForm() {
                     autoComplete="username"
                   />
                 </div>
+                <EmailDomainHints value={registryNumber} onSelect={setRegistryNumber} />
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -245,95 +247,95 @@ export function LoginForm() {
                 </div>
               </div>
 
-              {error && (
-                <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-3">
-                  <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                  <p className="text-sm text-destructive">{error}</p>
-                </div>
-              )}
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+            <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        )}
 
-              <Button type="submit" className="h-10 w-full font-medium" disabled={isLoading}
-                style={{ background: "linear-gradient(135deg, #0d2347, #2563eb)" }}>
-                {isLoading ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("login.errWait")}</>
-                ) : t("login.continue")}
-              </Button>
+        <Button type="submit" className="h-10 w-full font-medium" disabled={isLoading}
+          style={{ background: "linear-gradient(135deg, #0d2347, #2563eb)" }}>
+          {isLoading ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("login.errWait")}</>
+          ) : t("login.continue")}
+        </Button>
 
-              <div className="text-center">
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
-                >
-                  {t("login.forgotPassword")}
-                </Link>
-              </div>
-            </form>
-          )}
-
-          {step === "otp" && (
-            <form onSubmit={handleOtpSubmit} className="flex flex-col gap-5">
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">
-                  {t("login.otpSentTo")}
-                </p>
-                <p className="text-xs font-medium text-foreground mt-1">
-                  {emailHint || "email i regjistruar"}
-                  {phoneHint ? ` • ${phoneHint}` : ""}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="otpCode" className="text-sm font-medium text-foreground">
-                  {t("login.otp")}
-                </Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="otpCode"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="000000"
-                    value={otpCode}
-                    onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                    className="h-10 pl-9 tracking-[0.35em] font-mono"
-                    autoComplete="one-time-code"
-                    autoFocus
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">{t("login.otpHelp")}</p>
-              </div>
-
-              {error && (
-                <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-3">
-                  <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                  <p className="text-sm text-destructive">{error}</p>
-                </div>
-              )}
-
-              <Button type="submit" className="h-10 w-full font-medium" disabled={isVerifyingOtp}
-                style={{ background: "linear-gradient(135deg, #0d2347, #2563eb)" }}>
-                {isVerifyingOtp ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("login.errWait")}</>
-                ) : t("login.submit")}
-              </Button>
-
-              <button
-                type="button"
-                onClick={handleResendOtp}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
-                disabled={isResendingOtp}
-              >
-                {isResendingOtp ? `${t("login.otpResend")}...` : t("login.otpResend")}
-              </button>
-
-              <button type="button" onClick={() => { setStep("credentials"); setError("") }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center">
-                {t("login.back")}
-              </button>
-            </form>
-          )}
+        <div className="text-center">
+          <Link
+            href="/forgot-password"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
+          >
+            {t("login.forgotPassword")}
+          </Link>
         </div>
-      </div>
+      </form>
+          )}
+
+      {step === "otp" && (
+        <form onSubmit={handleOtpSubmit} className="flex flex-col gap-5">
+          <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-xs text-muted-foreground">
+              {t("login.otpSentTo")}
+            </p>
+            <p className="text-xs font-medium text-foreground mt-1">
+              {emailHint || "email i regjistruar"}
+              {phoneHint ? ` • ${phoneHint}` : ""}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="otpCode" className="text-sm font-medium text-foreground">
+              {t("login.otp")}
+            </Label>
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="otpCode"
+                type="text"
+                inputMode="numeric"
+                placeholder="000000"
+                value={otpCode}
+                onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="h-10 pl-9 tracking-[0.35em] font-mono"
+                autoComplete="one-time-code"
+                autoFocus
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">{t("login.otpHelp")}</p>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+              <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
+          <Button type="submit" className="h-10 w-full font-medium" disabled={isVerifyingOtp}
+            style={{ background: "linear-gradient(135deg, #0d2347, #2563eb)" }}>
+            {isVerifyingOtp ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("login.errWait")}</>
+            ) : t("login.submit")}
+          </Button>
+
+          <button
+            type="button"
+            onClick={handleResendOtp}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
+            disabled={isResendingOtp}
+          >
+            {isResendingOtp ? `${t("login.otpResend")}...` : t("login.otpResend")}
+          </button>
+
+          <button type="button" onClick={() => { setStep("credentials"); setError("") }}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center">
+            {t("login.back")}
+          </button>
+        </form>
+      )}
     </div>
+      </div >
+    </div >
   )
 }

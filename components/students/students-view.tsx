@@ -33,6 +33,7 @@ import { Calendar as DayCalendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { EmailDomainHints } from "@/components/ui/email-domain-hints"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { Scanner } from "@yudiel/react-qr-scanner"
@@ -2113,10 +2114,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     <div className="flex flex-col gap-2">
                       <Label>Email *</Label>
                       <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="ana.krasniqi@ieka.al" />
+                      <EmailDomainHints value={newEmail} onSelect={setNewEmail} />
                     </div>
                     <div className="flex flex-col gap-2">
                       <Label>Email 2</Label>
                       <Input type="email" value={newEmail2} onChange={(e) => setNewEmail2(e.target.value)} placeholder="ana.personal@example.com" />
+                      <EmailDomainHints value={newEmail2} onSelect={setNewEmail2} />
                     </div>
                     <div className="flex flex-col gap-2">
                       <Label>Telefon</Label>
@@ -4213,10 +4216,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 <div className="flex flex-col gap-2">
                   <Label>Email *</Label>
                   <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+                  <EmailDomainHints value={editEmail} onSelect={setEditEmail} />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Email 2</Label>
                   <Input type="email" value={editEmail2} onChange={(e) => setEditEmail2(e.target.value)} />
+                  <EmailDomainHints value={editEmail2} onSelect={setEditEmail2} />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>Telefon</Label>

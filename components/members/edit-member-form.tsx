@@ -5,6 +5,7 @@ import { useEvents } from "@/lib/events-context"
 import { AdminPasswordResetCard } from "@/components/admin/admin-password-reset-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { EmailDomainHints } from "@/components/ui/email-domain-hints"
 import { Label } from "@/components/ui/label"
 import { MonthYearPicker } from "@/components/ui/month-year-picker"
 import { Trash2, X } from "lucide-react"
@@ -127,10 +128,12 @@ export function EditMemberForm({ user, onClose }: EditMemberFormProps) {
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="m-email">Email *</Label>
                             <Input id="m-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                            <EmailDomainHints value={email} onSelect={setEmail} />
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="m-email2">Email 2</Label>
                             <Input id="m-email2" type="email" value={email2} onChange={(e) => setEmail2(e.target.value)} />
+                            <EmailDomainHints value={email2} onSelect={setEmail2} />
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="m-reg">Numri i Regjistrit *</Label>

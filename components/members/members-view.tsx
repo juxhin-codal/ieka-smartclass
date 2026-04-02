@@ -8,6 +8,7 @@ import { MemberReportModal } from "@/components/members/member-report-modal"
 import type { AppUser } from "@/lib/data"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { EmailDomainHints } from "@/components/ui/email-domain-hints"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import {
@@ -471,10 +472,12 @@ export function MembersView() {
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="m-email">Email *</Label>
                                         <Input id="m-email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="artan.hoxha@ieka.al" />
+                                        <EmailDomainHints value={newEmail} onSelect={setNewEmail} />
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="m-email2">Email 2</Label>
                                         <Input id="m-email2" type="email" value={newEmail2} onChange={(e) => setNewEmail2(e.target.value)} placeholder="artan.personal@example.com" />
+                                        <EmailDomainHints value={newEmail2} onSelect={setNewEmail2} />
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <Label htmlFor="m-phone">Telefon</Label>

@@ -8,6 +8,7 @@ import { API_BASE_URL } from "@/lib/api-client"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { EmailDomainHints } from "@/components/ui/email-domain-hints"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, BookOpen, Loader2, Mail, QrCode, Shield } from "lucide-react"
 
@@ -168,6 +169,7 @@ export default function ForgotPasswordPage() {
                   inputMode="email"
                 />
               </div>
+              <EmailDomainHints value={email} onSelect={setEmail} />
               {emailError && <p className="text-xs text-destructive">{emailError}</p>}
             </div>
 
