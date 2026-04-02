@@ -177,15 +177,6 @@ public class StudentModuleService(
             .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
             ?? throw new KeyNotFoundException("Module not found.");
 
-        // Prevent two topics on the same day
-        if (scheduledDate.HasValue)
-        {
-            var dateOnly = scheduledDate.Value.Date;
-            var conflict = module.Topics.Any(t => t.ScheduledDate.HasValue && t.ScheduledDate.Value.Date == dateOnly);
-            if (conflict)
-                throw new InvalidOperationException("Ky modul ka tashmë një temë të planifikuar për këtë datë.");
-        }
-
         var topic = new StudentModuleTopic(moduleId, name, lecturer, scheduledDate, location);
         _db.StudentModuleTopics.Add(topic);
         await _db.SaveChangesAsync(cancellationToken);
@@ -205,15 +196,6 @@ public class StudentModuleService(
             .Include(t => t.StudentModule).ThenInclude(m => m.Assignments).ThenInclude(a => a.Student)
             .FirstOrDefaultAsync(t => t.Id == topicId, cancellationToken)
             ?? throw new KeyNotFoundException("Topic not found.");
-
-        // Prevent two topics on the same day (exclude self)
-        if (scheduledDate.HasValue)
-        {
-            var dateOnly = scheduledDate.Value.Date;
-            var conflict = topic.StudentModule.Topics.Any(t => t.Id != topicId && t.ScheduledDate.HasValue && t.ScheduledDate.Value.Date == dateOnly);
-            if (conflict)
-                throw new InvalidOperationException("Ky modul ka tashmë një temë të planifikuar për këtë datë.");
-        }
 
         // Track what changed for notification
         var changes = new List<string>();

@@ -869,17 +869,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     if (!newTopicName.trim()) return
     if (!newTopicLecturer.trim()) return
 
-    // Validate no duplicate date
-    if (newTopicScheduledDate) {
-      const existingDates = selectedModuleDetail.topics
-        .filter(t => t.scheduledDate)
-        .map(t => t.scheduledDate!.split("T")[0])
-      if (existingDates.includes(newTopicScheduledDate)) {
-        alert("Nuk lejohet të shtohen dy tema në të njëjtën ditë brenda një moduli.")
-        return
-      }
-    }
-
     setTopicSaving(true)
     try {
       const scheduledDate = newTopicScheduledDate
@@ -911,17 +900,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   async function handleUpdateTopic(topicId: string) {
     if (topicSaving) return
-
-    // Validate no duplicate date (exclude current topic)
-    if (editTopicScheduledDate && selectedModuleDetail) {
-      const existingDates = selectedModuleDetail.topics
-        .filter(t => t.id !== topicId && t.scheduledDate)
-        .map(t => t.scheduledDate!.split("T")[0])
-      if (existingDates.includes(editTopicScheduledDate)) {
-        alert("Nuk lejohet të shtohen dy tema në të njëjtën ditë brenda një moduli.")
-        return
-      }
-    }
 
     setTopicSaving(true)
     try {
