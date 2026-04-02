@@ -1168,22 +1168,22 @@ function StudentDocumentsPanel({
           </h2>
           <div className="space-y-2">
             {myDocs.map((doc) => (
-              <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                    <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+              <div key={doc.id} className="flex flex-col gap-2 rounded-md border border-border px-3 py-2.5">
+                <div className="flex items-start gap-2 min-w-0">
+                  <FileText className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground break-words">{doc.fileName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {doc.description ? `${doc.description} • ` : ""}{formatDateTime(doc.uploadedAt)}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {doc.description ? `${doc.description} • ` : ""}{formatDateTime(doc.uploadedAt)}
-                  </p>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex justify-end gap-1.5">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5"
+                    className="h-7 gap-1.5 text-xs"
                     onClick={() => void onOpenDocument({ id: doc.id, stazhId: doc.stazhId, fileName: doc.fileName, fileUrl: doc.fileUrl, uploadedAt: doc.uploadedAt })}
                     disabled={downloadingDocId === doc.id}
                   >
@@ -1194,7 +1194,7 @@ function StudentDocumentsPanel({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5 text-destructive hover:text-destructive"
+                    className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
                     onClick={() => void handleDeleteDoc(doc.stazhId, doc.id)}
                     disabled={deletingDocId === doc.id}
                   >
@@ -1248,27 +1248,29 @@ function StudentDocumentsPanel({
                           <p className="text-xs font-medium text-foreground mb-1.5">{topic.name}</p>
                           <div className="space-y-1.5 pl-3">
                             {(topic.documents ?? []).map((doc) => (
-                              <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                                    <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                              <div key={doc.id} className="flex flex-col gap-2 rounded-md border border-border px-3 py-2.5">
+                                <div className="flex items-start gap-2 min-w-0">
+                                  <FileText className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-foreground break-words">{doc.fileName}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {(doc.sizeBytes / 1024).toFixed(0)} KB • {formatDateTime(doc.uploadedAt)}
+                                    </p>
                                   </div>
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    {(doc.sizeBytes / 1024).toFixed(0)} KB • {formatDateTime(doc.uploadedAt)}
-                                  </p>
                                 </div>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 gap-1.5"
-                                  onClick={() => void onOpenDocument({ id: doc.id, stazhId: "", fileName: doc.fileName, fileUrl: doc.fileUrl, uploadedAt: doc.uploadedAt })}
-                                  disabled={downloadingDocId === doc.id}
-                                >
-                                  <Download className="h-3.5 w-3.5" />
-                                  {downloadingDocId === doc.id ? "Duke hapur..." : "Shkarko"}
-                                </Button>
+                                <div className="flex justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 gap-1.5 text-xs"
+                                    onClick={() => void onOpenDocument({ id: doc.id, stazhId: "", fileName: doc.fileName, fileUrl: doc.fileUrl, uploadedAt: doc.uploadedAt })}
+                                    disabled={downloadingDocId === doc.id}
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                    {downloadingDocId === doc.id ? "Duke hapur..." : "Shkarko"}
+                                  </Button>
+                                </div>
                               </div>
                             ))}
                           </div>

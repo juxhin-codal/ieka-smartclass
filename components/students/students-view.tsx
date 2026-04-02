@@ -2806,41 +2806,44 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           )}
 
           {/* Module Filters */}
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            {(["upcoming", "past", "all"] as const).map((value) => {
-              const label = value === "upcoming" ? "Të ardhshme" : value === "past" ? "Të kaluara" : "Të gjitha"
-              return (
+          <div className="mb-4 space-y-2">
+            <div className="flex items-center gap-2">
+              {(["upcoming", "past", "all"] as const).map((value) => {
+                const label = value === "upcoming" ? "Të ardhshme" : value === "past" ? "Të kaluara" : "Të gjitha"
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setModuleTimeFilter(value)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                      moduleTimeFilter === value
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              {([1, 2, 3] as const).map((grade) => (
                 <button
-                  key={value}
+                  key={grade}
                   type="button"
-                  onClick={() => setModuleTimeFilter(value)}
+                  onClick={() => setModuleYearFilter(moduleYearFilter === grade ? null : grade)}
                   className={cn(
                     "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                    moduleTimeFilter === value
-                      ? "bg-primary text-primary-foreground"
+                    moduleYearFilter === grade
+                      ? grade === 1 ? "bg-blue-500/20 text-blue-600" : grade === 2 ? "bg-purple-500/20 text-purple-600" : "bg-emerald-500/20 text-emerald-600"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
-                  {label}
+                  {formatYearGradeLabel(grade)}
                 </button>
-              )
-            })}
-            <span className="mx-1 h-4 w-px bg-border" />
-            {([1, 2, 3] as const).map((grade) => (
-              <button
-                key={grade}
-                type="button"
-                onClick={() => setModuleYearFilter(moduleYearFilter === grade ? null : grade)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                  moduleYearFilter === grade
-                    ? grade === 1 ? "bg-blue-500/20 text-blue-600" : grade === 2 ? "bg-purple-500/20 text-purple-600" : "bg-emerald-500/20 text-emerald-600"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                )}
-              >
-                {formatYearGradeLabel(grade)}
-              </button>
-            ))}
+              ))}
+            </div>
           </div>
 
           {/* Modules List */}
@@ -3705,7 +3708,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           {/* Left sidebar - hidden on mobile when a topic is selected */}
           <div className={cn("h-fit rounded-2xl border border-border bg-card p-3 sm:p-4 space-y-4", attSelectedTopicId && "hidden lg:block")}>
             {/* Module filter */}
-            <div>
+            <div className="relative z-10">
               <Label className="text-xs">Filtro sipas modulit</Label>
               <select
                 value={attSelectedModuleId}
@@ -3744,7 +3747,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     <button
                       key={topic.id}
                       type="button"
-                      onClick={() => setAttSelectedTopicId(topic.id)}
+                      onClick={() => { setAttSelectedTopicId(topic.id); window.scrollTo({ top: 0 }) }}
                       className={cn(
                         "w-full rounded-lg border px-3 py-2 text-left transition-colors",
                         attSelectedTopicId === topic.id
@@ -3785,6 +3788,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       onClick={() => {
                         setAttSelectedTopicId(topic.id)
                         void loadAttModuleDetail(topic.moduleId)
+                        window.scrollTo({ top: 0 })
                       }}
                       className={cn(
                         "w-full rounded-lg border px-3 py-2 text-left transition-colors",
@@ -4638,6 +4642,10 @@ function StudentCalendarView() {
   const [selectedTopic, setSelectedTopic] = useState<{ topic: StudentMyTopicResponse; moduleName: string } | null>(null)
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
 
+  // Filters
+  const [stuTimeFilter, setStuTimeFilter] = useState<"upcoming" | "past" | "all">("upcoming")
+  const [stuYearFilter, setStuYearFilter] = useState<number | null>(null)
+
   async function loadMyModules() {
     setMyModulesLoading(true)
     try {
@@ -4731,6 +4739,41 @@ function StudentCalendarView() {
     return allTopicDates.filter((t) => t.date >= now)
   }, [allTopicDates])
 
+  // Derive the student's current year grade from assigned modules
+  const studentCurrentYearGrade = useMemo(() => {
+    if (myModules.length === 0) return null
+    const yearCounts = new Map<number, number>()
+    myModules.forEach((m) => yearCounts.set(m.yearGrade, (yearCounts.get(m.yearGrade) ?? 0) + 1))
+    let maxCount = 0
+    let maxYear = 0
+    yearCounts.forEach((count, year) => {
+      if (count > maxCount || (count === maxCount && year > maxYear)) { maxCount = count; maxYear = year }
+    })
+    return maxYear || null
+  }, [myModules])
+
+  // Year grades available in this student's modules
+  const stuAvailableYears = useMemo(() => {
+    const years = new Set(myModules.map(m => m.yearGrade))
+    return [...years].sort()
+  }, [myModules])
+
+  // Filtered modules for display
+  const stuFilteredModules = useMemo(() => {
+    let result = myModules
+    if (stuYearFilter !== null) result = result.filter(m => m.yearGrade === stuYearFilter)
+    if (stuTimeFilter !== "all") {
+      const todayStr = new Date().toISOString().slice(0, 10)
+      result = result.filter((m) => {
+        const topicDates = m.topics.map(t => t.scheduledDate).filter((d): d is string => !!d)
+        if (topicDates.length === 0) return stuTimeFilter === "upcoming"
+        const latestDateStr = topicDates.reduce((a, b) => (a > b ? a : b)).slice(0, 10)
+        return stuTimeFilter === "upcoming" ? latestDateStr >= todayStr : latestDateStr < todayStr
+      })
+    }
+    return result
+  }, [myModules, stuYearFilter, stuTimeFilter])
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
       <>
@@ -4739,6 +4782,18 @@ function StudentCalendarView() {
             <h1 className="text-xl font-semibold tracking-tight text-foreground flex items-center gap-2">
               <Library className="h-5 w-5 text-primary" />
               Modulet e Mia
+              {studentCurrentYearGrade && (
+                <span className={cn(
+                  "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                  studentCurrentYearGrade === 1
+                    ? "bg-blue-500/10 text-blue-600"
+                    : studentCurrentYearGrade === 2
+                      ? "bg-purple-500/10 text-purple-600"
+                      : "bg-emerald-500/10 text-emerald-600"
+                )}>
+                  {formatYearGradeLabel(studentCurrentYearGrade)}
+                </span>
+              )}
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">Modulet ku jeni caktuar, temat dhe dokumentet</p>
           </div>
@@ -4782,6 +4837,51 @@ function StudentCalendarView() {
           </div>
         )}
 
+        {/* Module Filters */}
+        {!myModulesLoading && myModules.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <div className="flex items-center gap-2">
+              {(["upcoming", "past", "all"] as const).map((value) => {
+                const label = value === "upcoming" ? "Të ardhshme" : value === "past" ? "Të kaluara" : "Të gjitha"
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setStuTimeFilter(value)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                      stuTimeFilter === value
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            {stuAvailableYears.length > 1 && (
+              <div className="flex items-center gap-2">
+                {stuAvailableYears.map((grade) => (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() => setStuYearFilter(stuYearFilter === grade ? null : grade)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                      stuYearFilter === grade
+                        ? grade === 1 ? "bg-blue-500/20 text-blue-600" : grade === 2 ? "bg-purple-500/20 text-purple-600" : "bg-emerald-500/20 text-emerald-600"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    {formatYearGradeLabel(grade)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {myModulesLoading ? (
           <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
             Duke ngarkuar modulet...
@@ -4791,9 +4891,14 @@ function StudentCalendarView() {
             <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
             <p className="text-sm text-muted-foreground">Nuk keni asnjë modul të caktuar akoma.</p>
           </div>
+        ) : stuFilteredModules.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+            <Library className="mb-3 h-8 w-8 text-muted-foreground/40" />
+            <p className="text-sm text-muted-foreground">Asnjë modul për këtë filtër</p>
+          </div>
         ) : (
           <div className="space-y-3">
-            {myModules.map((mod) => (
+            {stuFilteredModules.map((mod) => (
               <div key={mod.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -4825,7 +4930,7 @@ function StudentCalendarView() {
                 {/* Nested topics */}
                 {mod.topics.length > 0 && (
                   <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-                    {mod.topics.map((topic) => (
+                    {[...mod.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => (
                       <button
                         key={topic.id}
                         type="button"
@@ -5093,27 +5198,24 @@ function StudentCalendarView() {
                       </div>
                       <div className="space-y-1.5">
                         {docs.map((doc) => (
-                          <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 transition-colors hover:bg-muted/30">
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => void handleDownloadDocument(doc)}
+                            disabled={downloadingDocId === doc.id}
+                            className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 transition-colors hover:bg-muted/30 active:bg-muted/50 text-left disabled:opacity-60"
+                          >
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
                               <FileText className="h-4 w-4 text-blue-500" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium text-foreground truncate">{doc.fileName}</p>
+                              <p className="text-sm font-medium text-foreground break-words">{doc.fileName}</p>
                               <p className="text-[11px] text-muted-foreground">
                                 {(doc.sizeBytes / 1024).toFixed(0)} KB • {format(parseISO(doc.uploadedAt), "dd MMM yyyy")}
                               </p>
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 shrink-0 hover:bg-primary/10"
-                              disabled={downloadingDocId === doc.id}
-                              onClick={() => void handleDownloadDocument(doc)}
-                            >
-                              <Download className={cn("h-4 w-4 text-primary", downloadingDocId === doc.id && "animate-pulse")} />
-                            </Button>
-                          </div>
+                            <Download className={cn("h-4 w-4 shrink-0 text-primary", downloadingDocId === doc.id && "animate-pulse")} />
+                          </button>
                         ))}
                       </div>
                     </div>

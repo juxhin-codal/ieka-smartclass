@@ -77,7 +77,6 @@ function ActivateAccountContent() {
     if (!email) return
 
     setConfirmationNotice("")
-    setVerificationError("")
     setResendingConfirmation(true)
 
     try {
@@ -92,7 +91,7 @@ function ActivateAccountContent() {
         return
       }
 
-      setConfirmationNotice(data.message ?? "Email-i i konfirmimit u ridërgua.")
+      setConfirmationNotice("Email-i i konfirmimit u ridërgua me sukses. Ju lutem kontrolloni email-in tuaj dhe klikoni linkun e ri.")
     } catch {
       setVerificationError("Ridërgimi i email-it të konfirmimit dështoi.")
     } finally {

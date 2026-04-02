@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n"
@@ -31,6 +31,7 @@ export function LoginForm() {
   const [isResendingOtp, setIsResendingOtp] = useState(false)
   const [error, setError] = useState("")
   const [step, setStep] = useState<"credentials" | "otp">("credentials")
+  const lastAutoSubmittedOtp = useRef("")
 
   async function handleCredentials(event: React.FormEvent) {
     event.preventDefault()
@@ -66,18 +67,13 @@ export function LoginForm() {
     }
   }
 
-  async function handleOtpSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  async function submitOtp(code: string) {
+    if (code.length < 6 || isVerifyingOtp) return
+
     setError("")
-
-    if (!otpCode.trim() || otpCode.trim().length < 6) {
-      setError(t("login.errOtp"))
-      return
-    }
-
     setIsVerifyingOtp(true)
     try {
-      const result = await verifyLoginOtp(challengeId, otpCode.trim())
+      const result = await verifyLoginOtp(challengeId, code)
       if (!result.success) {
         setError(result.error ?? t("login.errOtp"))
         return
@@ -90,6 +86,27 @@ export function LoginForm() {
       setIsVerifyingOtp(false)
     }
   }
+
+  async function handleOtpSubmit(event: React.FormEvent) {
+    event.preventDefault()
+
+    if (!otpCode.trim() || otpCode.trim().length < 6) {
+      setError(t("login.errOtp"))
+      return
+    }
+
+    lastAutoSubmittedOtp.current = otpCode.trim()
+    await submitOtp(otpCode.trim())
+  }
+
+  // Auto-submit when 6 digits are entered
+  useEffect(() => {
+    const code = otpCode.trim()
+    if (step === "otp" && code.length === 6 && code !== lastAutoSubmittedOtp.current) {
+      lastAutoSubmittedOtp.current = code
+      void submitOtp(code)
+    }
+  }, [otpCode, step])
 
   async function handleResendOtp() {
     if (!challengeId) {

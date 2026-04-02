@@ -141,7 +141,7 @@ public class MembersService(
         user.MarkPendingConfirmation();
         user.EmailConfirmed = false;
         user.EmailConfirmationCode = GenerateSixDigitCode();
-        user.EmailConfirmationExpiresAt = DateTime.UtcNow.AddMinutes(30);
+        user.EmailConfirmationExpiresAt = DateTime.UtcNow.AddDays(3);
 
         var createResult = await userManager.CreateAsync(user);
         if (!createResult.Succeeded)

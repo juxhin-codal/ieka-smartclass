@@ -66,8 +66,11 @@ function resolveApiUrl(endpoint: string) {
 }
 
 function resolveAnyUrl(url: string) {
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        return url
+    // Convert absolute download URLs to relative (e.g. when DB has old Azure URLs)
+    const downloadMarker = "/api/LearningStorage/download/"
+    const idx = url.indexOf(downloadMarker)
+    if (idx > 0 && (url.startsWith("http://") || url.startsWith("https://"))) {
+        return url.substring(idx)
     }
     return url
 }

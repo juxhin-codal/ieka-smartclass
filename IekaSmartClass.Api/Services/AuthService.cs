@@ -169,7 +169,7 @@ public class AuthService(
 
         var confirmationCode = GenerateEmailCode();
         user.EmailConfirmationCode = confirmationCode;
-        user.EmailConfirmationExpiresAt = DateTime.UtcNow.AddMinutes(30);
+        user.EmailConfirmationExpiresAt = DateTime.UtcNow.AddDays(3);
 
         var updateResult = await userManager.UpdateAsync(user);
         if (!updateResult.Succeeded)
