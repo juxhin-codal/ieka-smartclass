@@ -307,11 +307,12 @@ public class StudentModuleService(
             .FirstOrDefaultAsync(t => t.Id == payload.TopicId, cancellationToken)
             ?? throw new InvalidOperationException("Tema nuk u gjet.");
 
-        // Only allow attendance on the same day as the topic's scheduled date
+        // Only allow attendance on the same day as the topic's scheduled date (CET/CEST)
         if (topic.ScheduledDate.HasValue)
         {
             var topicDate = topic.ScheduledDate.Value.Date;
-            var todayDate = DateTime.UtcNow.Date;
+            var cetZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Tirane");
+            var todayDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, cetZone).Date;
             if (topicDate != todayDate)
                 throw new InvalidOperationException("Prezenca mund të regjistrohet vetëm në ditën e temës.");
         }

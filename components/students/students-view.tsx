@@ -122,6 +122,9 @@ function parseGoogleMapsCoords(input: string): { lat: number; lng: number } | nu
   // @lat,lng (standard Google Maps URL)
   const atMatch = s.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/)
   if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) }
+  // place/..../data= URLs often have !3d<lat>!4d<lng>
+  const dataMatch = s.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/)
+  if (dataMatch) return { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) }
   // ?q=lat,lng
   const qMatch = s.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/)
   if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) }
@@ -132,6 +135,11 @@ function parseGoogleMapsCoords(input: string): { lat: number; lng: number } | nu
   const coordMatch = s.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/)
   if (coordMatch) return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) }
   return null
+}
+
+function isShortGoogleMapsUrl(input: string): boolean {
+  const s = input.trim()
+  return /^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)\//i.test(s)
 }
 
 function DisabledAttendanceActions({
@@ -313,6 +321,10 @@ function toStudentValidUntilMonth(studentEndYear: number | null) {
 
 function toDateInputValue(date: Date) {
   return format(date, "yyyy-MM-dd")
+}
+
+function localTodayStr() {
+  return format(new Date(), "yyyy-MM-dd")
 }
 
 function isPastSessionDate(value?: string | null) {
@@ -602,6 +614,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [editTopicLocation, setEditTopicLocation] = useState("")
   const [editTopicRequireLocation, setEditTopicRequireLocation] = useState(true)
   const [editTopicGoogleMapsUrl, setEditTopicGoogleMapsUrl] = useState("")
+  const [resolvingMapUrl, setResolvingMapUrl] = useState(false)
   const [topicSaving, setTopicSaving] = useState(false)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
@@ -1036,10 +1049,30 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setEditTopicLocation(topic.location ?? "")
     setEditTopicRequireLocation(topic.requireLocation ?? true)
     setEditTopicGoogleMapsUrl(
-      topic.latitude && topic.longitude && !(topic.requireLocation ?? true)
+      topic.latitude && topic.longitude
         ? `${topic.latitude}, ${topic.longitude}`
         : ""
     )
+  }
+
+  async function resolveShortMapUrl(value: string, setter: (v: string) => void) {
+    if (!isShortGoogleMapsUrl(value)) return
+    setResolvingMapUrl(true)
+    try {
+      const res = await fetch("/api/resolve-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: value.trim() }),
+      })
+      if (res.ok) {
+        const { resolved } = await res.json()
+        if (resolved && parseGoogleMapsCoords(resolved)) {
+          setter(resolved)
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setResolvingMapUrl(false)
+    }
   }
 
   async function handleNotifyStudents() {
@@ -1358,7 +1391,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     let result = studentModules
     if (moduleYearFilter !== null) result = result.filter((m) => m.yearGrade === moduleYearFilter)
     if (moduleTimeFilter !== "all") {
-      const todayStr = new Date().toISOString().slice(0, 10)
+      const todayStr = localTodayStr()
       result = result.filter((m) => {
         const topicDates = m.topics
           .map(t => t.scheduledDate)
@@ -1410,7 +1443,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attAllTopics = useMemo(() => {
     if (attShowPast) return attAllTopicsRaw
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = localTodayStr()
     return attAllTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate.slice(0, 10) >= todayStr)
   }, [attAllTopicsRaw, attShowPast])
 
@@ -1425,7 +1458,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attTopics = useMemo(() => {
     if (attShowPast) return attTopicsRaw
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = localTodayStr()
     return attTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate.slice(0, 10) >= todayStr)
   }, [attTopicsRaw, attShowPast])
 
@@ -1457,7 +1490,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attIsFutureTopic = useMemo(() => {
     if (!attSelectedTopic?.scheduledDate) return false
-    return attSelectedTopic.scheduledDate.slice(0, 10) > new Date().toISOString().slice(0, 10)
+    return attSelectedTopic.scheduledDate.slice(0, 10) > localTodayStr()
   }, [attSelectedTopic])
 
 
@@ -3231,12 +3264,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : selectedModuleDetail && (() => {
-                  const now = new Date()
-                  const todayStr = now.toISOString().slice(0, 10)
+                  const todayStr = localTodayStr()
                   const topicDates = selectedModuleDetail.topics
                     .filter(t => t.scheduledDate)
-                    .map(t => new Date(t.scheduledDate!))
-                  const isPastModule = topicDates.length > 0 && topicDates.every(d => d.toISOString().slice(0, 10) < todayStr)
+                    .map(t => t.scheduledDate!.slice(0, 10))
+                  const isPastModule = topicDates.length > 0 && topicDates.every(d => d < todayStr)
                   return (
                     <>
                       {/* Header */}
@@ -3362,11 +3394,14 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             {!newTopicRequireLocation && (
                               <div className="flex flex-col gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
-                                <Input value={newTopicGoogleMapsUrl} onChange={(e) => setNewTopicGoogleMapsUrl(e.target.value)} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
-                                {newTopicGoogleMapsUrl && parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
+                                <Input value={newTopicGoogleMapsUrl} onChange={(e) => { setNewTopicGoogleMapsUrl(e.target.value); resolveShortMapUrl(e.target.value, setNewTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
+                                {resolvingMapUrl && (
+                                  <p className="text-[10px] text-muted-foreground">Duke zgjidhur linkun...</p>
+                                )}
+                                {newTopicGoogleMapsUrl && !resolvingMapUrl && parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
                                   <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
                                 )}
-                                {newTopicGoogleMapsUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
+                                {newTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl) && !isShortGoogleMapsUrl(newTopicGoogleMapsUrl) && (
                                   <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
                                 )}
                                 {!newTopicGoogleMapsUrl && (
@@ -3394,8 +3429,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             {[...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => {
                               const isTopicPast = (() => {
                                 if (!topic.scheduledDate) return false
-                                const todayStr = new Date().toISOString().slice(0, 10)
-                                return new Date(topic.scheduledDate).toISOString().slice(0, 10) < todayStr
+                                const todayStr = localTodayStr()
+                                return topic.scheduledDate.slice(0, 10) < todayStr
                               })()
                               return (
                                 <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
@@ -3433,11 +3468,14 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       {!editTopicRequireLocation && (
                                         <div className="flex flex-col gap-1">
                                           <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
-                                          <Input value={editTopicGoogleMapsUrl} onChange={(e) => setEditTopicGoogleMapsUrl(e.target.value)} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
-                                          {editTopicGoogleMapsUrl && parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
+                                          <Input value={editTopicGoogleMapsUrl} onChange={(e) => { setEditTopicGoogleMapsUrl(e.target.value); resolveShortMapUrl(e.target.value, setEditTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
+                                          {resolvingMapUrl && (
+                                            <p className="text-[10px] text-muted-foreground">Duke zgjidhur linkun...</p>
+                                          )}
+                                          {editTopicGoogleMapsUrl && !resolvingMapUrl && parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
                                             <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
                                           )}
-                                          {editTopicGoogleMapsUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
+                                          {editTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && !isShortGoogleMapsUrl(editTopicGoogleMapsUrl) && (
                                             <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
                                           )}
                                           {!editTopicGoogleMapsUrl && (
@@ -3482,7 +3520,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         <div className="shrink-0 w-[100px] flex justify-end">
                                           {topic.scheduledDate && (() => {
                                             const topicDateStr = topic.scheduledDate!.slice(0, 10)
-                                            const todayStr = new Date().toISOString().slice(0, 10)
+                                            const todayStr = localTodayStr()
                                             const isUpcoming = topicDateStr >= todayStr
                                             return isUpcoming ? (
                                               <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
@@ -4143,7 +4181,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-foreground">Temat ({attTopics.length})</p>
                 {attTopics.map((topic) => {
-                  const isPast = topic.scheduledDate ? topic.scheduledDate.slice(0, 10) < new Date().toISOString().slice(0, 10) : false
+                  const isPast = topic.scheduledDate ? topic.scheduledDate.slice(0, 10) < localTodayStr() : false
                   return (
                     <button
                       key={topic.id}
@@ -4181,7 +4219,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-foreground">Të gjitha temat ({attAllTopics.length})</p>
                 {attAllTopics.map((topic) => {
-                  const isPast = topic.scheduledDate ? topic.scheduledDate.slice(0, 10) < new Date().toISOString().slice(0, 10) : false
+                  const isPast = topic.scheduledDate ? topic.scheduledDate.slice(0, 10) < localTodayStr() : false
                   return (
                     <button
                       key={topic.id}
@@ -4271,17 +4309,15 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       <Download className="h-3.5 w-3.5" />
                       Eksporto
                     </Button>
-                    {!attIsPastTopic && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1.5 text-xs"
-                        onClick={() => handleAttTopicQr(attSelectedTopic.id)}
-                      >
-                        <QrCode className="h-3.5 w-3.5" />
-                        Shfaq QR
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => handleAttTopicQr(attSelectedTopic.id)}
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      Shfaq QR
+                    </Button>
                   </div>
                 </div>
 
@@ -5196,7 +5232,7 @@ function StudentCalendarView() {
     let result = myModules
     if (stuYearFilter !== null) result = result.filter(m => m.yearGrade === stuYearFilter)
     if (stuTimeFilter !== "all") {
-      const todayStr = new Date().toISOString().slice(0, 10)
+      const todayStr = localTodayStr()
       result = result.filter((m) => {
         const topicDates = m.topics.map(t => t.scheduledDate).filter((d): d is string => !!d)
         if (topicDates.length === 0) return stuTimeFilter === "upcoming"
