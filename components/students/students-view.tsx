@@ -3218,23 +3218,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   ) : (
                                     /* Display Topic */
                                     <div className="px-4 py-3">
-                                      <div className="flex items-start justify-between gap-2">
+                                      <div className="flex items-center gap-2">
                                         <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-2">
-                                            <p className="text-sm font-semibold text-foreground">{topic.name}</p>
-                                            {topic.scheduledDate && (() => {
-                                              const topicDate = new Date(topic.scheduledDate!)
-                                              const now = new Date()
-                                              const isUpcoming = topicDate > now
-                                              return isUpcoming ? (
-                                                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
-                                              ) : topic.attendanceCount > 0 ? (
-                                                <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Me prezencë</span>
-                                              ) : (
-                                                <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Pa prezencë</span>
-                                              )
-                                            })()}
-                                          </div>
+                                          <p className="text-sm font-semibold text-foreground">{topic.name}</p>
                                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                             <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
                                             {topic.scheduledDate && (
@@ -3254,6 +3240,20 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                               {topic.attendanceCount} prezencë
                                             </span>
                                           </div>
+                                        </div>
+                                        <div className="shrink-0 w-[100px] flex justify-end">
+                                          {topic.scheduledDate && (() => {
+                                            const topicDateStr = topic.scheduledDate!.slice(0, 10)
+                                            const todayStr = new Date().toISOString().slice(0, 10)
+                                            const isUpcoming = topicDateStr >= todayStr
+                                            return isUpcoming ? (
+                                              <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
+                                            ) : topic.attendanceCount > 0 ? (
+                                              <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Me prezencë</span>
+                                            ) : (
+                                              <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Pa prezencë</span>
+                                            )
+                                          })()}
                                         </div>
                                         {!isTopicPast && (
                                           <div className="flex items-center gap-1 shrink-0">
