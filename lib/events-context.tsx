@@ -336,7 +336,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
           phoneNumber: updates.phoneNumber ?? null,
           role: updates.role,
           cpdHoursRequired: updates.cpdHoursRequired,
-          mentorId: updates.mentorId ?? null,
+          mentorId: updates.mentorId || null,
           isActive: updates.isActive !== false,
           validUntilMonth: updates.validUntilMonth ?? null,
           studentTrackingNumber: updates.studentTrackingNumber ?? null,
