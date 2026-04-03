@@ -6,16 +6,19 @@
  * and Section 12 (future expansion placeholders).
  */
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n"
 import { API_BASE_URL, fetchApi, fetchWithAuth } from "@/lib/api-client"
-import type { NotificationPreferences } from "@/lib/data"
+import type { NotificationPreferences, EvaluationListItem, EvaluationDetail, EvaluationResponseItem } from "@/lib/data"
 import {
     Bell, Mail, Shield, Globe,
-    Link2, Lock, Database, ChevronRight, Check, LogOut
+    Link2, Lock, Database, ChevronRight, Check, LogOut,
+    ClipboardList, Plus, Pencil, Trash2, Send, Eye, X, Loader2, Star, GripVertical
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 interface ToggleRowProps {
     icon: typeof Bell
@@ -361,6 +364,11 @@ export function SettingsView() {
                 </div>
             </div>
 
+            {/* Section: Evaluation Questionnaires (Admin only) */}
+            {isAdmin && (
+                <EvaluationSection />
+            )}
+
             {/* Section: Future Expansions */}
             {isAdmin && (
                 <div className="rounded-xl border border-border bg-card p-5">
@@ -387,6 +395,491 @@ export function SettingsView() {
                 </div>
             )}
 
+        </div>
+    )
+}
+
+/* ------------------------------------------------------------------ */
+/* Evaluation Questionnaire Admin Section                             */
+/* ------------------------------------------------------------------ */
+
+type QuestionDraft = { text: string; type: number; order: number; options: string[] }
+
+function emptyQuestion(order: number): QuestionDraft {
+    return { text: "", type: 1, order, options: [] }
+}
+
+function EvaluationSection() {
+    const [list, setList] = useState<EvaluationListItem[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState("")
+
+    // form state
+    const [formOpen, setFormOpen] = useState(false)
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [title, setTitle] = useState("")
+    const [description, setDescription] = useState("")
+    const [emailSubject, setEmailSubject] = useState("")
+    const [emailBody, setEmailBody] = useState("")
+    const [targetMembers, setTargetMembers] = useState(true)
+    const [targetStudents, setTargetStudents] = useState(true)
+    const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion(0)])
+    const [saving, setSaving] = useState(false)
+    const [formError, setFormError] = useState("")
+
+    // send state
+    const [sendingId, setSendingId] = useState<string | null>(null)
+    const [sendResult, setSendResult] = useState<{ id: string; count: number; sentAt: string } | null>(null)
+
+    // responses state
+    const [responsesId, setResponsesId] = useState<string | null>(null)
+    const [responses, setResponses] = useState<EvaluationResponseItem[]>([])
+    const [responsesLoading, setResponsesLoading] = useState(false)
+    const [expandedResponse, setExpandedResponse] = useState<string | null>(null)
+
+    // confirm delete
+    const [deletingId, setDeletingId] = useState<string | null>(null)
+
+    const loadList = useCallback(async () => {
+        try {
+            const data = (await fetchApi("/Evaluation")) as EvaluationListItem[]
+            setList(data)
+            setError("")
+        } catch (e: any) {
+            setError(e?.message ?? "Gabim gjatë ngarkimit.")
+        } finally {
+            setLoading(false)
+        }
+    }, [])
+
+    useEffect(() => { void loadList() }, [loadList])
+
+    function resetForm() {
+        setFormOpen(false)
+        setEditingId(null)
+        setTitle("")
+        setDescription("")
+        setEmailSubject("")
+        setEmailBody("")
+        setTargetMembers(true)
+        setTargetStudents(true)
+        setQuestions([emptyQuestion(0)])
+        setFormError("")
+    }
+
+    async function openEdit(id: string) {
+        try {
+            const detail = (await fetchApi(`/Evaluation/${id}`)) as EvaluationDetail
+            setEditingId(id)
+            setTitle(detail.title)
+            setDescription(detail.description ?? "")
+            setEmailSubject(detail.emailSubject)
+            setEmailBody(detail.emailBody)
+            setTargetMembers(detail.targetMembers)
+            setTargetStudents(detail.targetStudents)
+            setQuestions(
+                detail.questions.map((q) => ({
+                    text: q.text,
+                    type: q.type,
+                    order: q.order,
+                    options: q.options ?? [],
+                }))
+            )
+            setFormOpen(true)
+        } catch (e: any) {
+            setError(e?.message ?? "Gabim gjatë ngarkimit.")
+        }
+    }
+
+    async function handleSave() {
+        if (!title.trim() || !emailSubject.trim() || !emailBody.trim()) {
+            setFormError("Plotësoni titullin, subjektin dhe trupin e emailit.")
+            return
+        }
+        if (questions.some((q) => !q.text.trim())) {
+            setFormError("Çdo pyetje duhet të ketë tekst.")
+            return
+        }
+
+        setSaving(true)
+        setFormError("")
+        try {
+            const body = {
+                title: title.trim(),
+                description: description.trim() || null,
+                emailSubject: emailSubject.trim(),
+                emailBody: emailBody.trim(),
+                targetMembers,
+                targetStudents,
+                questions: questions.map((q, i) => ({
+                    text: q.text.trim(),
+                    type: q.type,
+                    order: i,
+                    options: q.type === 0 ? q.options.filter((o) => o.trim()) : null,
+                })),
+            }
+
+            if (editingId) {
+                await fetchApi(`/Evaluation/${editingId}`, { method: "PUT", body: JSON.stringify(body) })
+            } else {
+                await fetchApi("/Evaluation", { method: "POST", body: JSON.stringify(body) })
+            }
+
+            resetForm()
+            await loadList()
+        } catch (e: any) {
+            setFormError(e?.message ?? "Ruajtja dështoi.")
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    async function handleDelete(id: string) {
+        try {
+            await fetchApi(`/Evaluation/${id}`, { method: "DELETE" })
+            setDeletingId(null)
+            await loadList()
+        } catch (e: any) {
+            setError(e?.message ?? "Fshirja dështoi.")
+        }
+    }
+
+    async function handleSend(id: string) {
+        setSendingId(id)
+        setSendResult(null)
+        try {
+            const result = (await fetchApi(`/Evaluation/${id}/send`, { method: "POST" })) as { recipientCount: number; sentAt: string }
+            setSendResult({ id, count: result.recipientCount, sentAt: result.sentAt })
+            await loadList()
+        } catch (e: any) {
+            setError(e?.message ?? "Dërgimi dështoi.")
+        } finally {
+            setSendingId(null)
+        }
+    }
+
+    async function openResponses(id: string) {
+        setResponsesId(id)
+        setResponsesLoading(true)
+        setExpandedResponse(null)
+        try {
+            const data = (await fetchApi(`/Evaluation/${id}/responses`)) as EvaluationResponseItem[]
+            setResponses(data)
+        } catch (e: any) {
+            setError(e?.message ?? "Gabim gjatë ngarkimit.")
+        } finally {
+            setResponsesLoading(false)
+        }
+    }
+
+    function updateQuestion(index: number, patch: Partial<QuestionDraft>) {
+        setQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...patch } : q)))
+    }
+
+    function removeQuestion(index: number) {
+        setQuestions((prev) => prev.filter((_, i) => i !== index))
+    }
+
+    function addOption(qIndex: number) {
+        setQuestions((prev) =>
+            prev.map((q, i) => (i === qIndex ? { ...q, options: [...q.options, ""] } : q))
+        )
+    }
+
+    function updateOption(qIndex: number, oIndex: number, value: string) {
+        setQuestions((prev) =>
+            prev.map((q, i) =>
+                i === qIndex
+                    ? { ...q, options: q.options.map((o, j) => (j === oIndex ? value : o)) }
+                    : q
+            )
+        )
+    }
+
+    function removeOption(qIndex: number, oIndex: number) {
+        setQuestions((prev) =>
+            prev.map((q, i) =>
+                i === qIndex ? { ...q, options: q.options.filter((_, j) => j !== oIndex) } : q
+            )
+        )
+    }
+
+    // Responses modal
+    if (responsesId) {
+        const q = list.find((x) => x.id === responsesId)
+        return (
+            <div className="rounded-xl border border-border bg-card p-5 mb-4">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <Eye className="h-4.5 w-4.5 text-primary" />
+                        <h2 className="text-sm font-semibold text-foreground">
+                            Përgjigjet — {q?.title ?? "Pyetësor"}
+                        </h2>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => { setResponsesId(null); setResponses([]) }}>
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                {responsesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                ) : responses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">Nuk ka përgjigje ende.</p>
+                ) : (
+                    <div className="space-y-2">
+                        {responses.map((r) => (
+                            <div key={r.id} className="rounded-lg border border-border">
+                                <button
+                                    className="flex w-full items-center justify-between p-3 text-left text-sm"
+                                    onClick={() => setExpandedResponse(expandedResponse === r.id ? null : r.id)}
+                                >
+                                    <div>
+                                        <span className="font-medium">{r.userName ?? "Përdorues"}</span>
+                                        {r.userRole && <span className="ml-2 text-xs text-muted-foreground">({r.userRole})</span>}
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                        {new Date(r.submittedAt).toLocaleDateString("sq-AL")}
+                                    </span>
+                                </button>
+                                {expandedResponse === r.id && (
+                                    <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
+                                        {r.answers.map((a) => (
+                                            <div key={a.id} className="text-xs">
+                                                <p className="font-medium text-muted-foreground">{a.questionText}</p>
+                                                <p className="text-foreground mt-0.5">
+                                                    {a.questionType === 2 ? (
+                                                        <span className="flex gap-0.5">
+                                                            {[1, 2, 3, 4, 5].map((s) => (
+                                                                <Star key={s} className={`h-3.5 w-3.5 ${Number(a.answerText) >= s ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                                                            ))}
+                                                        </span>
+                                                    ) : a.answerText}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // Form view
+    if (formOpen) {
+        return (
+            <div className="rounded-xl border border-border bg-card p-5 mb-4">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <ClipboardList className="h-4.5 w-4.5 text-primary" />
+                        <h2 className="text-sm font-semibold text-foreground">
+                            {editingId ? "Ndrysho Pyetësorin" : "Krijo Pyetësor të Ri"}
+                        </h2>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={resetForm}>
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-xs font-medium text-muted-foreground">Titulli</label>
+                        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titulli i pyetësorit" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-medium text-muted-foreground">Përshkrimi (opsional)</label>
+                        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Përshkrimi..." rows={2} />
+                    </div>
+                    <div>
+                        <label className="text-xs font-medium text-muted-foreground">Subjekti i Email-it</label>
+                        <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Subjekti..." />
+                    </div>
+                    <div>
+                        <label className="text-xs font-medium text-muted-foreground">Trupi i Email-it</label>
+                        <Textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} placeholder="Mesazhi që do të shfaqet në email..." rows={3} />
+                    </div>
+
+                    <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-xs">
+                            <input type="checkbox" checked={targetMembers} onChange={(e) => setTargetMembers(e.target.checked)} className="rounded" />
+                            Anëtarë
+                        </label>
+                        <label className="flex items-center gap-2 text-xs">
+                            <input type="checkbox" checked={targetStudents} onChange={(e) => setTargetStudents(e.target.checked)} className="rounded" />
+                            Studentë
+                        </label>
+                    </div>
+
+                    {/* Questions builder */}
+                    <div className="border-t border-border pt-3 mt-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-foreground">Pyetjet</p>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => setQuestions((prev) => [...prev, emptyQuestion(prev.length)])}
+                            >
+                                <Plus className="h-3.5 w-3.5 mr-1" /> Shto pyetje
+                            </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {questions.map((q, qi) => (
+                                <div key={qi} className="rounded-lg border border-border bg-muted/20 p-3">
+                                    <div className="flex items-start gap-2">
+                                        <span className="mt-2 text-xs font-semibold text-muted-foreground">{qi + 1}.</span>
+                                        <div className="flex-1 space-y-2">
+                                            <Input
+                                                value={q.text}
+                                                onChange={(e) => updateQuestion(qi, { text: e.target.value })}
+                                                placeholder="Teksti i pyetjes..."
+                                                className="text-sm"
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    value={q.type}
+                                                    onChange={(e) => updateQuestion(qi, { type: Number(e.target.value), options: Number(e.target.value) === 0 ? (q.options.length > 0 ? q.options : [""]) : [] })}
+                                                    className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
+                                                >
+                                                    <option value={0}>Opsione</option>
+                                                    <option value={1}>Tekst i lirë</option>
+                                                    <option value={2}>Yje (1-5)</option>
+                                                </select>
+                                                {questions.length > 1 && (
+                                                    <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => removeQuestion(qi)}>
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                )}
+                                            </div>
+
+                                            {q.type === 0 && (
+                                                <div className="space-y-1.5 pl-2">
+                                                    {q.options.map((opt, oi) => (
+                                                        <div key={oi} className="flex items-center gap-1.5">
+                                                            <span className="text-xs text-muted-foreground">{String.fromCharCode(65 + oi)}.</span>
+                                                            <Input
+                                                                value={opt}
+                                                                onChange={(e) => updateOption(qi, oi, e.target.value)}
+                                                                placeholder={`Opsioni ${oi + 1}`}
+                                                                className="h-7 text-xs"
+                                                            />
+                                                            {q.options.length > 1 && (
+                                                                <button onClick={() => removeOption(qi, oi)} className="text-muted-foreground hover:text-destructive">
+                                                                    <X className="h-3 w-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => addOption(qi)}>
+                                                        <Plus className="h-3 w-3 mr-1" /> Shto opsion
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {formError && <p className="text-xs text-destructive">{formError}</p>}
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" size="sm" onClick={resetForm}>Anulo</Button>
+                        <Button size="sm" onClick={() => void handleSave()} disabled={saving}>
+                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                            {editingId ? "Ruaj Ndryshimet" : "Krijo"}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // List view
+    return (
+        <div className="rounded-xl border border-border bg-card p-5 mb-4">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <ClipboardList className="h-4.5 w-4.5 text-primary" />
+                    <h2 className="text-sm font-semibold text-foreground">Vlerësimi i IEKA SmartClass</h2>
+                </div>
+                <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setFormOpen(true) }}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Krijo Pyetësor
+                </Button>
+            </div>
+
+            {error && <p className="text-xs text-destructive mb-2">{error}</p>}
+
+            {sendResult && (
+                <div className="mb-3 flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-2.5 text-xs text-green-700">
+                    <Check className="h-3.5 w-3.5" />
+                    U dërgua te {sendResult.count} përdorues
+                    <button onClick={() => setSendResult(null)} className="ml-auto"><X className="h-3 w-3" /></button>
+                </div>
+            )}
+
+            {loading ? (
+                <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+            ) : list.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">Nuk ka pyetësorë. Krijoni të parin duke klikuar butonin sipër.</p>
+            ) : (
+                <div className="space-y-2">
+                    {list.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-border p-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                        <span>{item.questionCount} pyetje</span>
+                                        <span>·</span>
+                                        <span>{item.responseCount} përgjigje</span>
+                                        {item.targetMembers && <span className="rounded bg-blue-500/10 text-blue-600 px-1.5 py-0.5">Anëtarë</span>}
+                                        {item.targetStudents && <span className="rounded bg-purple-500/10 text-purple-600 px-1.5 py-0.5">Studentë</span>}
+                                    </div>
+                                    {item.sendLogs.length > 0 && (
+                                        <p className="mt-1 text-[11px] text-muted-foreground">
+                                            Dërgimi i fundit: {new Date(item.sendLogs[0].sentAt).toLocaleDateString("sq-AL")} — {item.sendLogs[0].recipientCount} marrës
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Ndrysho" onClick={() => void openEdit(item.id)}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost" size="sm" className="h-7 w-7 p-0" title="Dërgo"
+                                        disabled={sendingId === item.id}
+                                        onClick={() => void handleSend(item.id)}
+                                    >
+                                        {sendingId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Përgjigjet" onClick={() => void openResponses(item.id)}>
+                                        <Eye className="h-3.5 w-3.5" />
+                                    </Button>
+                                    {deletingId === item.id ? (
+                                        <div className="flex items-center gap-1 ml-1">
+                                            <Button variant="destructive" size="sm" className="h-7 text-[11px] px-2" onClick={() => void handleDelete(item.id)}>Po</Button>
+                                            <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => setDeletingId(null)}>Jo</Button>
+                                        </div>
+                                    ) : (
+                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" title="Fshi" onClick={() => setDeletingId(item.id)}>
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

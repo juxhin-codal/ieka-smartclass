@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { MentorAttendanceView } from "@/components/students/students-view"
@@ -11,7 +11,7 @@ function fallbackRoute(role?: string) {
   return "/students"
 }
 
-export default function AttendancePage() {
+function AttendanceInner() {
   const { user } = useAuth()
   const router = useRouter()
   const isAllowed = user?.role === "Mentor"
@@ -28,4 +28,12 @@ export default function AttendancePage() {
   }
 
   return <MentorAttendanceView />
+}
+
+export default function AttendancePage() {
+  return (
+    <Suspense>
+      <AttendanceInner />
+    </Suspense>
+  )
 }

@@ -183,6 +183,32 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
 
   const totalDocs = allTopicDocs.length + studentDocs.length
 
+  const [exportYears, setExportYears] = useState<number[]>([1, 2, 3])
+
+  function handleExportStudentAttendance() {
+    const filteredModules = exportYears.length > 0
+      ? studentModules.filter(m => exportYears.includes(m.yearGrade))
+      : studentModules
+    const rows = ["Moduli,Viti,Tema,Lektori,Data,Vendndodhja,Statusi,Data Prezences"]
+    for (const mod of filteredModules) {
+      for (const topic of [...(mod.topics ?? [])].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))) {
+        const status = topic.attended ? "Prezent"
+          : topic.scheduledDate && new Date(topic.scheduledDate) > now ? "Ne pritje"
+          : "Pa prezence"
+        const attendedDate = topic.attendedAt ? formatDateTime(topic.attendedAt) : ""
+        const topicDate = topic.scheduledDate ? formatDateTime(topic.scheduledDate) : ""
+        rows.push(`"${mod.title}",${mod.yearGrade},"${topic.name}","${topic.lecturer}","${topicDate}","${topic.location ?? ""}","${status}","${attendedDate}"`)
+      }
+    }
+    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `prezenca-${student!.firstName}-${student!.lastName}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
       <div className="w-full max-w-5xl rounded-2xl border border-border bg-card shadow-xl">
@@ -237,6 +263,33 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
                 <StatCard label="Tema me prezencë" value={String(attendedTopics.length)} helper={`nga ${allTopics.length} tema`} />
                 <StatCard label="Në pritje" value={String(upcomingTopics.length)} helper="Tema që nuk kanë ndodhur ende" />
                 <StatCard label="Pa prezencë" value={String(missedTopics.length)} helper="Tema ku studenti nuk ka prezencë" />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/10 px-4 py-3">
+                <p className="text-xs font-medium text-foreground">Eksporto prezencën:</p>
+                {[1, 2, 3].map(y => (
+                  <label key={y} className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={exportYears.includes(y)}
+                      onChange={() => setExportYears(prev =>
+                        prev.includes(y) ? prev.filter(v => v !== y) : [...prev, y]
+                      )}
+                      className="h-3.5 w-3.5 rounded border-border"
+                    />
+                    <span className="text-xs text-muted-foreground">Viti {y}</span>
+                  </label>
+                ))}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-xs ml-auto"
+                  disabled={exportYears.length === 0}
+                  onClick={handleExportStudentAttendance}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Eksporto CSV
+                </Button>
               </div>
 
               <div className="rounded-xl border border-border bg-card overflow-hidden">

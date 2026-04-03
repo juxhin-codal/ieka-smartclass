@@ -632,6 +632,78 @@ const rawEvents: Omit<EventItem, "participants">[] = [
   },
 ]
 
+// Evaluation Questionnaire types
+export interface EvaluationQuestion {
+  id: string
+  text: string
+  type: number // 0=Options, 1=FreeText, 2=Stars
+  order: number
+  options?: string[] | null
+}
+
+export interface EvaluationSendLog {
+  id: string
+  sentToMembers: boolean
+  sentToStudents: boolean
+  recipientCount: number
+  sentAt: string
+}
+
+export interface EvaluationListItem {
+  id: string
+  title: string
+  description?: string | null
+  targetMembers: boolean
+  targetStudents: boolean
+  createdAt: string
+  updatedAt: string
+  questionCount: number
+  responseCount: number
+  sendLogs: EvaluationSendLog[]
+}
+
+export interface EvaluationDetail {
+  id: string
+  title: string
+  description?: string | null
+  emailSubject: string
+  emailBody: string
+  targetMembers: boolean
+  targetStudents: boolean
+  createdAt: string
+  updatedAt: string
+  questions: EvaluationQuestion[]
+  responses?: { id: string; userId: string; submittedAt: string }[]
+  sendLogs?: EvaluationSendLog[]
+}
+
+export interface EvaluationFillResponse {
+  id: string
+  title: string
+  description?: string | null
+  alreadyAnswered: boolean
+  questions: EvaluationQuestion[]
+}
+
+export interface EvaluationResponseAnswer {
+  id: string
+  questionId: string
+  questionText?: string
+  questionType?: number
+  answerText: string
+}
+
+export interface EvaluationResponseItem {
+  id: string
+  questionnaireId: string
+  userId: string
+  userName?: string | null
+  userEmail?: string | null
+  userRole?: string | null
+  submittedAt: string
+  answers: EvaluationResponseAnswer[]
+}
+
 export const MOCK_EVENTS: EventItem[] = rawEvents.map((e) => {
   const participants = generateParticipants(e.id, e.dates, e.currentParticipants)
   if (e.status === "past") {

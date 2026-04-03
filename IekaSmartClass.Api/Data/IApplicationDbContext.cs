@@ -27,6 +27,11 @@ public interface IApplicationDbContext
     DbSet<TopicQuestionnaireResponse> TopicQuestionnaireResponses { get; }
     DbSet<TopicQuestionnaireAnswer> TopicQuestionnaireAnswers { get; }
     DbSet<SystemConfiguration> SystemConfigurations { get; }
+    DbSet<EvaluationQuestionnaire> EvaluationQuestionnaires { get; }
+    DbSet<EvaluationQuestion> EvaluationQuestions { get; }
+    DbSet<EvaluationResponse> EvaluationResponses { get; }
+    DbSet<EvaluationAnswer> EvaluationAnswers { get; }
+    DbSet<EvaluationSendLog> EvaluationSendLogs { get; }
     DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

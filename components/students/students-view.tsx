@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import { useAuth } from "@/lib/auth-context"
 import { fetchApi, fetchWithAuth } from "@/lib/api-client"
@@ -114,6 +115,24 @@ type StudentTrackingPreviewApi = {
 }
 
 const INACTIVE_ATTENDANCE_ACTIONS_TOOLTIP = "Janë aktiv vetëm në ditën e sesionit"
+
+function parseGoogleMapsCoords(input: string): { lat: number; lng: number } | null {
+  const s = input.trim()
+  if (!s) return null
+  // @lat,lng (standard Google Maps URL)
+  const atMatch = s.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/)
+  if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) }
+  // ?q=lat,lng
+  const qMatch = s.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/)
+  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) }
+  // ll=lat,lng
+  const llMatch = s.match(/ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/)
+  if (llMatch) return { lat: parseFloat(llMatch[1]), lng: parseFloat(llMatch[2]) }
+  // Plain coordinates "41.321, 19.825"
+  const coordMatch = s.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/)
+  if (coordMatch) return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) }
+  return null
+}
 
 function DisabledAttendanceActions({
   compact = false,
@@ -429,11 +448,27 @@ export function MentorAttendanceView() {
 function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = {}) {
   const { user } = useAuth()
   const { users, addUser, updateMember, deleteUser } = useEvents()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const isAdmin = user?.role === "Admin"
   const isMentor = user?.role === "Mentor"
 
-  const [activeTab, setActiveTab] = useState<ManagementTab>(forcedTab ?? (isMentor ? "attendance" : "modules"))
+  const defaultTab: ManagementTab = forcedTab ?? (isMentor ? "attendance" : "modules")
+  const tabFromUrl = searchParams.get("tab") as ManagementTab | null
+  const validTabs: ManagementTab[] = ["modules", "students", "attendance"]
+  const [activeTab, setActiveTabState] = useState<ManagementTab>(
+    !forcedTab && tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : defaultTab
+  )
+
+  const setActiveTab = useCallback((tab: ManagementTab) => {
+    setActiveTabState(tab)
+    if (!forcedTab) {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("tab", tab)
+      router.replace(`?${params.toString()}`, { scroll: false })
+    }
+  }, [forcedTab, searchParams, router])
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
@@ -558,6 +593,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [newTopicScheduledTime, setNewTopicScheduledTime] = useState("09:00")
   const [newTopicLocation, setNewTopicLocation] = useState("")
   const [newTopicRequireLocation, setNewTopicRequireLocation] = useState(true)
+  const [newTopicGoogleMapsUrl, setNewTopicGoogleMapsUrl] = useState("")
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
   const [editTopicName, setEditTopicName] = useState("")
   const [editTopicLecturer, setEditTopicLecturer] = useState("")
@@ -565,6 +601,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [editTopicScheduledTime, setEditTopicScheduledTime] = useState("")
   const [editTopicLocation, setEditTopicLocation] = useState("")
   const [editTopicRequireLocation, setEditTopicRequireLocation] = useState(true)
+  const [editTopicGoogleMapsUrl, setEditTopicGoogleMapsUrl] = useState("")
   const [topicSaving, setTopicSaving] = useState(false)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
@@ -630,7 +667,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   useEffect(() => {
     if (forcedTab && activeTab !== forcedTab) {
-      setActiveTab(forcedTab)
+      setActiveTabState(forcedTab)
     }
   }, [activeTab, forcedTab])
 
@@ -899,6 +936,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       const scheduledDate = newTopicScheduledDate
         ? (newTopicScheduledTime ? `${newTopicScheduledDate}T${newTopicScheduledTime}` : newTopicScheduledDate)
         : null
+      const customCoords = !newTopicRequireLocation && newTopicGoogleMapsUrl
+        ? parseGoogleMapsCoords(newTopicGoogleMapsUrl)
+        : null
       await fetchApi(`/StudentModules/${selectedModuleDetail.id}/topics`, {
         method: "POST",
         body: JSON.stringify({
@@ -906,7 +946,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           lecturer: newTopicLecturer.trim(),
           scheduledDate,
           location: newTopicLocation.trim() || null,
-          requireLocation: newTopicRequireLocation,
+          requireLocation: customCoords ? true : newTopicRequireLocation,
+          latitude: customCoords?.lat ?? null,
+          longitude: customCoords?.lng ?? null,
         }),
       })
       setShowAddTopicForm(false)
@@ -916,6 +958,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setNewTopicScheduledTime("09:00")
       setNewTopicLocation("")
       setNewTopicRequireLocation(true)
+      setNewTopicGoogleMapsUrl("")
       openModuleDetail(selectedModuleDetail.id)
       loadStudentModules()
     } catch (e: any) {
@@ -933,6 +976,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       const scheduledDate = editTopicScheduledDate
         ? (editTopicScheduledTime ? `${editTopicScheduledDate}T${editTopicScheduledTime}` : editTopicScheduledDate)
         : null
+      const customCoords = !editTopicRequireLocation && editTopicGoogleMapsUrl
+        ? parseGoogleMapsCoords(editTopicGoogleMapsUrl)
+        : null
       await fetchApi(`/StudentModules/topics/${topicId}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -940,7 +986,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           lecturer: editTopicLecturer.trim(),
           scheduledDate,
           location: editTopicLocation.trim() || null,
-          requireLocation: editTopicRequireLocation,
+          requireLocation: customCoords ? true : editTopicRequireLocation,
+          latitude: customCoords?.lat ?? null,
+          longitude: customCoords?.lng ?? null,
         }),
       })
       setEditingTopicId(null)
@@ -985,6 +1033,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     }
     setEditTopicLocation(topic.location ?? "")
     setEditTopicRequireLocation(topic.requireLocation ?? true)
+    setEditTopicGoogleMapsUrl(
+      topic.latitude && topic.longitude && !(topic.requireLocation ?? true)
+        ? `${topic.latitude}, ${topic.longitude}`
+        : ""
+    )
   }
 
   async function handleNotifyStudents() {
@@ -1400,12 +1453,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     return new Date(attSelectedTopic.scheduledDate) < new Date()
   }, [attSelectedTopic])
 
-  const attIsTopicToday = useMemo(() => {
+  const attIsFutureTopic = useMemo(() => {
     if (!attSelectedTopic?.scheduledDate) return false
-    const d = new Date(attSelectedTopic.scheduledDate)
-    const now = new Date()
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+    return attSelectedTopic.scheduledDate.slice(0, 10) > new Date().toISOString().slice(0, 10)
   }, [attSelectedTopic])
+
 
   useEffect(() => {
     if (!isAdmin || !showAddForm) {
@@ -1943,6 +1995,48 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       const result = (await fetchApi(`/StudentModules/topics/${topicId}/qr`)) as { topicId: string; token: string }
       setAttTopicQrToken(result.token)
     } catch { /* ignore */ } finally { setAttTopicQrLoading(false) }
+  }
+
+  function handleExportTopicAttendance() {
+    if (!attSelectedTopic || !attModuleDetail) return
+    const rows = ["Nr,Emri,Mbiemri,Email,Statusi,Data Prezences"]
+    attStudentsForTopic.forEach((s, idx) => {
+      const status = s.wasBeforeAssignment ? "I pa regjistruar" : s.attended ? "Prezent" : "Pa prezence"
+      const attendedDate = s.attendedAt ? format(parseISO(s.attendedAt), "dd MMM yyyy HH:mm") : ""
+      rows.push(`${idx + 1},"${s.firstName}","${s.lastName}","${s.email}","${status}","${attendedDate}"`)
+    })
+    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `prezenca-${attSelectedTopic.name.replace(/\s+/g, "-")}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleExportModuleAttendance() {
+    if (!attModuleDetail) return
+    const rows = ["Tema,Data Temes,Lektori,Emri,Mbiemri,Email,Statusi,Data Prezences"]
+    const sortedTopics = [...attModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
+    for (const topic of sortedTopics) {
+      const topicDate = topic.scheduledDate ? format(parseISO(topic.scheduledDate), "dd MMM yyyy HH:mm") : ""
+      for (const assignment of attModuleDetail.assignments) {
+        const attendance = assignment.topicAttendances.find(ta => ta.topicId === topic.id)
+        const wasBeforeAssignment = topic.scheduledDate && assignment.assignedAt
+          ? new Date(topic.scheduledDate) < new Date(assignment.assignedAt)
+          : false
+        const status = wasBeforeAssignment ? "I pa regjistruar" : attendance ? "Prezent" : "Pa prezence"
+        const attendedDate = attendance ? format(parseISO(attendance.attendedAt), "dd MMM yyyy HH:mm") : ""
+        rows.push(`"${topic.name}","${topicDate}","${topic.lecturer}","${assignment.firstName}","${assignment.lastName}","${assignment.email}","${status}","${attendedDate}"`)
+      }
+    }
+    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `prezenca-modul-${attModuleDetail.title.replace(/\s+/g, "-")}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function openEndStazhModal(student: AppUser) {
@@ -3148,9 +3242,24 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <input type="checkbox" id="newTopicRequireLocation" checked={newTopicRequireLocation} onChange={(e) => setNewTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
-                              <Label htmlFor="newTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko vendndodhjen (GPS) gjatë prezencës</Label>
+                              <input type="checkbox" id="newTopicRequireLocation" checked={newTopicRequireLocation} onChange={(e) => { setNewTopicRequireLocation(e.target.checked); if (e.target.checked) setNewTopicGoogleMapsUrl("") }} className="h-3.5 w-3.5 rounded border-border" />
+                              <Label htmlFor="newTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Vendndodhja standarte (Zyra IEKA)</Label>
                             </div>
+                            {!newTopicRequireLocation && (
+                              <div className="flex flex-col gap-1">
+                                <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
+                                <Input value={newTopicGoogleMapsUrl} onChange={(e) => setNewTopicGoogleMapsUrl(e.target.value)} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
+                                {newTopicGoogleMapsUrl && parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
+                                  <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
+                                )}
+                                {newTopicGoogleMapsUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
+                                  <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
+                                )}
+                                {!newTopicGoogleMapsUrl && (
+                                  <p className="text-[10px] text-muted-foreground">Pa link = nuk kërkohet validim vendndodhje GPS</p>
+                                )}
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 justify-end">
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAddTopicForm(false)} disabled={topicSaving}>Anulo</Button>
                               <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim()}>
@@ -3204,9 +3313,24 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <input type="checkbox" id="editTopicRequireLocation" checked={editTopicRequireLocation} onChange={(e) => setEditTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
-                                        <Label htmlFor="editTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko vendndodhjen (GPS) gjatë prezencës</Label>
+                                        <input type="checkbox" id="editTopicRequireLocation" checked={editTopicRequireLocation} onChange={(e) => { setEditTopicRequireLocation(e.target.checked); if (e.target.checked) setEditTopicGoogleMapsUrl("") }} className="h-3.5 w-3.5 rounded border-border" />
+                                        <Label htmlFor="editTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Vendndodhja standarte (Zyra IEKA)</Label>
                                       </div>
+                                      {!editTopicRequireLocation && (
+                                        <div className="flex flex-col gap-1">
+                                          <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
+                                          <Input value={editTopicGoogleMapsUrl} onChange={(e) => setEditTopicGoogleMapsUrl(e.target.value)} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
+                                          {editTopicGoogleMapsUrl && parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
+                                            <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
+                                          )}
+                                          {editTopicGoogleMapsUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
+                                            <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
+                                          )}
+                                          {!editTopicGoogleMapsUrl && (
+                                            <p className="text-[10px] text-muted-foreground">Pa link = nuk kërkohet validim vendndodhje GPS</p>
+                                          )}
+                                        </div>
+                                      )}
                                       <div className="flex items-center gap-2 justify-end">
                                         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>
                                         <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim()}>
@@ -3798,6 +3922,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               </select>
             </div>
 
+            {attSelectedModuleId && attModuleDetail && (
+              <Button size="sm" variant="outline" className="w-full h-8 gap-1.5 text-xs" onClick={handleExportModuleAttendance}>
+                <Download className="h-3.5 w-3.5" />
+                Eksporto Modulin
+              </Button>
+            )}
+
             {/* Past topics filter */}
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -3936,17 +4067,28 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       {attStudentsForTopic.length} studentë • {attStudentsForTopic.filter(s => s.attended).length} me prezencë
                     </p>
                   </div>
-                  {!attIsPastTopic && (
+                  <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
                       className="h-8 gap-1.5 text-xs"
-                      onClick={() => handleAttTopicQr(attSelectedTopic.id)}
+                      onClick={handleExportTopicAttendance}
                     >
-                      <QrCode className="h-3.5 w-3.5" />
-                      Shfaq QR
+                      <Download className="h-3.5 w-3.5" />
+                      Eksporto
                     </Button>
-                  )}
+                    {!attIsPastTopic && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs"
+                        onClick={() => handleAttTopicQr(attSelectedTopic.id)}
+                      >
+                        <QrCode className="h-3.5 w-3.5" />
+                        Shfaq QR
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {attError && (
@@ -4012,7 +4154,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   size="sm"
                                   className="h-7 flex-1 text-[11px]"
                                   variant={s.attended ? "default" : "outline"}
-                                  disabled={s.attended || isUpdating || !attIsTopicToday}
+                                  disabled={s.attended || isUpdating || attIsFutureTopic}
                                   onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
                                 >
                                   {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
@@ -4021,7 +4163,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   size="sm"
                                   className="h-7 flex-1 text-[11px]"
                                   variant={!s.attended ? "destructive" : "outline"}
-                                  disabled={!s.attended || isUpdating || !attIsTopicToday}
+                                  disabled={!s.attended || isUpdating || attIsFutureTopic}
                                   onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
                                 >
                                   {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
@@ -4076,7 +4218,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         size="sm"
                                         className="h-7 min-w-[5rem] text-[11px]"
                                         variant={s.attended ? "default" : "outline"}
-                                        disabled={s.attended || isUpdating || !attIsTopicToday}
+                                        disabled={s.attended || isUpdating || attIsFutureTopic}
                                         onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
                                       >
                                         {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
@@ -4086,7 +4228,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         size="sm"
                                         className="h-7 min-w-[5rem] text-[11px]"
                                         variant={!s.attended ? "destructive" : "outline"}
-                                        disabled={!s.attended || isUpdating || !attIsTopicToday}
+                                        disabled={!s.attended || isUpdating || attIsFutureTopic}
                                         onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
                                       >
                                         {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}

@@ -392,6 +392,23 @@ public class EmailService(
         return SendUserEmailAsync(student, $"Rezultati i modulit: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
     }
 
+    public Task SendEvaluationQuestionnaireAsync(AppUser user, EvaluationEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = NormalizeFrontendLink(item.ActionLink);
+
+        var body = RenderTemplate(
+            "evaluation-questionnaire.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["QUESTIONNAIRE_TITLE"] = item.QuestionnaireTitle,
+                ["RAW_EMAIL_BODY"] = item.EmailBody,
+                ["ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, item.EmailSubject, body, cancellationToken);
+    }
+
     private Task SendUserEmailAsync(AppUser user, string subject, string body, CancellationToken cancellationToken)
     {
         var recipientName = $"{user.FirstName} {user.LastName}".Trim();

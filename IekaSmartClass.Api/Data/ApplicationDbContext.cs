@@ -32,6 +32,11 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
     public DbSet<TopicQuestionnaireQuestion> TopicQuestionnaireQuestions => Set<TopicQuestionnaireQuestion>();
     public DbSet<TopicQuestionnaireResponse> TopicQuestionnaireResponses => Set<TopicQuestionnaireResponse>();
     public DbSet<TopicQuestionnaireAnswer> TopicQuestionnaireAnswers => Set<TopicQuestionnaireAnswer>();
+    public DbSet<EvaluationQuestionnaire> EvaluationQuestionnaires => Set<EvaluationQuestionnaire>();
+    public DbSet<EvaluationQuestion> EvaluationQuestions => Set<EvaluationQuestion>();
+    public DbSet<EvaluationResponse> EvaluationResponses => Set<EvaluationResponse>();
+    public DbSet<EvaluationAnswer> EvaluationAnswers => Set<EvaluationAnswer>();
+    public DbSet<EvaluationSendLog> EvaluationSendLogs => Set<EvaluationSendLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -308,6 +313,71 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
                 .WithMany(q => q.Answers)
                 .HasForeignKey(x => x.QuestionId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // Evaluation Questionnaire entities
+        builder.Entity<EvaluationQuestionnaire>(entity =>
+        {
+            entity.Property(x => x.Title).HasMaxLength(500);
+            entity.Property(x => x.Description).HasMaxLength(2000);
+            entity.Property(x => x.EmailSubject).HasMaxLength(500);
+            entity.Property(x => x.EmailBody).HasMaxLength(4000);
+            entity.HasIndex(x => x.CreatedAt);
+        });
+
+        builder.Entity<EvaluationQuestion>(entity =>
+        {
+            entity.Property(x => x.Text).HasMaxLength(1000);
+            entity.Property(x => x.OptionsJson).HasMaxLength(4000);
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(x => x.QuestionnaireId);
+
+            entity.HasOne(x => x.Questionnaire)
+                .WithMany(q => q.Questions)
+                .HasForeignKey(x => x.QuestionnaireId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EvaluationResponse>(entity =>
+        {
+            entity.HasIndex(x => new { x.QuestionnaireId, x.UserId }).IsUnique();
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasOne(x => x.Questionnaire)
+                .WithMany(q => q.Responses)
+                .HasForeignKey(x => x.QuestionnaireId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<EvaluationAnswer>(entity =>
+        {
+            entity.Property(x => x.AnswerText).HasMaxLength(4000);
+            entity.HasIndex(x => new { x.ResponseId, x.QuestionId }).IsUnique();
+
+            entity.HasOne(x => x.Response)
+                .WithMany(r => r.Answers)
+                .HasForeignKey(x => x.ResponseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Question)
+                .WithMany(q => q.Answers)
+                .HasForeignKey(x => x.QuestionId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<EvaluationSendLog>(entity =>
+        {
+            entity.HasIndex(x => x.QuestionnaireId);
+
+            entity.HasOne(x => x.Questionnaire)
+                .WithMany(q => q.SendLogs)
+                .HasForeignKey(x => x.QuestionnaireId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<StazhDocument>()
