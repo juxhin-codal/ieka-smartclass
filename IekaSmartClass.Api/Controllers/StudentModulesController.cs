@@ -133,7 +133,8 @@ public class StudentModulesController(
         try
         {
             var topic = await _studentModuleService.AddTopicAsync(
-                moduleId, request.Name, request.Lecturer, request.ScheduledDate, request.Location, cancellationToken);
+                moduleId, request.Name, request.Lecturer, request.ScheduledDate, request.Location,
+                request.RequireLocation, request.Latitude, request.Longitude, cancellationToken);
             return Ok(new { id = topic.Id });
         }
         catch (KeyNotFoundException)
@@ -161,7 +162,8 @@ public class StudentModulesController(
         try
         {
             await _studentModuleService.UpdateTopicAsync(
-                topicId, request.Name, request.Lecturer, request.ScheduledDate, request.Location, cancellationToken);
+                topicId, request.Name, request.Lecturer, request.ScheduledDate, request.Location,
+                request.RequireLocation, request.Latitude, request.Longitude, cancellationToken);
             return NoContent();
         }
         catch (KeyNotFoundException)
@@ -288,7 +290,7 @@ public class StudentModulesController(
         try
         {
             var attendance = await _studentModuleService.ScanTopicQrAsync(
-                request.QrToken, context.UserId.Value, cancellationToken);
+                request.QrToken, context.UserId.Value, request.Latitude, request.Longitude, cancellationToken);
 
             return Ok(new ScanModuleAttendanceResponse(
                 attendance.TopicId,
@@ -540,6 +542,9 @@ public class StudentModulesController(
             t.Lecturer,
             t.ScheduledDate?.ToString("o"),
             t.Location,
+            t.RequireLocation,
+            t.Latitude,
+            t.Longitude,
             t.CreatedAt.ToString("o"),
             t.Documents.Select(d => new StudentModuleDocumentResponse(
                 d.Id, d.FileName, d.FileUrl, d.RelativePath, d.SizeBytes, d.UploadedAt.ToString("o"))).ToList(),
@@ -783,8 +788,8 @@ public class StudentModulesController(
 
 public record CreateStudentModuleRequest(int YearGrade, string Title, string? Location = null, List<Guid>? ExcludedStudentIds = null, List<Guid>? AdditionalStudentIds = null);
 
-public record AddTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null);
-public record UpdateTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null);
+public record AddTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null, bool RequireLocation = true, double? Latitude = null, double? Longitude = null);
+public record UpdateTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null, bool RequireLocation = true, double? Latitude = null, double? Longitude = null);
 
 public record StudentModuleTopicResponse(
     Guid Id,
@@ -792,6 +797,9 @@ public record StudentModuleTopicResponse(
     string Lecturer,
     string? ScheduledDate,
     string? Location,
+    bool RequireLocation,
+    double? Latitude,
+    double? Longitude,
     string CreatedAt,
     List<StudentModuleDocumentResponse> Documents,
     int AttendanceCount,
@@ -851,7 +859,7 @@ public record StudentModuleQrResponse(
     Guid TopicId,
     string Token);
 
-public record ScanModuleAttendanceRequest(string QrToken);
+public record ScanModuleAttendanceRequest(string QrToken, double? Latitude = null, double? Longitude = null);
 
 public record AddStudentsToModuleRequest(List<Guid> StudentIds);
 

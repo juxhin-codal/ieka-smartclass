@@ -268,6 +268,9 @@ export interface StudentModuleTopicResponse {
   lecturer: string
   scheduledDate?: string | null
   location?: string | null
+  requireLocation?: boolean
+  latitude?: number | null
+  longitude?: number | null
   createdAt: string
   documents: StudentModuleDocument[]
   attendanceCount: number

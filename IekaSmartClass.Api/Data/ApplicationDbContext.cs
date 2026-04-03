@@ -197,6 +197,7 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             entity.Property(x => x.Name).HasMaxLength(500);
             entity.Property(x => x.Lecturer).HasMaxLength(200);
             entity.Property(x => x.Location).HasMaxLength(500);
+            entity.Property(x => x.RequireLocation).HasDefaultValue(true);
             entity.HasIndex(x => x.StudentModuleId);
             entity.HasIndex(x => x.ScheduledDate);
 

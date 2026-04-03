@@ -15,12 +15,14 @@ public class StudentModuleService(
     IEmailService emailService,
     IFileStorageService fileStorageService,
     IOptions<JwtSettings> jwtOptions,
+    IOptions<LocationSettings> locationOptions,
     ILogger<StudentModuleService> logger) : IStudentModuleService
 {
     private readonly IApplicationDbContext _db = db;
     private readonly IEmailService _emailService = emailService;
     private readonly IFileStorageService _fileStorageService = fileStorageService;
     private readonly ILogger<StudentModuleService> _logger = logger;
+    private readonly LocationSettings _locationSettings = locationOptions.Value;
     private readonly byte[] _qrSigningKey = Encoding.UTF8.GetBytes(
         string.IsNullOrWhiteSpace(jwtOptions.Value.Secret)
             ? "ieka-default-training-qr-signing-secret"
@@ -169,7 +171,7 @@ public class StudentModuleService(
 
     // ── Topic CRUD ──────────────────────────────────────────────────────────
 
-    public async Task<StudentModuleTopic> AddTopicAsync(Guid moduleId, string name, string lecturer, DateTime? scheduledDate, string? location, CancellationToken cancellationToken = default)
+    public async Task<StudentModuleTopic> AddTopicAsync(Guid moduleId, string name, string lecturer, DateTime? scheduledDate, string? location, bool requireLocation, double? latitude, double? longitude, CancellationToken cancellationToken = default)
     {
         var module = await _db.StudentModules
             .Include(m => m.Topics)
@@ -177,7 +179,16 @@ public class StudentModuleService(
             .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
             ?? throw new KeyNotFoundException("Module not found.");
 
-        var topic = new StudentModuleTopic(moduleId, name, lecturer, scheduledDate, location);
+        // Auto-fill default location coordinates when require location is on but no coords provided
+        if (requireLocation && latitude is null && longitude is null)
+        {
+            latitude = _locationSettings.DefaultLatitude;
+            longitude = _locationSettings.DefaultLongitude;
+            if (string.IsNullOrWhiteSpace(location))
+                location = _locationSettings.DefaultLocationName;
+        }
+
+        var topic = new StudentModuleTopic(moduleId, name, lecturer, scheduledDate, location, requireLocation, latitude, longitude);
         _db.StudentModuleTopics.Add(topic);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -189,13 +200,22 @@ public class StudentModuleService(
         return topic;
     }
 
-    public async Task<StudentModuleTopic> UpdateTopicAsync(Guid topicId, string name, string lecturer, DateTime? scheduledDate, string? location, CancellationToken cancellationToken = default)
+    public async Task<StudentModuleTopic> UpdateTopicAsync(Guid topicId, string name, string lecturer, DateTime? scheduledDate, string? location, bool requireLocation, double? latitude, double? longitude, CancellationToken cancellationToken = default)
     {
         var topic = await _db.StudentModuleTopics
             .Include(t => t.StudentModule).ThenInclude(m => m.Topics)
             .Include(t => t.StudentModule).ThenInclude(m => m.Assignments).ThenInclude(a => a.Student)
             .FirstOrDefaultAsync(t => t.Id == topicId, cancellationToken)
             ?? throw new KeyNotFoundException("Topic not found.");
+
+        // Auto-fill default location coordinates when require location is on but no coords provided
+        if (requireLocation && latitude is null && longitude is null)
+        {
+            latitude = _locationSettings.DefaultLatitude;
+            longitude = _locationSettings.DefaultLongitude;
+            if (string.IsNullOrWhiteSpace(location))
+                location = _locationSettings.DefaultLocationName;
+        }
 
         // Track what changed for notification
         var changes = new List<string>();
@@ -214,7 +234,7 @@ public class StudentModuleService(
         if (!string.Equals(topic.Lecturer, lecturer, StringComparison.Ordinal))
             changes.Add($"Lektori u ndryshua: {topic.Lecturer} → {lecturer}");
 
-        topic.Update(name, lecturer, scheduledDate, location);
+        topic.Update(name, lecturer, scheduledDate, location, requireLocation, latitude, longitude);
         await _db.SaveChangesAsync(cancellationToken);
 
         // Notify if anything changed
@@ -272,7 +292,7 @@ public class StudentModuleService(
         return CreateTopicQrToken(topicId, expiresAt);
     }
 
-    public async Task<StudentModuleTopicAttendance> ScanTopicQrAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default)
+    public async Task<StudentModuleTopicAttendance> ScanTopicQrAsync(string qrToken, Guid studentId, double? latitude = null, double? longitude = null, CancellationToken cancellationToken = default)
     {
         var normalized = NormalizeQrTokenInput(qrToken);
         var payload = ParseTopicQrToken(normalized);
@@ -294,6 +314,17 @@ public class StudentModuleService(
             var todayDate = DateTime.UtcNow.Date;
             if (topicDate != todayDate)
                 throw new InvalidOperationException("Prezenca mund të regjistrohet vetëm në ditën e temës.");
+        }
+
+        // ── Geolocation validation ──
+        if (topic.RequireLocation && topic.Latitude.HasValue && topic.Longitude.HasValue)
+        {
+            if (latitude is null || longitude is null)
+                throw new InvalidOperationException("Vendndodhja juaj nuk mund të përcaktohet. Ju lutem aktivizoni GPS-in dhe lejoni aksesin në vendndodhje.");
+
+            var distance = HaversineDistanceMeters(latitude.Value, longitude.Value, topic.Latitude.Value, topic.Longitude.Value);
+            if (distance > _locationSettings.MaxDistanceMeters)
+                throw new InvalidOperationException($"Jeni shumë larg vendit të mësimit ({distance:F0}m). Prezenca kërkon të jeni brenda {_locationSettings.MaxDistanceMeters:F0}m nga {topic.Location ?? "vendi i caktuar"}.");
         }
 
         // Verify the student is assigned to this module
@@ -950,6 +981,17 @@ public class StudentModuleService(
             return 3;
 
         return 0;
+    }
+
+    private static double HaversineDistanceMeters(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double R = 6_371_000; // Earth radius in meters
+        var dLat = (lat2 - lat1) * (Math.PI / 180);
+        var dLon = (lon2 - lon1) * (Math.PI / 180);
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(lat1 * (Math.PI / 180)) * Math.Cos(lat2 * (Math.PI / 180)) *
+                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
     }
 
     public async Task AutoAssignStudentToModulesAsync(Guid studentId, CancellationToken cancellationToken = default)

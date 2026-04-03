@@ -39,6 +39,9 @@ public class StudentModuleTopic
     public string Lecturer { get; private set; } = string.Empty;
     public DateTime? ScheduledDate { get; private set; }
     public string? Location { get; private set; }
+    public bool RequireLocation { get; private set; } = true;
+    public double? Latitude { get; private set; }
+    public double? Longitude { get; private set; }
     public DateTime CreatedAt { get; private set; }
 
     public StudentModule StudentModule { get; private set; } = null!;
@@ -48,7 +51,9 @@ public class StudentModuleTopic
 
     private StudentModuleTopic() { }
 
-    public StudentModuleTopic(Guid studentModuleId, string name, string lecturer, DateTime? scheduledDate = null, string? location = null)
+    public StudentModuleTopic(Guid studentModuleId, string name, string lecturer,
+        DateTime? scheduledDate = null, string? location = null,
+        bool requireLocation = true, double? latitude = null, double? longitude = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name is required.", nameof(name));
@@ -61,10 +66,14 @@ public class StudentModuleTopic
         Lecturer = lecturer.Trim();
         ScheduledDate = scheduledDate;
         Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
+        RequireLocation = requireLocation;
+        Latitude = latitude;
+        Longitude = longitude;
         CreatedAt = DateTime.UtcNow;
     }
 
-    public void Update(string name, string lecturer, DateTime? scheduledDate, string? location)
+    public void Update(string name, string lecturer, DateTime? scheduledDate, string? location,
+        bool requireLocation = true, double? latitude = null, double? longitude = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name is required.", nameof(name));
@@ -75,6 +84,9 @@ public class StudentModuleTopic
         Lecturer = lecturer.Trim();
         ScheduledDate = scheduledDate;
         Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
+        RequireLocation = requireLocation;
+        Latitude = latitude;
+        Longitude = longitude;
     }
 }
 

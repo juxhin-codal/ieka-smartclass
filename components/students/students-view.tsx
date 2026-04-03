@@ -557,12 +557,14 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [newTopicScheduledDate, setNewTopicScheduledDate] = useState("")
   const [newTopicScheduledTime, setNewTopicScheduledTime] = useState("09:00")
   const [newTopicLocation, setNewTopicLocation] = useState("")
+  const [newTopicRequireLocation, setNewTopicRequireLocation] = useState(true)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
   const [editTopicName, setEditTopicName] = useState("")
   const [editTopicLecturer, setEditTopicLecturer] = useState("")
   const [editTopicScheduledDate, setEditTopicScheduledDate] = useState("")
   const [editTopicScheduledTime, setEditTopicScheduledTime] = useState("")
   const [editTopicLocation, setEditTopicLocation] = useState("")
+  const [editTopicRequireLocation, setEditTopicRequireLocation] = useState(true)
   const [topicSaving, setTopicSaving] = useState(false)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
@@ -904,6 +906,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           lecturer: newTopicLecturer.trim(),
           scheduledDate,
           location: newTopicLocation.trim() || null,
+          requireLocation: newTopicRequireLocation,
         }),
       })
       setShowAddTopicForm(false)
@@ -912,6 +915,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setNewTopicScheduledDate("")
       setNewTopicScheduledTime("09:00")
       setNewTopicLocation("")
+      setNewTopicRequireLocation(true)
       openModuleDetail(selectedModuleDetail.id)
       loadStudentModules()
     } catch (e: any) {
@@ -936,6 +940,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           lecturer: editTopicLecturer.trim(),
           scheduledDate,
           location: editTopicLocation.trim() || null,
+          requireLocation: editTopicRequireLocation,
         }),
       })
       setEditingTopicId(null)
@@ -979,6 +984,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       setEditTopicScheduledTime("09:00")
     }
     setEditTopicLocation(topic.location ?? "")
+    setEditTopicRequireLocation(topic.requireLocation ?? true)
   }
 
   async function handleNotifyStudents() {
@@ -3141,6 +3147,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 <Input value={newTopicLocation} onChange={(e) => setNewTopicLocation(e.target.value)} placeholder="Vendndodhja..." className="h-8 text-xs" />
                               </div>
                             </div>
+                            <div className="flex items-center gap-2">
+                              <input type="checkbox" id="newTopicRequireLocation" checked={newTopicRequireLocation} onChange={(e) => setNewTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
+                              <Label htmlFor="newTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko vendndodhjen (GPS) gjatë prezencës</Label>
+                            </div>
                             <div className="flex items-center gap-2 justify-end">
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAddTopicForm(false)} disabled={topicSaving}>Anulo</Button>
                               <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim()}>
@@ -3192,6 +3202,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                           <Label className="text-xs">Vendndodhja</Label>
                                           <Input value={editTopicLocation} onChange={(e) => setEditTopicLocation(e.target.value)} className="h-8 text-xs" />
                                         </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <input type="checkbox" id="editTopicRequireLocation" checked={editTopicRequireLocation} onChange={(e) => setEditTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
+                                        <Label htmlFor="editTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko vendndodhjen (GPS) gjatë prezencës</Label>
                                       </div>
                                       <div className="flex items-center gap-2 justify-end">
                                         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>

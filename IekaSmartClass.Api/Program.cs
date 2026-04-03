@@ -26,6 +26,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection(Email
 builder.Services.Configure<TwoFactorSettings>(builder.Configuration.GetSection(TwoFactorSettings.SectionName));
 builder.Services.Configure<WhatsAppSettings>(builder.Configuration.GetSection(WhatsAppSettings.SectionName));
 builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection(StorageSettings.SectionName));
+builder.Services.Configure<LocationSettings>(builder.Configuration.GetSection(LocationSettings.SectionName));
 var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>();
 
 builder.Services.AddData(builder.Configuration);

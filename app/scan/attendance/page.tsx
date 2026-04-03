@@ -13,7 +13,7 @@ function ScanAttendanceContent() {
   const token = searchParams.get("token") ?? ""
   const { isAuthenticated, user } = useAuth()
 
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
+  const [status, setStatus] = useState<"loading" | "locating" | "success" | "error">("loading")
   const [message, setMessage] = useState("")
   const [mounted, setMounted] = useState(false)
   const submittedRef = useRef(false)
@@ -46,9 +46,29 @@ function ScanAttendanceContent() {
 
     async function markAttendance() {
       try {
+        // Attempt to get GPS location
+        setStatus("locating")
+        let lat: number | null = null
+        let lng: number | null = null
+
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 60000,
+            })
+          })
+          lat = position.coords.latitude
+          lng = position.coords.longitude
+        } catch {
+          // GPS failed or denied — proceed without coordinates
+        }
+
+        setStatus("loading")
         await fetchApi("/StudentModules/scan", {
           method: "POST",
-          body: JSON.stringify({ qrToken: token }),
+          body: JSON.stringify({ qrToken: token, latitude: lat, longitude: lng }),
         })
         setStatus("success")
         setMessage("Prezenca u regjistrua me sukses!")
@@ -65,6 +85,17 @@ function ScanAttendanceContent() {
     return (
       <div className="mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (status === "locating") {
+    return (
+      <div className="mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-4">
+        <div className="w-full rounded-xl border border-border bg-card p-8 text-center">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+          <p className="mt-3 text-sm text-muted-foreground">Duke marrë vendndodhjen tuaj...</p>
+        </div>
       </div>
     )
   }

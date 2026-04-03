@@ -14,8 +14,8 @@ public interface IStudentModuleService
     Task NotifyStudentsAsync(Guid moduleId, CancellationToken cancellationToken = default);
 
     // Topic CRUD
-    Task<StudentModuleTopic> AddTopicAsync(Guid moduleId, string name, string lecturer, DateTime? scheduledDate, string? location, CancellationToken cancellationToken = default);
-    Task<StudentModuleTopic> UpdateTopicAsync(Guid topicId, string name, string lecturer, DateTime? scheduledDate, string? location, CancellationToken cancellationToken = default);
+    Task<StudentModuleTopic> AddTopicAsync(Guid moduleId, string name, string lecturer, DateTime? scheduledDate, string? location, bool requireLocation, double? latitude, double? longitude, CancellationToken cancellationToken = default);
+    Task<StudentModuleTopic> UpdateTopicAsync(Guid topicId, string name, string lecturer, DateTime? scheduledDate, string? location, bool requireLocation, double? latitude, double? longitude, CancellationToken cancellationToken = default);
     Task DeleteTopicAsync(Guid topicId, CancellationToken cancellationToken = default);
 
     // Documents (per topic)
@@ -24,7 +24,7 @@ public interface IStudentModuleService
 
     // QR & attendance (per topic)
     Task<string> GenerateTopicQrTokenAsync(Guid topicId, CancellationToken cancellationToken = default);
-    Task<StudentModuleTopicAttendance> ScanTopicQrAsync(string qrToken, Guid studentId, CancellationToken cancellationToken = default);
+    Task<StudentModuleTopicAttendance> ScanTopicQrAsync(string qrToken, Guid studentId, double? latitude = null, double? longitude = null, CancellationToken cancellationToken = default);
     Task<StudentModuleTopicAttendance> MarkTopicAttendanceAsync(Guid topicId, Guid studentId, CancellationToken cancellationToken = default);
     Task RemoveTopicAttendanceAsync(Guid topicId, Guid studentId, CancellationToken cancellationToken = default);
 
