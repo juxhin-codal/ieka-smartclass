@@ -74,6 +74,7 @@ import {
   Eye,
   XCircle,
   Users,
+  RefreshCw,
 } from "lucide-react"
 import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pagination-bar"
 
@@ -951,7 +952,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       const scheduledDate = newTopicScheduledDate
         ? (newTopicScheduledTime ? `${newTopicScheduledDate}T${newTopicScheduledTime}` : newTopicScheduledDate)
         : null
-      const customCoords = !newTopicRequireLocation && newTopicGoogleMapsUrl
+      const customCoords = newTopicGoogleMapsUrl
         ? parseGoogleMapsCoords(newTopicGoogleMapsUrl)
         : null
       await fetchApi(`/StudentModules/${selectedModuleDetail.id}/topics`, {
@@ -961,7 +962,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           lecturer: newTopicLecturer.trim(),
           scheduledDate,
           location: newTopicLocation.trim() || null,
-          requireLocation: customCoords ? true : newTopicRequireLocation,
+          requireLocation: newTopicRequireLocation,
           latitude: customCoords?.lat ?? null,
           longitude: customCoords?.lng ?? null,
         }),
@@ -991,7 +992,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       const scheduledDate = editTopicScheduledDate
         ? (editTopicScheduledTime ? `${editTopicScheduledDate}T${editTopicScheduledTime}` : editTopicScheduledDate)
         : null
-      const customCoords = !editTopicRequireLocation && editTopicGoogleMapsUrl
+      const customCoords = editTopicGoogleMapsUrl
         ? parseGoogleMapsCoords(editTopicGoogleMapsUrl)
         : null
       await fetchApi(`/StudentModules/topics/${topicId}`, {
@@ -1001,7 +1002,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           lecturer: editTopicLecturer.trim(),
           scheduledDate,
           location: editTopicLocation.trim() || null,
-          requireLocation: customCoords ? true : editTopicRequireLocation,
+          requireLocation: editTopicRequireLocation,
           latitude: customCoords?.lat ?? null,
           longitude: customCoords?.lng ?? null,
         }),
@@ -3388,10 +3389,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <input type="checkbox" id="newTopicRequireLocation" checked={newTopicRequireLocation} onChange={(e) => { setNewTopicRequireLocation(e.target.checked); if (e.target.checked) setNewTopicGoogleMapsUrl("") }} className="h-3.5 w-3.5 rounded border-border" />
-                              <Label htmlFor="newTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Vendndodhja standarte (Zyra IEKA)</Label>
+                              <input type="checkbox" id="newTopicRequireLocation" checked={newTopicRequireLocation} onChange={(e) => setNewTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
+                              <Label htmlFor="newTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko validim vendndodhje GPS</Label>
                             </div>
-                            {!newTopicRequireLocation && (
+                            {newTopicRequireLocation && (
                               <div className="flex flex-col gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
                                 <Input value={newTopicGoogleMapsUrl} onChange={(e) => { setNewTopicGoogleMapsUrl(e.target.value); resolveShortMapUrl(e.target.value, setNewTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
@@ -3405,7 +3406,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
                                 )}
                                 {!newTopicGoogleMapsUrl && (
-                                  <p className="text-[10px] text-muted-foreground">Pa link = nuk kërkohet validim vendndodhje GPS</p>
+                                  <p className="text-[10px] text-muted-foreground">Pa link = vendndodhja standarte (Zyra IEKA)</p>
                                 )}
                               </div>
                             )}
@@ -3462,10 +3463,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <input type="checkbox" id="editTopicRequireLocation" checked={editTopicRequireLocation} onChange={(e) => { setEditTopicRequireLocation(e.target.checked); if (e.target.checked) setEditTopicGoogleMapsUrl("") }} className="h-3.5 w-3.5 rounded border-border" />
-                                        <Label htmlFor="editTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Vendndodhja standarte (Zyra IEKA)</Label>
+                                        <input type="checkbox" id="editTopicRequireLocation" checked={editTopicRequireLocation} onChange={(e) => setEditTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
+                                        <Label htmlFor="editTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko validim vendndodhje GPS</Label>
                                       </div>
-                                      {!editTopicRequireLocation && (
+                                      {editTopicRequireLocation && (
                                         <div className="flex flex-col gap-1">
                                           <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
                                           <Input value={editTopicGoogleMapsUrl} onChange={(e) => { setEditTopicGoogleMapsUrl(e.target.value); resolveShortMapUrl(e.target.value, setEditTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
@@ -3479,7 +3480,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                             <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
                                           )}
                                           {!editTopicGoogleMapsUrl && (
-                                            <p className="text-[10px] text-muted-foreground">Pa link = nuk kërkohet validim vendndodhje GPS</p>
+                                            <p className="text-[10px] text-muted-foreground">Pa link = vendndodhja standarte (Zyra IEKA)</p>
                                           )}
                                         </div>
                                       )}
@@ -4326,15 +4327,26 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 )}
 
                 {/* Search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={attStudentSearch}
-                    onChange={(e) => setAttStudentSearch(e.target.value)}
-                    placeholder="Kërko student..."
-                    className="h-9 w-full rounded-lg border border-border bg-transparent pl-9 pr-3 text-base md:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={attStudentSearch}
+                      onChange={(e) => setAttStudentSearch(e.target.value)}
+                      placeholder="Kërko student..."
+                      className="h-9 w-full rounded-lg border border-border bg-transparent pl-9 pr-3 text-base md:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 w-9 shrink-0 p-0"
+                    onClick={() => { if (attSelectedModuleId) loadAttModuleDetail(attSelectedModuleId) }}
+                    disabled={attModuleDetailLoading}
+                  >
+                    <RefreshCw className={cn("h-4 w-4", attModuleDetailLoading && "animate-spin")} />
+                  </Button>
                 </div>
 
                 {/* Student list */}
