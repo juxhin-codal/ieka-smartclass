@@ -1973,9 +1973,21 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setAttUpdatingKey(`${topicId}-${studentId}-mark`)
     try {
       await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "POST" })
-      if (attSelectedModuleId) await loadAttModuleDetail(attSelectedModuleId)
+      // Optimistic update
+      setAttModuleDetail(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          assignments: prev.assignments.map(a =>
+            a.studentId === studentId
+              ? { ...a, topicAttendances: [...a.topicAttendances, { topicId, topicName: "", attendedAt: new Date().toISOString() }] }
+              : a
+          ),
+        }
+      })
     } catch (e: any) {
       setAttError(e?.message ?? "Gabim gjatë regjistrimit të prezencës.")
+      if (attSelectedModuleId) await loadAttModuleDetail(attSelectedModuleId)
     } finally { setAttUpdatingKey(null) }
   }
 
@@ -1983,9 +1995,21 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setAttUpdatingKey(`${topicId}-${studentId}-remove`)
     try {
       await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "DELETE" })
-      if (attSelectedModuleId) await loadAttModuleDetail(attSelectedModuleId)
+      // Optimistic update
+      setAttModuleDetail(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          assignments: prev.assignments.map(a =>
+            a.studentId === studentId
+              ? { ...a, topicAttendances: a.topicAttendances.filter(ta => ta.topicId !== topicId) }
+              : a
+          ),
+        }
+      })
     } catch (e: any) {
       setAttError(e?.message ?? "Gabim gjatë heqjes së prezencës.")
+      if (attSelectedModuleId) await loadAttModuleDetail(attSelectedModuleId)
     } finally { setAttUpdatingKey(null) }
   }
 
@@ -2068,10 +2092,17 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setModTopicAttUpdating(`${topicId}-${studentId}-mark`)
     try {
       await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "POST" })
-      if (selectedModuleDetail) {
-        const updated = (await fetchApi(`/StudentModules/${selectedModuleDetail.id}`)) as StudentModuleDetailResponse
-        setSelectedModuleDetail(updated)
-      }
+      setSelectedModuleDetail(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          assignments: prev.assignments.map(a =>
+            a.studentId === studentId
+              ? { ...a, topicAttendances: [...a.topicAttendances, { topicId, topicName: "", attendedAt: new Date().toISOString() }] }
+              : a
+          ),
+        }
+      })
     } catch { /* ignore */ } finally { setModTopicAttUpdating(null) }
   }
 
@@ -2079,10 +2110,17 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setModTopicAttUpdating(`${topicId}-${studentId}-remove`)
     try {
       await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "DELETE" })
-      if (selectedModuleDetail) {
-        const updated = (await fetchApi(`/StudentModules/${selectedModuleDetail.id}`)) as StudentModuleDetailResponse
-        setSelectedModuleDetail(updated)
-      }
+      setSelectedModuleDetail(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          assignments: prev.assignments.map(a =>
+            a.studentId === studentId
+              ? { ...a, topicAttendances: a.topicAttendances.filter(ta => ta.topicId !== topicId) }
+              : a
+          ),
+        }
+      })
     } catch { /* ignore */ } finally { setModTopicAttUpdating(null) }
   }
 
