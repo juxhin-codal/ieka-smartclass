@@ -43,7 +43,10 @@ public class StudentTrainingController(IStudentTrainingService studentTrainingSe
                 s.Student.IsStudentLoginExpired(),
                 s.Student.StudentValidUntilUtc?.ToString("yyyy-MM"),
                 s.AttendedSessions,
-                s.TotalSessions)));
+                s.TotalSessions,
+                s.Student.StudentStartYear,
+                s.Student.StudentYear2StartYear,
+                s.Student.StudentYear3StartYear)));
         }
         catch (UnauthorizedAccessException)
         {
@@ -549,7 +552,10 @@ public record StudentSummaryResponse(
     bool IsExpired,
     string? ValidUntilMonth,
     int AttendedSessions,
-    int TotalSessions);
+    int TotalSessions,
+    int? StudentStartYear = null,
+    int? StudentYear2StartYear = null,
+    int? StudentYear3StartYear = null);
 
 public record UpdateStudentScheduleRequest(Guid? MentorId, List<ScheduleSessionRequest> Sessions);
 public record ScheduleSessionRequest(string Date, string StartTime, string EndTime, string? Notes);

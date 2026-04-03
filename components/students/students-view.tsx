@@ -103,6 +103,9 @@ type StudentSummaryApi = {
   validUntilMonth?: string | null
   attendedSessions?: number
   totalSessions?: number
+  studentStartYear?: number | null
+  studentYear2StartYear?: number | null
+  studentYear3StartYear?: number | null
 }
 
 type StudentTrackingPreviewApi = {
@@ -215,6 +218,18 @@ function formatYearGradeLabel(grade: number) {
     case 3: return "Viti i Tretë"
     default: return `Viti ${grade}`
   }
+}
+
+function getStudentCurrentYearGrade(student: AppUser): number {
+  if (!student.studentStartYear) return 0
+  const now = new Date()
+  const y1 = student.studentStartYear
+  const y2 = student.studentYear2StartYear ?? y1 + 1
+  const y3 = student.studentYear3StartYear ?? y2 + 1
+  if (now >= new Date(y1, 0, 1) && now < new Date(y2, 0, 1)) return 1
+  if (now >= new Date(y2, 0, 1) && now < new Date(y3, 0, 1)) return 2
+  if (now >= new Date(y3, 0, 1) && now < new Date(y3 + 1, 0, 1)) return 3
+  return 0
 }
 
 function parseStudentYear(value: string) {
@@ -387,6 +402,9 @@ function mapStudentSummaryToAppUser(summary: StudentSummaryApi): AppUser {
     accountIsActive: summary.accountIsActive !== false,
     isExpired: summary.isExpired === true,
     validUntilMonth: summary.validUntilMonth ?? null,
+    studentStartYear: summary.studentStartYear ?? null,
+    studentYear2StartYear: summary.studentYear2StartYear ?? null,
+    studentYear3StartYear: summary.studentYear3StartYear ?? null,
   }
 }
 
@@ -528,6 +546,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   // Module list filters
   const [moduleYearFilter, setModuleYearFilter] = useState<number | null>(null)
   const [moduleTimeFilter, setModuleTimeFilter] = useState<"upcoming" | "past" | "all">("upcoming")
+
+  // Student list year filter
+  const [studentYearFilter, setStudentYearFilter] = useState<number | null>(null)
 
   // Module detail: Topic CRUD states
   const [showAddTopicForm, setShowAddTopicForm] = useState(false)
@@ -1249,6 +1270,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       )
     }
 
+    if (studentYearFilter !== null) {
+      result = result.filter((s) => getStudentCurrentYearGrade(s) === studentYearFilter)
+    }
+
     result = [...result].sort((a, b) => {
       let cmp = 0
       if (sortKey === "name") {
@@ -1266,7 +1291,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     })
 
     return result
-  }, [students, search, sortKey, sortDir, studentStats, mentorNameById])
+  }, [students, search, sortKey, sortDir, studentStats, mentorNameById, studentYearFilter])
 
   const filteredModules = useMemo(() => {
     let result = studentModules
@@ -2066,6 +2091,23 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                 className="pl-9 h-9"
               />
             </div>
+            <div className="flex items-center gap-1.5">
+              {([1, 2, 3] as const).map((yr) => (
+                <button
+                  key={yr}
+                  type="button"
+                  onClick={() => { setStudentYearFilter(studentYearFilter === yr ? null : yr); setCurrentPage(1) }}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+                    studentYearFilter === yr
+                      ? yr === 1 ? "bg-blue-500 text-white" : yr === 2 ? "bg-purple-500 text-white" : "bg-emerald-500 text-white"
+                      : "border border-border text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  Viti {yr}
+                </button>
+              ))}
+            </div>
             <span className="w-full text-xs text-muted-foreground sm:ml-auto sm:w-auto">
               {filteredStudents.length} nga {students.length} studentë
             </span>
@@ -2308,6 +2350,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   const attendanceRate = st && st.total > 0 ? Math.round((st.attended / st.total) * 100) : null
                   const isInactiveStudent = s.isActive === false
                   const mentorName = s.mentorId ? mentorNameById.get(s.mentorId) ?? "—" : "—"
+                  const yearGrade = getStudentCurrentYearGrade(s)
 
                   return (
                     <div key={s.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
@@ -2330,6 +2373,14 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2">
+                            {yearGrade > 0 && (
+                              <span className={cn(
+                                "rounded-full px-2.5 py-1 text-[11px] font-medium",
+                                yearGrade === 1 ? "bg-blue-500/10 text-blue-600" : yearGrade === 2 ? "bg-purple-500/10 text-purple-600" : "bg-emerald-500/10 text-emerald-600"
+                              )}>
+                                {formatYearGradeLabel(yearGrade)}
+                              </span>
+                            )}
                             <code className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-mono text-foreground">
                               {s.memberRegistryNumber}
                             </code>
@@ -2430,6 +2481,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
                       <SortableTh label="Studenti" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort} />
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Viti</th>
                       <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground lg:table-cell">Tracking</th>
                       <th className="hidden px-4 py-3 text-xs font-medium text-muted-foreground md:table-cell">Email</th>
                       {isAdmin && (
@@ -2445,6 +2497,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       const st = studentStats[s.id]
                       const attendanceRate = st && st.total > 0 ? Math.round((st.attended / st.total) * 100) : null
                       const isInactiveStudent = s.isActive === false
+                      const yearGrade = getStudentCurrentYearGrade(s)
 
                       return (
                         <tr key={s.id} className="border-b border-border transition-colors last:border-0 hover:bg-muted/20">
@@ -2461,6 +2514,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 <p className="hidden text-xs text-muted-foreground lg:block">{s.memberRegistryNumber}</p>
                               </div>
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {yearGrade > 0 ? (
+                              <span className={cn(
+                                "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                yearGrade === 1 ? "bg-blue-500/10 text-blue-600" : yearGrade === 2 ? "bg-purple-500/10 text-purple-600" : "bg-emerald-500/10 text-emerald-600"
+                              )}>
+                                Viti {yearGrade}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="hidden px-4 py-3 lg:table-cell">
                             <code className="rounded bg-blue-500/10 px-1.5 py-0.5 text-xs font-mono text-blue-700">
