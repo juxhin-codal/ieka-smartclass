@@ -616,6 +616,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [editTopicRequireLocation, setEditTopicRequireLocation] = useState(true)
   const [editTopicGoogleMapsUrl, setEditTopicGoogleMapsUrl] = useState("")
   const [resolvingMapUrl, setResolvingMapUrl] = useState(false)
+  const [mapUrlResolveError, setMapUrlResolveError] = useState("")
   const [topicSaving, setTopicSaving] = useState(false)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
@@ -1060,6 +1061,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   async function resolveShortMapUrl(value: string, setter: (v: string) => void) {
     if (!isShortGoogleMapsUrl(value)) return
     setResolvingMapUrl(true)
+    setMapUrlResolveError("")
     try {
       const res = await fetch("/api/resolve-url", {
         method: "POST",
@@ -1068,14 +1070,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       })
       if (res.ok) {
         const data = await res.json()
-        // If server extracted coords directly, use those as plain text
         if (data.coords?.lat && data.coords?.lng) {
           setter(`${data.coords.lat}, ${data.coords.lng}`)
+          return
         } else if (data.resolved && parseGoogleMapsCoords(data.resolved)) {
           setter(data.resolved)
+          return
         }
       }
-    } catch { /* ignore */ } finally {
+      setMapUrlResolveError("Nuk u arrit të zgjidhet linku. Ngjitni koordinatat direkt (p.sh. 41.321, 19.826).")
+    } catch {
+      setMapUrlResolveError("Nuk u arrit të zgjidhet linku. Ngjitni koordinatat direkt (p.sh. 41.321, 19.826).")
+    } finally {
       setResolvingMapUrl(false)
     }
   }
@@ -3399,7 +3405,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             {newTopicRequireLocation && (
                               <div className="flex flex-col gap-1">
                                 <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
-                                <Input value={newTopicGoogleMapsUrl} onChange={(e) => { setNewTopicGoogleMapsUrl(e.target.value); resolveShortMapUrl(e.target.value, setNewTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
+                                <Input value={newTopicGoogleMapsUrl} onChange={(e) => { setNewTopicGoogleMapsUrl(e.target.value); setMapUrlResolveError(""); resolveShortMapUrl(e.target.value, setNewTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
                                 {resolvingMapUrl && (
                                   <p className="text-[10px] text-muted-foreground">Duke zgjidhur linkun...</p>
                                 )}
@@ -3407,7 +3413,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
                                 )}
                                 {newTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
-                                  <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
+                                  <p className="text-[10px] text-destructive">{mapUrlResolveError || "Formati i linkut nuk u njoh. Ngjitni koordinatat direkt (p.sh. 41.321, 19.826)."}</p>
                                 )}
                                 {!newTopicGoogleMapsUrl && (
                                   <p className="text-[10px] text-muted-foreground">Pa link = vendndodhja standarte (Zyra IEKA)</p>
@@ -3470,7 +3476,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       {editTopicRequireLocation && (
                                         <div className="flex flex-col gap-1">
                                           <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
-                                          <Input value={editTopicGoogleMapsUrl} onChange={(e) => { setEditTopicGoogleMapsUrl(e.target.value); resolveShortMapUrl(e.target.value, setEditTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
+                                          <Input value={editTopicGoogleMapsUrl} onChange={(e) => { setEditTopicGoogleMapsUrl(e.target.value); setMapUrlResolveError(""); resolveShortMapUrl(e.target.value, setEditTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
                                           {resolvingMapUrl && (
                                             <p className="text-[10px] text-muted-foreground">Duke zgjidhur linkun...</p>
                                           )}
@@ -3478,7 +3484,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                             <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
                                           )}
                                           {editTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
-                                            <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
+                                            <p className="text-[10px] text-destructive">{mapUrlResolveError || "Formati i linkut nuk u njoh. Ngjitni koordinatat direkt (p.sh. 41.321, 19.826)."}</p>
                                           )}
                                           {!editTopicGoogleMapsUrl && (
                                             <p className="text-[10px] text-muted-foreground">Pa link = vendndodhja standarte (Zyra IEKA)</p>
@@ -3779,7 +3785,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                               )
                           return (
                             <div className="space-y-2">
-                              {upcomingTopics.map(t => renderTopic(t, false))}
                               {pastTopics.length > 0 && (
                                 <>
                                   <button
@@ -3793,6 +3798,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   {showPastModuleTopics && pastTopics.map(t => renderTopic(t, true))}
                                 </>
                               )}
+                              {upcomingTopics.map(t => renderTopic(t, false))}
                             </div>
                           )
                         })()}
