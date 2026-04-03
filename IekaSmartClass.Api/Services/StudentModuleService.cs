@@ -324,7 +324,7 @@ public class StudentModuleService(
 
             var distance = HaversineDistanceMeters(latitude.Value, longitude.Value, topic.Latitude.Value, topic.Longitude.Value);
             if (distance > _locationSettings.MaxDistanceMeters)
-                throw new InvalidOperationException($"Jeni shumë larg vendit të mësimit ({distance:F0}m). Prezenca kërkon të jeni brenda {_locationSettings.MaxDistanceMeters:F0}m nga {topic.Location ?? "vendi i caktuar"}.");
+                throw new InvalidOperationException($"Ju ndodheni larg vendit të mësimit. Për të validuar prezencën ju kërkohet të jeni pranë vendit të caktuar.");
         }
 
         // Verify the student is assigned to this module

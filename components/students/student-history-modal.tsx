@@ -289,7 +289,7 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
                               <p className="px-4 py-3 text-xs text-muted-foreground italic">Asnjë temë e shtuar.</p>
                             ) : (
                               <div className="divide-y divide-border/50">
-                                {(mod.topics ?? []).map((topic) => (
+                                {[...(mod.topics ?? [])].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => (
                                   <div key={topic.id} className="px-4 py-2.5 flex flex-wrap items-start justify-between gap-2">
                                     <div className="min-w-0">
                                       <p className="text-sm font-medium text-foreground">{topic.name}</p>
