@@ -410,12 +410,14 @@ function emptyQuestion(order: number): QuestionDraft {
 }
 
 function EvaluationSection() {
-    const [list, setList] = useState<EvaluationListItem[]>([])
+    const [item, setItem] = useState<EvaluationListItem | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState("")
 
+    // modal state
+    const [modal, setModal] = useState<"edit" | "responses" | null>(null)
+
     // form state
-    const [formOpen, setFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [title, setTitle] = useState("")
     const [description, setDescription] = useState("")
@@ -429,21 +431,20 @@ function EvaluationSection() {
 
     // send state
     const [sendingId, setSendingId] = useState<string | null>(null)
-    const [sendResult, setSendResult] = useState<{ id: string; count: number; sentAt: string } | null>(null)
+    const [sendResult, setSendResult] = useState<{ count: number; sentAt: string } | null>(null)
 
     // responses state
-    const [responsesId, setResponsesId] = useState<string | null>(null)
     const [responses, setResponses] = useState<EvaluationResponseItem[]>([])
     const [responsesLoading, setResponsesLoading] = useState(false)
     const [expandedResponse, setExpandedResponse] = useState<string | null>(null)
 
     // confirm delete
-    const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [confirmDelete, setConfirmDelete] = useState(false)
 
-    const loadList = useCallback(async () => {
+    const loadItem = useCallback(async () => {
         try {
             const data = (await fetchApi("/Evaluation")) as EvaluationListItem[]
-            setList(data)
+            setItem(data.length > 0 ? data[0] : null)
             setError("")
         } catch (e: any) {
             setError(e?.message ?? "Gabim gjatë ngarkimit.")
@@ -452,10 +453,10 @@ function EvaluationSection() {
         }
     }, [])
 
-    useEffect(() => { void loadList() }, [loadList])
+    useEffect(() => { void loadItem() }, [loadItem])
 
     function resetForm() {
-        setFormOpen(false)
+        setModal(null)
         setEditingId(null)
         setTitle("")
         setDescription("")
@@ -467,10 +468,15 @@ function EvaluationSection() {
         setFormError("")
     }
 
-    async function openEdit(id: string) {
+    async function openEdit() {
+        if (!item) {
+            resetForm()
+            setModal("edit")
+            return
+        }
         try {
-            const detail = (await fetchApi(`/Evaluation/${id}`)) as EvaluationDetail
-            setEditingId(id)
+            const detail = (await fetchApi(`/Evaluation/${item.id}`)) as EvaluationDetail
+            setEditingId(item.id)
             setTitle(detail.title)
             setDescription(detail.description ?? "")
             setEmailSubject(detail.emailSubject)
@@ -485,7 +491,8 @@ function EvaluationSection() {
                     options: q.options ?? [],
                 }))
             )
-            setFormOpen(true)
+            setFormError("")
+            setModal("edit")
         } catch (e: any) {
             setError(e?.message ?? "Gabim gjatë ngarkimit.")
         }
@@ -526,7 +533,7 @@ function EvaluationSection() {
             }
 
             resetForm()
-            await loadList()
+            await loadItem()
         } catch (e: any) {
             setFormError(e?.message ?? "Ruajtja dështoi.")
         } finally {
@@ -534,23 +541,25 @@ function EvaluationSection() {
         }
     }
 
-    async function handleDelete(id: string) {
+    async function handleDelete() {
+        if (!item) return
         try {
-            await fetchApi(`/Evaluation/${id}`, { method: "DELETE" })
-            setDeletingId(null)
-            await loadList()
+            await fetchApi(`/Evaluation/${item.id}`, { method: "DELETE" })
+            setConfirmDelete(false)
+            setItem(null)
         } catch (e: any) {
             setError(e?.message ?? "Fshirja dështoi.")
         }
     }
 
-    async function handleSend(id: string) {
-        setSendingId(id)
+    async function handleSend() {
+        if (!item) return
+        setSendingId(item.id)
         setSendResult(null)
         try {
-            const result = (await fetchApi(`/Evaluation/${id}/send`, { method: "POST" })) as { recipientCount: number; sentAt: string }
-            setSendResult({ id, count: result.recipientCount, sentAt: result.sentAt })
-            await loadList()
+            const result = (await fetchApi(`/Evaluation/${item.id}/send`, { method: "POST" })) as { recipientCount: number; sentAt: string }
+            setSendResult({ count: result.recipientCount, sentAt: result.sentAt })
+            await loadItem()
         } catch (e: any) {
             setError(e?.message ?? "Dërgimi dështoi.")
         } finally {
@@ -558,12 +567,13 @@ function EvaluationSection() {
         }
     }
 
-    async function openResponses(id: string) {
-        setResponsesId(id)
+    async function openResponses() {
+        if (!item) return
+        setModal("responses")
         setResponsesLoading(true)
         setExpandedResponse(null)
         try {
-            const data = (await fetchApi(`/Evaluation/${id}/responses`)) as EvaluationResponseItem[]
+            const data = (await fetchApi(`/Evaluation/${item.id}/responses`)) as EvaluationResponseItem[]
             setResponses(data)
         } catch (e: any) {
             setError(e?.message ?? "Gabim gjatë ngarkimit.")
@@ -604,88 +614,23 @@ function EvaluationSection() {
         )
     }
 
-    // Responses modal
-    if (responsesId) {
-        const q = list.find((x) => x.id === responsesId)
-        return (
-            <div className="rounded-xl border border-border bg-card p-5 mb-4">
-                <div className="flex items-center justify-between mb-4">
+    /* ── Edit / Create Modal ── */
+    const editModal = modal === "edit" ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-2xl border border-border bg-card shadow-xl">
+                <div className="flex items-center justify-between border-b border-border px-6 py-4">
                     <div className="flex items-center gap-2">
-                        <Eye className="h-4.5 w-4.5 text-primary" />
-                        <h2 className="text-sm font-semibold text-foreground">
-                            Përgjigjet — {q?.title ?? "Pyetësor"}
-                        </h2>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => { setResponsesId(null); setResponses([]) }}>
-                        <X className="h-4 w-4" />
-                    </Button>
-                </div>
-
-                {responsesLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    </div>
-                ) : responses.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4">Nuk ka përgjigje ende.</p>
-                ) : (
-                    <div className="space-y-2">
-                        {responses.map((r) => (
-                            <div key={r.id} className="rounded-lg border border-border">
-                                <button
-                                    className="flex w-full items-center justify-between p-3 text-left text-sm"
-                                    onClick={() => setExpandedResponse(expandedResponse === r.id ? null : r.id)}
-                                >
-                                    <div>
-                                        <span className="font-medium">{r.userName ?? "Përdorues"}</span>
-                                        {r.userRole && <span className="ml-2 text-xs text-muted-foreground">({r.userRole})</span>}
-                                    </div>
-                                    <span className="text-xs text-muted-foreground">
-                                        {new Date(r.submittedAt).toLocaleDateString("sq-AL")}
-                                    </span>
-                                </button>
-                                {expandedResponse === r.id && (
-                                    <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
-                                        {r.answers.map((a) => (
-                                            <div key={a.id} className="text-xs">
-                                                <p className="font-medium text-muted-foreground">{a.questionText}</p>
-                                                <p className="text-foreground mt-0.5">
-                                                    {a.questionType === 2 ? (
-                                                        <span className="flex gap-0.5">
-                                                            {[1, 2, 3, 4, 5].map((s) => (
-                                                                <Star key={s} className={`h-3.5 w-3.5 ${Number(a.answerText) >= s ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
-                                                            ))}
-                                                        </span>
-                                                    ) : a.answerText}
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        )
-    }
-
-    // Form view
-    if (formOpen) {
-        return (
-            <div className="rounded-xl border border-border bg-card p-5 mb-4">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <ClipboardList className="h-4.5 w-4.5 text-primary" />
-                        <h2 className="text-sm font-semibold text-foreground">
+                        <ClipboardList className="h-5 w-5 text-primary" />
+                        <h2 className="text-base font-semibold text-foreground">
                             {editingId ? "Ndrysho Pyetësorin" : "Krijo Pyetësor të Ri"}
                         </h2>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={resetForm}>
-                        <X className="h-4 w-4" />
-                    </Button>
+                    <button onClick={resetForm} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <X className="h-5 w-5" />
+                    </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="max-h-[80vh] overflow-y-auto px-6 py-5 space-y-4">
                     <div>
                         <label className="text-xs font-medium text-muted-foreground">Titulli</label>
                         <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titulli i pyetësorit" />
@@ -715,8 +660,8 @@ function EvaluationSection() {
                     </div>
 
                     {/* Questions builder */}
-                    <div className="border-t border-border pt-3 mt-3">
-                        <div className="flex items-center justify-between mb-2">
+                    <div className="border-t border-border pt-4">
+                        <div className="flex items-center justify-between mb-3">
                             <p className="text-xs font-semibold text-foreground">Pyetjet</p>
                             <Button
                                 variant="ghost"
@@ -788,98 +733,168 @@ function EvaluationSection() {
                     </div>
 
                     {formError && <p className="text-xs text-destructive">{formError}</p>}
+                </div>
 
-                    <div className="flex justify-end gap-2 pt-2">
-                        <Button variant="outline" size="sm" onClick={resetForm}>Anulo</Button>
-                        <Button size="sm" onClick={() => void handleSave()} disabled={saving}>
-                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                            {editingId ? "Ruaj Ndryshimet" : "Krijo"}
-                        </Button>
-                    </div>
+                <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                    <Button variant="outline" size="sm" onClick={resetForm}>Anulo</Button>
+                    <Button size="sm" onClick={() => void handleSave()} disabled={saving}>
+                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                        {editingId ? "Ruaj Ndryshimet" : "Krijo"}
+                    </Button>
                 </div>
             </div>
-        )
-    }
+        </div>
+    ) : null
 
-    // List view
+    /* ── Responses Modal ── */
+    const responsesModal = modal === "responses" ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-2xl border border-border bg-card shadow-xl">
+                <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                    <div className="flex items-center gap-2">
+                        <Eye className="h-5 w-5 text-primary" />
+                        <h2 className="text-base font-semibold text-foreground">
+                            Përgjigjet — {item?.title ?? "Pyetësor"}
+                        </h2>
+                    </div>
+                    <button onClick={() => { setModal(null); setResponses([]) }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div className="max-h-[80vh] overflow-y-auto px-6 py-5">
+                    {responsesLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                    ) : responses.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4">Nuk ka përgjigje ende.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {responses.map((r) => (
+                                <div key={r.id} className="rounded-lg border border-border">
+                                    <button
+                                        className="flex w-full items-center justify-between p-3 text-left text-sm"
+                                        onClick={() => setExpandedResponse(expandedResponse === r.id ? null : r.id)}
+                                    >
+                                        <div>
+                                            <span className="font-medium">{r.userName ?? "Përdorues"}</span>
+                                            {r.userRole && <span className="ml-2 text-xs text-muted-foreground">({r.userRole})</span>}
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">
+                                            {new Date(r.submittedAt).toLocaleDateString("sq-AL")}
+                                        </span>
+                                    </button>
+                                    {expandedResponse === r.id && (
+                                        <div className="border-t border-border px-3 pb-3 pt-2 space-y-2">
+                                            {r.answers.map((a) => (
+                                                <div key={a.id} className="text-xs">
+                                                    <p className="font-medium text-muted-foreground">{a.questionText}</p>
+                                                    <p className="text-foreground mt-0.5">
+                                                        {a.questionType === 2 ? (
+                                                            <span className="flex gap-0.5">
+                                                                {[1, 2, 3, 4, 5].map((s) => (
+                                                                    <Star key={s} className={`h-3.5 w-3.5 ${Number(a.answerText) >= s ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                                                                ))}
+                                                            </span>
+                                                        ) : a.answerText}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    ) : null
+
+    /* ── Main Section ── */
     return (
-        <div className="rounded-xl border border-border bg-card p-5 mb-4">
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+        <>
+            <div className="rounded-xl border border-border bg-card p-5 mb-4">
+                <div className="flex items-center gap-2 mb-4">
                     <ClipboardList className="h-4.5 w-4.5 text-primary" />
                     <h2 className="text-sm font-semibold text-foreground">Vlerësimi i IEKA SmartClass</h2>
                 </div>
-                <Button size="sm" className="h-7 text-xs" onClick={() => { resetForm(); setFormOpen(true) }}>
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Krijo Pyetësor
-                </Button>
-            </div>
 
-            {error && <p className="text-xs text-destructive mb-2">{error}</p>}
+                {error && <p className="text-xs text-destructive mb-2">{error}</p>}
 
-            {sendResult && (
-                <div className="mb-3 flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-2.5 text-xs text-green-700">
-                    <Check className="h-3.5 w-3.5" />
-                    U dërgua te {sendResult.count} përdorues
-                    <button onClick={() => setSendResult(null)} className="ml-auto"><X className="h-3 w-3" /></button>
-                </div>
-            )}
+                {sendResult && (
+                    <div className="mb-3 flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/20 p-2.5 text-xs text-green-700">
+                        <Check className="h-3.5 w-3.5" />
+                        U dërgua te {sendResult.count} përdorues
+                        <button onClick={() => setSendResult(null)} className="ml-auto"><X className="h-3 w-3" /></button>
+                    </div>
+                )}
 
-            {loading ? (
-                <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
-            ) : list.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">Nuk ka pyetësorë. Krijoni të parin duke klikuar butonin sipër.</p>
-            ) : (
-                <div className="space-y-2">
-                    {list.map((item) => (
-                        <div key={item.id} className="rounded-lg border border-border p-3">
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
-                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                                        <span>{item.questionCount} pyetje</span>
-                                        <span>·</span>
-                                        <span>{item.responseCount} përgjigje</span>
-                                        {item.targetMembers && <span className="rounded bg-blue-500/10 text-blue-600 px-1.5 py-0.5">Anëtarë</span>}
-                                        {item.targetStudents && <span className="rounded bg-purple-500/10 text-purple-600 px-1.5 py-0.5">Studentë</span>}
+                {loading ? (
+                    <div className="flex items-center justify-center py-6">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    </div>
+                ) : !item ? (
+                    <div className="flex flex-col items-center gap-3 py-6">
+                        <p className="text-sm text-muted-foreground">Nuk ka pyetësor ende.</p>
+                        <Button size="sm" className="h-8 text-xs" onClick={() => void openEdit()}>
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Krijo Pyetësor
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="rounded-lg border border-border p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <button
+                                className="min-w-0 flex-1 text-left"
+                                onClick={() => void openEdit()}
+                            >
+                                <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                    <span>{item.questionCount} pyetje</span>
+                                    <span>·</span>
+                                    <span>{item.responseCount} përgjigje</span>
+                                    {item.targetMembers && <span className="rounded bg-blue-500/10 text-blue-600 px-1.5 py-0.5">Anëtarë</span>}
+                                    {item.targetStudents && <span className="rounded bg-purple-500/10 text-purple-600 px-1.5 py-0.5">Studentë</span>}
+                                </div>
+                                {item.sendLogs.length > 0 && (
+                                    <p className="mt-1 text-[11px] text-muted-foreground">
+                                        Dërgimi i fundit: {new Date(item.sendLogs[0].sentAt).toLocaleDateString("sq-AL")} — {item.sendLogs[0].recipientCount} marrës
+                                    </p>
+                                )}
+                            </button>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <Button
+                                    size="sm"
+                                    className="h-8 text-xs gap-1.5"
+                                    disabled={sendingId === item.id}
+                                    onClick={() => void handleSend()}
+                                >
+                                    {sendingId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                                    Dërgo pyetësorin
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Përgjigjet" onClick={() => void openResponses()}>
+                                    <Eye className="h-4 w-4" />
+                                </Button>
+                                {confirmDelete ? (
+                                    <div className="flex items-center gap-1">
+                                        <Button variant="destructive" size="sm" className="h-7 text-[11px] px-2" onClick={() => void handleDelete()}>Po</Button>
+                                        <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => setConfirmDelete(false)}>Jo</Button>
                                     </div>
-                                    {item.sendLogs.length > 0 && (
-                                        <p className="mt-1 text-[11px] text-muted-foreground">
-                                            Dërgimi i fundit: {new Date(item.sendLogs[0].sentAt).toLocaleDateString("sq-AL")} — {item.sendLogs[0].recipientCount} marrës
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Ndrysho" onClick={() => void openEdit(item.id)}>
-                                        <Pencil className="h-3.5 w-3.5" />
+                                ) : (
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" title="Fshi" onClick={() => setConfirmDelete(true)}>
+                                        <Trash2 className="h-4 w-4" />
                                     </Button>
-                                    <Button
-                                        variant="ghost" size="sm" className="h-7 w-7 p-0" title="Dërgo"
-                                        disabled={sendingId === item.id}
-                                        onClick={() => void handleSend(item.id)}
-                                    >
-                                        {sendingId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                                    </Button>
-                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Përgjigjet" onClick={() => void openResponses(item.id)}>
-                                        <Eye className="h-3.5 w-3.5" />
-                                    </Button>
-                                    {deletingId === item.id ? (
-                                        <div className="flex items-center gap-1 ml-1">
-                                            <Button variant="destructive" size="sm" className="h-7 text-[11px] px-2" onClick={() => void handleDelete(item.id)}>Po</Button>
-                                            <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={() => setDeletingId(null)}>Jo</Button>
-                                        </div>
-                                    ) : (
-                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" title="Fshi" onClick={() => setDeletingId(item.id)}>
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
-                                    )}
-                                </div>
+                                )}
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
-        </div>
+                    </div>
+                )}
+            </div>
+
+            {editModal}
+            {responsesModal}
+        </>
     )
 }

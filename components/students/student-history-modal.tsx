@@ -65,6 +65,7 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
   const [modulesExpanded, setModulesExpanded] = useState(false)
   const [docsExpanded, setDocsExpanded] = useState(false)
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
+  const [exportYears, setExportYears] = useState<number[]>([1, 2, 3])
 
   const handleDownload = useCallback(async (fileUrl: string, fileName: string, docId: string) => {
     setDownloadingDocId(docId)
@@ -183,13 +184,11 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
 
   const totalDocs = allTopicDocs.length + studentDocs.length
 
-  const [exportYears, setExportYears] = useState<number[]>([1, 2, 3])
-
   function handleExportStudentAttendance() {
     const filteredModules = exportYears.length > 0
       ? studentModules.filter(m => exportYears.includes(m.yearGrade))
       : studentModules
-    const rows = ["Moduli,Viti,Tema,Lektori,Data,Vendndodhja,Statusi,Data Prezences"]
+    const rows = ["sep=;", "Moduli;Viti;Tema;Lektori;Data;Vendndodhja;Statusi;Data Prezences"]
     for (const mod of filteredModules) {
       for (const topic of [...(mod.topics ?? [])].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))) {
         const status = topic.attended ? "Prezent"
@@ -197,7 +196,7 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
           : "Pa prezence"
         const attendedDate = topic.attendedAt ? formatDateTime(topic.attendedAt) : ""
         const topicDate = topic.scheduledDate ? formatDateTime(topic.scheduledDate) : ""
-        rows.push(`"${mod.title}",${mod.yearGrade},"${topic.name}","${topic.lecturer}","${topicDate}","${topic.location ?? ""}","${status}","${attendedDate}"`)
+        rows.push(`"${mod.title}";${mod.yearGrade};"${topic.name}";"${topic.lecturer}";"${topicDate}";"${topic.location ?? ""}";"${status}";"${attendedDate}"`)
       }
     }
     const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })

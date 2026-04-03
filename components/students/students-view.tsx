@@ -605,6 +605,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [topicSaving, setTopicSaving] = useState(false)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
+  const [expandedAttTopicId, setExpandedAttTopicId] = useState<string | null>(null)
+  const [modTopicAttUpdating, setModTopicAttUpdating] = useState<string | null>(null)
 
   // Module detail: per-topic document states
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
@@ -1999,11 +2001,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   function handleExportTopicAttendance() {
     if (!attSelectedTopic || !attModuleDetail) return
-    const rows = ["Nr,Emri,Mbiemri,Email,Statusi,Data Prezences"]
+    const rows = ["sep=;", "Nr;Emri;Mbiemri;Email;Statusi;Data Prezences"]
     attStudentsForTopic.forEach((s, idx) => {
       const status = s.wasBeforeAssignment ? "I pa regjistruar" : s.attended ? "Prezent" : "Pa prezence"
       const attendedDate = s.attendedAt ? format(parseISO(s.attendedAt), "dd MMM yyyy HH:mm") : ""
-      rows.push(`${idx + 1},"${s.firstName}","${s.lastName}","${s.email}","${status}","${attendedDate}"`)
+      rows.push(`${idx + 1};"${s.firstName}";"${s.lastName}";"${s.email}";"${status}";"${attendedDate}"`)
     })
     const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
@@ -2016,7 +2018,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   function handleExportModuleAttendance() {
     if (!attModuleDetail) return
-    const rows = ["Tema,Data Temes,Lektori,Emri,Mbiemri,Email,Statusi,Data Prezences"]
+    const rows = ["sep=;", "Tema;Data Temes;Lektori;Emri;Mbiemri;Email;Statusi;Data Prezences"]
     const sortedTopics = [...attModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
     for (const topic of sortedTopics) {
       const topicDate = topic.scheduledDate ? format(parseISO(topic.scheduledDate), "dd MMM yyyy HH:mm") : ""
@@ -2027,7 +2029,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           : false
         const status = wasBeforeAssignment ? "I pa regjistruar" : attendance ? "Prezent" : "Pa prezence"
         const attendedDate = attendance ? format(parseISO(attendance.attendedAt), "dd MMM yyyy HH:mm") : ""
-        rows.push(`"${topic.name}","${topicDate}","${topic.lecturer}","${assignment.firstName}","${assignment.lastName}","${assignment.email}","${status}","${attendedDate}"`)
+        rows.push(`"${topic.name}";"${topicDate}";"${topic.lecturer}";"${assignment.firstName}";"${assignment.lastName}";"${assignment.email}";"${status}";"${attendedDate}"`)
       }
     }
     const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
@@ -2037,6 +2039,51 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     a.download = `prezenca-modul-${attModuleDetail.title.replace(/\s+/g, "-")}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  function handleExportSingleTopicAttendance(topicId: string, topicName: string) {
+    if (!selectedModuleDetail) return
+    const topic = selectedModuleDetail.topics.find(t => t.id === topicId)
+    if (!topic) return
+    const rows = ["sep=;", "Nr;Emri;Mbiemri;Email;Statusi;Data Prezences"]
+    selectedModuleDetail.assignments.forEach((assignment, idx) => {
+      const attendance = assignment.topicAttendances.find(ta => ta.topicId === topicId)
+      const wasBeforeAssignment = topic.scheduledDate && assignment.assignedAt
+        ? new Date(topic.scheduledDate) < new Date(assignment.assignedAt)
+        : false
+      const status = wasBeforeAssignment ? "I pa regjistruar" : attendance ? "Prezent" : "Pa prezence"
+      const attendedDate = attendance ? format(parseISO(attendance.attendedAt), "dd MMM yyyy HH:mm") : ""
+      rows.push(`${idx + 1};"${assignment.firstName}";"${assignment.lastName}";"${assignment.email}";"${status}";"${attendedDate}"`)
+    })
+    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `prezenca-${topicName.replace(/\s+/g, "-")}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleModTopicMark(topicId: string, studentId: string) {
+    setModTopicAttUpdating(`${topicId}-${studentId}-mark`)
+    try {
+      await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "POST" })
+      if (selectedModuleDetail) {
+        const updated = (await fetchApi(`/StudentModules/${selectedModuleDetail.id}`)) as StudentModuleDetailResponse
+        setSelectedModuleDetail(updated)
+      }
+    } catch { /* ignore */ } finally { setModTopicAttUpdating(null) }
+  }
+
+  async function handleModTopicUnmark(topicId: string, studentId: string) {
+    setModTopicAttUpdating(`${topicId}-${studentId}-remove`)
+    try {
+      await fetchApi(`/StudentModules/topics/${topicId}/attendance/${studentId}`, { method: "DELETE" })
+      if (selectedModuleDetail) {
+        const updated = (await fetchApi(`/StudentModules/${selectedModuleDetail.id}`)) as StudentModuleDetailResponse
+        setSelectedModuleDetail(updated)
+      }
+    } catch { /* ignore */ } finally { setModTopicAttUpdating(null) }
   }
 
   function openEndStazhModal(student: AppUser) {
@@ -3188,6 +3235,35 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
+                            onClick={() => {
+                              if (!selectedModuleDetail) return
+                              const rows = ["sep=;", "Tema;Data Temes;Lektori;Emri;Mbiemri;Email;Statusi;Data Prezences"]
+                              const sortedTopics = [...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
+                              for (const t of sortedTopics) {
+                                const tDate = t.scheduledDate ? format(parseISO(t.scheduledDate), "dd MMM yyyy HH:mm") : ""
+                                for (const a of selectedModuleDetail.assignments) {
+                                  const att = a.topicAttendances.find(ta => ta.topicId === t.id)
+                                  const before = t.scheduledDate && a.assignedAt ? new Date(t.scheduledDate) < new Date(a.assignedAt) : false
+                                  const status = before ? "I pa regjistruar" : att ? "Prezent" : "Pa prezence"
+                                  const attDate = att ? format(parseISO(att.attendedAt), "dd MMM yyyy HH:mm") : ""
+                                  rows.push(`"${t.name}";"${tDate}";"${t.lecturer}";"${a.firstName}";"${a.lastName}";"${a.email}";"${status}";"${attDate}"`)
+                                }
+                              }
+                              const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
+                              const url = URL.createObjectURL(blob)
+                              const link = document.createElement("a")
+                              link.href = url
+                              link.download = `prezenca-modul-${selectedModuleDetail.title.replace(/\s+/g, "-")}.csv`
+                              link.click()
+                              URL.revokeObjectURL(url)
+                            }}
+                            className="rounded-md p-1.5 text-muted-foreground hover:text-green-600 hover:bg-green-500/10"
+                            title="Eksporto Modulin"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => { setSelectedModuleDetail(null); setTopicQrTokens({}); setTopicQrError("") }}
                             className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
                           >
@@ -3407,7 +3483,87 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                             </button>
                                           </div>
                                         )}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleExportSingleTopicAttendance(topic.id, topic.name)}
+                                          className="rounded-md p-1 text-muted-foreground hover:text-green-600 hover:bg-green-500/10 shrink-0"
+                                          title="List Prezenca"
+                                        >
+                                          <Download className="h-3.5 w-3.5" />
+                                        </button>
+                                        {isTopicPast && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedAttTopicId(expandedAttTopicId === topic.id ? null : topic.id)}
+                                            className={cn(
+                                              "rounded-md p-1 shrink-0",
+                                              expandedAttTopicId === topic.id
+                                                ? "text-primary bg-primary/10"
+                                                : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                            )}
+                                            title="Menaxho Prezencën"
+                                          >
+                                            <ClipboardList className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
                                       </div>
+
+                                      {/* ── Inline Attendance for past topics ── */}
+                                      {isTopicPast && expandedAttTopicId === topic.id && selectedModuleDetail && (
+                                        <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
+                                          <p className="text-xs font-semibold text-foreground mb-2">Prezenca e studentëve</p>
+                                          {selectedModuleDetail.assignments.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground">Nuk ka studentë të regjistruar.</p>
+                                          ) : (
+                                            <div className="space-y-1.5">
+                                              {selectedModuleDetail.assignments.map((assignment) => {
+                                                const attendance = assignment.topicAttendances.find(ta => ta.topicId === topic.id)
+                                                const wasBeforeAssignment = topic.scheduledDate && assignment.assignedAt
+                                                  ? new Date(topic.scheduledDate) < new Date(assignment.assignedAt)
+                                                  : false
+                                                const isUpdating = modTopicAttUpdating?.startsWith(`${topic.id}-${assignment.studentId}`)
+                                                return (
+                                                  <div key={assignment.studentId} className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2 border border-border/40">
+                                                    <div className="min-w-0">
+                                                      <p className="text-xs font-medium text-foreground truncate">{assignment.firstName} {assignment.lastName}</p>
+                                                      <p className="text-[10px] text-muted-foreground truncate">{assignment.email}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                      {wasBeforeAssignment ? (
+                                                        <span className="text-[10px] text-muted-foreground">I pa regjistruar</span>
+                                                      ) : attendance ? (
+                                                        <>
+                                                          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Prezent</span>
+                                                          <button
+                                                            type="button"
+                                                            disabled={!!isUpdating}
+                                                            onClick={() => handleModTopicUnmark(topic.id, assignment.studentId)}
+                                                            className="rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 disabled:opacity-50"
+                                                          >
+                                                            {isUpdating ? "..." : "Hiq"}
+                                                          </button>
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Mungon</span>
+                                                          <button
+                                                            type="button"
+                                                            disabled={!!isUpdating}
+                                                            onClick={() => handleModTopicMark(topic.id, assignment.studentId)}
+                                                            className="rounded-md px-2 py-1 text-[10px] font-medium text-green-600 bg-green-500/10 hover:bg-green-500/20 disabled:opacity-50"
+                                                          >
+                                                            {isUpdating ? "..." : "Prano"}
+                                                          </button>
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
 
                                       {/* ── Documents Section ── */}
                                       <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
@@ -4148,7 +4304,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   </span>
                                 )}
                               </div>
-                              {!s.wasBeforeAssignment && (
+                              {!s.wasBeforeAssignment ? (
                               <div className="mt-3 flex gap-2">
                                 <Button
                                   size="sm"
@@ -4164,6 +4320,27 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   className="h-7 flex-1 text-[11px]"
                                   variant={!s.attended ? "destructive" : "outline"}
                                   disabled={!s.attended || isUpdating || attIsFutureTopic}
+                                  onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                                >
+                                  {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
+                                </Button>
+                              </div>
+                              ) : !attIsFutureTopic && (
+                              <div className="mt-3 flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-7 flex-1 text-[11px]"
+                                  variant="outline"
+                                  disabled={s.attended || isUpdating}
+                                  onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                                >
+                                  {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 flex-1 text-[11px]"
+                                  variant="outline"
+                                  disabled={!s.attended || isUpdating}
                                   onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
                                 >
                                   {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
@@ -4210,7 +4387,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     )}
                                   </td>
                                   <td className="px-4 py-2.5">
-                                    {s.wasBeforeAssignment ? (
+                                    {s.wasBeforeAssignment && attIsFutureTopic ? (
                                       <div className="text-center text-[10px] text-muted-foreground/50">—</div>
                                     ) : (
                                     <div className="flex items-center justify-center gap-2">
