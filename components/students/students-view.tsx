@@ -1349,8 +1349,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attAllTopics = useMemo(() => {
     if (attShowPast) return attAllTopicsRaw
-    const now = new Date().toISOString()
-    return attAllTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate >= now)
+    const todayStr = new Date().toISOString().slice(0, 10)
+    return attAllTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate.slice(0, 10) >= todayStr)
   }, [attAllTopicsRaw, attShowPast])
 
   const attTopicsRaw = useMemo(() => {
@@ -1364,8 +1364,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attTopics = useMemo(() => {
     if (attShowPast) return attTopicsRaw
-    const now = new Date().toISOString()
-    return attTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate >= now)
+    const todayStr = new Date().toISOString().slice(0, 10)
+    return attTopicsRaw.filter(t => !t.scheduledDate || t.scheduledDate.slice(0, 10) >= todayStr)
   }, [attTopicsRaw, attShowPast])
 
   const attSelectedTopic = useMemo(() =>
@@ -2871,8 +2871,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           )}
 
           {/* Module Filters */}
-          <div className="mb-4 space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="mb-4 flex flex-wrap items-center gap-1.5">
               {(["upcoming", "past", "all"] as const).map((value) => {
                 const label = value === "upcoming" ? "Të ardhshme" : value === "past" ? "Të kaluara" : "Të gjitha"
                 return (
@@ -2891,8 +2890,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   </button>
                 )
               })}
-            </div>
-            <div className="flex items-center gap-2">
+              <div className="mx-1 h-4 w-px bg-border" />
               {([1, 2, 3] as const).map((grade) => (
                 <button
                   key={grade}
@@ -2908,7 +2906,6 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                   {formatYearGradeLabel(grade)}
                 </button>
               ))}
-            </div>
           </div>
 
           {/* Modules List */}
@@ -3807,7 +3804,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-foreground">Temat ({attTopics.length})</p>
                 {attTopics.map((topic) => {
-                  const isPast = topic.scheduledDate ? new Date(topic.scheduledDate) < new Date() : false
+                  const isPast = topic.scheduledDate ? topic.scheduledDate.slice(0, 10) < new Date().toISOString().slice(0, 10) : false
                   return (
                     <button
                       key={topic.id}
@@ -3845,7 +3842,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-foreground">Të gjitha temat ({attAllTopics.length})</p>
                 {attAllTopics.map((topic) => {
-                  const isPast = topic.scheduledDate ? new Date(topic.scheduledDate) < new Date() : false
+                  const isPast = topic.scheduledDate ? topic.scheduledDate.slice(0, 10) < new Date().toISOString().slice(0, 10) : false
                   return (
                     <button
                       key={topic.id}
