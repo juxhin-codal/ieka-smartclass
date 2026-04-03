@@ -290,8 +290,8 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
                             ) : (
                               <div className="divide-y divide-border/50">
                                 {[...(mod.topics ?? [])].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => (
-                                  <div key={topic.id} className="px-4 py-2.5 flex flex-wrap items-start justify-between gap-2">
-                                    <div className="min-w-0">
+                                  <div key={topic.id} className="px-4 py-2.5 flex items-center gap-3">
+                                    <div className="min-w-0 flex-1">
                                       <p className="text-sm font-medium text-foreground">{topic.name}</p>
                                       <p className="mt-0.5 text-xs text-muted-foreground">
                                         Lektori: {topic.lecturer}
@@ -303,8 +303,13 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
                                           {formatDateTime(topic.scheduledDate)}
                                         </p>
                                       ) : null}
+                                      {topic.attended && topic.attendedAt ? (
+                                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                          Prezenca u regjistrua më {formatDateTime(topic.attendedAt)}
+                                        </p>
+                                      ) : null}
                                     </div>
-                                    <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="shrink-0 w-[100px] flex justify-end">
                                       {topic.attended ? (
                                         <span className="flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-medium text-green-600">
                                           <CheckCircle2 className="h-3 w-3" />
@@ -320,11 +325,6 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
                                         </span>
                                       )}
                                     </div>
-                                    {topic.attended && topic.attendedAt ? (
-                                      <p className="w-full text-[11px] text-muted-foreground">
-                                        Prezenca u regjistrua më {formatDateTime(topic.attendedAt)}
-                                      </p>
-                                    ) : null}
                                   </div>
                                 ))}
                               </div>
