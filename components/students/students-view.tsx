@@ -620,6 +620,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [isDeletingTopic, setIsDeletingTopic] = useState(false)
   const [expandedAttTopicId, setExpandedAttTopicId] = useState<string | null>(null)
+  const [showPastModuleTopics, setShowPastModuleTopics] = useState(false)
   const [modTopicAttUpdating, setModTopicAttUpdating] = useState<string | null>(null)
 
   // Module detail: per-topic document states
@@ -1066,9 +1067,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         body: JSON.stringify({ url: value.trim() }),
       })
       if (res.ok) {
-        const { resolved } = await res.json()
-        if (resolved && parseGoogleMapsCoords(resolved)) {
-          setter(resolved)
+        const data = await res.json()
+        // If server extracted coords directly, use those as plain text
+        if (data.coords?.lat && data.coords?.lng) {
+          setter(`${data.coords.lat}, ${data.coords.lng}`)
+        } else if (data.resolved && parseGoogleMapsCoords(data.resolved)) {
+          setter(data.resolved)
         }
       }
     } catch { /* ignore */ } finally {
@@ -3402,7 +3406,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 {newTopicGoogleMapsUrl && !resolvingMapUrl && parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
                                   <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(newTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
                                 )}
-                                {newTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl) && !isShortGoogleMapsUrl(newTopicGoogleMapsUrl) && (
+                                {newTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl) && (
                                   <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
                                 )}
                                 {!newTopicGoogleMapsUrl && (
@@ -3412,7 +3416,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             )}
                             <div className="flex items-center gap-2 justify-end">
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAddTopicForm(false)} disabled={topicSaving}>Anulo</Button>
-                              <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim()}>
+                              <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim() || resolvingMapUrl || (!!newTopicGoogleMapsUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl))}>
                                 {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                                 {topicSaving ? "Duke ruajtur..." : "Ruaj Temën"}
                               </Button>
@@ -3425,15 +3429,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           <div className="rounded-xl border border-dashed border-border py-8 text-center">
                             <p className="text-xs text-muted-foreground">Asnjë temë akoma. Shtoni temën e parë.</p>
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {[...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? "")).map((topic) => {
-                              const isTopicPast = (() => {
-                                if (!topic.scheduledDate) return false
-                                const todayStr = localTodayStr()
-                                return topic.scheduledDate.slice(0, 10) < todayStr
-                              })()
-                              return (
+                        ) : (() => {
+                          const todayStr = localTodayStr()
+                          const sortedTopics = [...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
+                          const pastTopics = sortedTopics.filter(t => t.scheduledDate && t.scheduledDate.slice(0, 10) < todayStr)
+                          const upcomingTopics = sortedTopics.filter(t => !t.scheduledDate || t.scheduledDate.slice(0, 10) >= todayStr)
+                          const renderTopic = (topic: StudentModuleTopicResponse, isTopicPast: boolean) => (
                                 <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
                                   {editingTopicId === topic.id ? (
                                     /* Edit Topic Inline */
@@ -3476,7 +3477,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                           {editTopicGoogleMapsUrl && !resolvingMapUrl && parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
                                             <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
                                           )}
-                                          {editTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && !isShortGoogleMapsUrl(editTopicGoogleMapsUrl) && (
+                                          {editTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
                                             <p className="text-[10px] text-destructive">Formati i linkut nuk u njoh. Ngjitni një link Google Maps ose koordinata (lat, lng).</p>
                                           )}
                                           {!editTopicGoogleMapsUrl && (
@@ -3486,7 +3487,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       )}
                                       <div className="flex items-center gap-2 justify-end">
                                         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>
-                                        <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim()}>
+                                        <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim() || resolvingMapUrl || (!!editTopicGoogleMapsUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl))}>
                                           {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                                           {topicSaving ? "Duke ruajtur..." : "Ruaj"}
                                         </Button>
@@ -3776,9 +3777,25 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                   )}
                                 </div>
                               )
-                            })}
-                          </div>
-                        )}
+                          return (
+                            <div className="space-y-2">
+                              {upcomingTopics.map(t => renderTopic(t, false))}
+                              {pastTopics.length > 0 && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPastModuleTopics(p => !p)}
+                                    className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
+                                  >
+                                    {showPastModuleTopics ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                    Temat e kaluara ({pastTopics.length})
+                                  </button>
+                                  {showPastModuleTopics && pastTopics.map(t => renderTopic(t, true))}
+                                </>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
 
                       {/* Create Questionnaire Modal */}
