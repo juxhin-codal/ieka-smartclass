@@ -164,6 +164,7 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
             response = await fetch(requestUrl, {
                 ...options,
                 headers,
+                cache: "no-store",
             })
         } catch (error) {
             if (attempt < maxAttempts) {
@@ -209,5 +210,6 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     return fetch(resolveAnyUrl(url), {
         ...options,
         headers,
+        cache: "no-store",
     })
 }
