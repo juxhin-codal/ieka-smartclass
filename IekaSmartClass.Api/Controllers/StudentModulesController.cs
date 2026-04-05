@@ -132,9 +132,10 @@ public class StudentModulesController(
 
         try
         {
+            var (lat, lng) = await ResolveCoordinates(request.Latitude, request.Longitude, request.GoogleMapsUrl);
             var topic = await _studentModuleService.AddTopicAsync(
                 moduleId, request.Name, request.Lecturer, request.ScheduledDate, request.Location,
-                request.RequireLocation, request.Latitude, request.Longitude, cancellationToken);
+                request.RequireLocation, lat, lng, cancellationToken);
             return Ok(new { id = topic.Id });
         }
         catch (KeyNotFoundException)
@@ -161,9 +162,10 @@ public class StudentModulesController(
 
         try
         {
+            var (lat, lng) = await ResolveCoordinates(request.Latitude, request.Longitude, request.GoogleMapsUrl);
             await _studentModuleService.UpdateTopicAsync(
                 topicId, request.Name, request.Lecturer, request.ScheduledDate, request.Location,
-                request.RequireLocation, request.Latitude, request.Longitude, cancellationToken);
+                request.RequireLocation, lat, lng, cancellationToken);
             return NoContent();
         }
         catch (KeyNotFoundException)
@@ -782,14 +784,60 @@ public class StudentModulesController(
                 a.Question?.Type.ToString() ?? "",
                 a.AnswerText)).ToList())));
     }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
+
+    private static async Task<(double? Lat, double? Lng)> ResolveCoordinates(double? lat, double? lng, string? googleMapsUrl)
+    {
+        if (lat.HasValue && lng.HasValue) return (lat, lng);
+        if (string.IsNullOrWhiteSpace(googleMapsUrl)) return (lat, lng);
+
+        try
+        {
+            // Follow redirects for short URLs
+            using var request = new HttpRequestMessage(HttpMethod.Get, googleMapsUrl.Trim());
+            var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? "";
+
+            // Try extracting from final URL
+            var coords = ExtractCoordsFromText(finalUrl);
+            if (coords.HasValue) return coords.Value;
+
+            // Try from response body
+            var body = await response.Content.ReadAsStringAsync();
+            coords = ExtractCoordsFromText(body);
+            if (coords.HasValue) return coords.Value;
+        }
+        catch { /* fall through, use provided lat/lng or null */ }
+
+        return (lat, lng);
+    }
+
+    private static (double Lat, double Lng)? ExtractCoordsFromText(string text)
+    {
+        // !3d<lat>!4d<lng> (most precise, from data param)
+        var m = System.Text.RegularExpressions.Regex.Match(text, @"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)");
+        if (m.Success) return (double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture),
+                               double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture));
+        // @lat,lng
+        m = System.Text.RegularExpressions.Regex.Match(text, @"@(-?\d+\.\d+),(-?\d+\.\d+)");
+        if (m.Success) return (double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture),
+                               double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture));
+        // ?q=lat,lng
+        m = System.Text.RegularExpressions.Regex.Match(text, @"[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)");
+        if (m.Success) return (double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture),
+                               double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture));
+        return null;
+    }
 }
 
 // ── DTOs ────────────────────────────────────────────────────────────────────
 
 public record CreateStudentModuleRequest(int YearGrade, string Title, string? Location = null, List<Guid>? ExcludedStudentIds = null, List<Guid>? AdditionalStudentIds = null);
 
-public record AddTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null, bool RequireLocation = true, double? Latitude = null, double? Longitude = null);
-public record UpdateTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null, bool RequireLocation = true, double? Latitude = null, double? Longitude = null);
+public record AddTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null, bool RequireLocation = true, double? Latitude = null, double? Longitude = null, string? GoogleMapsUrl = null);
+public record UpdateTopicRequest(string Name, string Lecturer, DateTime? ScheduledDate = null, string? Location = null, bool RequireLocation = true, double? Latitude = null, double? Longitude = null, string? GoogleMapsUrl = null);
 
 public record StudentModuleTopicResponse(
     Guid Id,

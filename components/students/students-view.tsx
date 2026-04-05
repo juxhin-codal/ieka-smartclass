@@ -954,9 +954,28 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       const scheduledDate = newTopicScheduledDate
         ? (newTopicScheduledTime ? `${newTopicScheduledDate}T${newTopicScheduledTime}` : newTopicScheduledDate)
         : null
-      const customCoords = newTopicGoogleMapsUrl
+      let customCoords = newTopicGoogleMapsUrl
         ? parseGoogleMapsCoords(newTopicGoogleMapsUrl)
         : null
+      // If URL is a short Google Maps URL that wasn't resolved client-side, resolve now
+      if (!customCoords && newTopicGoogleMapsUrl && isShortGoogleMapsUrl(newTopicGoogleMapsUrl)) {
+        try {
+          const resolveRes = await fetch("/api/resolve-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: newTopicGoogleMapsUrl.trim() }),
+          })
+          if (resolveRes.ok) {
+            const data = await resolveRes.json()
+            if (data.coords?.lat && data.coords?.lng) {
+              customCoords = { lat: data.coords.lat, lng: data.coords.lng }
+            } else if (data.resolved) {
+              customCoords = parseGoogleMapsCoords(data.resolved)
+            }
+          }
+        } catch { /* will use null coords, backend fills defaults */ }
+      }
+      // If still a full Google Maps URL that we couldn't parse client-side, send it for backend resolution
       await fetchApi(`/StudentModules/${selectedModuleDetail.id}/topics`, {
         method: "POST",
         body: JSON.stringify({
@@ -967,6 +986,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           requireLocation: newTopicRequireLocation,
           latitude: customCoords?.lat ?? null,
           longitude: customCoords?.lng ?? null,
+          googleMapsUrl: !customCoords && newTopicGoogleMapsUrl ? newTopicGoogleMapsUrl.trim() : null,
         }),
       })
       setShowAddTopicForm(false)
@@ -994,9 +1014,27 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       const scheduledDate = editTopicScheduledDate
         ? (editTopicScheduledTime ? `${editTopicScheduledDate}T${editTopicScheduledTime}` : editTopicScheduledDate)
         : null
-      const customCoords = editTopicGoogleMapsUrl
+      let customCoords = editTopicGoogleMapsUrl
         ? parseGoogleMapsCoords(editTopicGoogleMapsUrl)
         : null
+      // If URL is a short Google Maps URL that wasn't resolved client-side, resolve now
+      if (!customCoords && editTopicGoogleMapsUrl && isShortGoogleMapsUrl(editTopicGoogleMapsUrl)) {
+        try {
+          const resolveRes = await fetch("/api/resolve-url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: editTopicGoogleMapsUrl.trim() }),
+          })
+          if (resolveRes.ok) {
+            const data = await resolveRes.json()
+            if (data.coords?.lat && data.coords?.lng) {
+              customCoords = { lat: data.coords.lat, lng: data.coords.lng }
+            } else if (data.resolved) {
+              customCoords = parseGoogleMapsCoords(data.resolved)
+            }
+          }
+        } catch { /* will use null coords, backend fills defaults */ }
+      }
       await fetchApi(`/StudentModules/topics/${topicId}`, {
         method: "PUT",
         body: JSON.stringify({
@@ -1007,6 +1045,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           requireLocation: editTopicRequireLocation,
           latitude: customCoords?.lat ?? null,
           longitude: customCoords?.lng ?? null,
+          googleMapsUrl: !customCoords && editTopicGoogleMapsUrl ? editTopicGoogleMapsUrl.trim() : null,
         }),
       })
       setEditingTopicId(null)
@@ -1496,7 +1535,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const attIsPastTopic = useMemo(() => {
     if (!attSelectedTopic?.scheduledDate) return false
-    return new Date(attSelectedTopic.scheduledDate) < new Date()
+    return attSelectedTopic.scheduledDate.slice(0, 10) < localTodayStr()
   }, [attSelectedTopic])
 
   const attIsFutureTopic = useMemo(() => {
@@ -5585,7 +5624,7 @@ function StudentCalendarView() {
           const t = selectedTopic.topic
           const docs = t.documents ?? []
           const isToday = t.scheduledDate ? format(parseISO(t.scheduledDate), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd") : false
-          const isPast = t.scheduledDate ? new Date(t.scheduledDate) < new Date() && !isToday : false
+          const isPast = t.scheduledDate ? t.scheduledDate.slice(0, 10) < localTodayStr() : false
           return (
             <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm" onClick={() => setSelectedTopic(null)}>
               <div

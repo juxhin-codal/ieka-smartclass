@@ -74,8 +74,14 @@ function resolveAnyUrl(url: string) {
         resolved = url.substring(idx)
     }
 
-    // Resolve relative /api/ paths to full URL so they work in PWA standalone mode
+    // On Vercel, route /api/ paths directly to production API (rewrites won't reach Docker backend)
     if (resolved.startsWith("/api/") && typeof window !== "undefined") {
+        const base = getApiBaseUrl()
+        if (base.startsWith("http")) {
+            // Use the production API base, replacing /api with the resolved path
+            const apiOrigin = new URL(base).origin
+            return `${apiOrigin}${resolved}`
+        }
         return `${window.location.origin}${resolved}`
     }
 
