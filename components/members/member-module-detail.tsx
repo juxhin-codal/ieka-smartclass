@@ -304,8 +304,8 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
                                     : isReservedByMember
                                         ? "border-blue-200 bg-blue-50/30 dark:border-blue-900/60 dark:bg-blue-950/20"
                                         : isDisabled
-                                        ? "border-border bg-muted/20 opacity-60 cursor-not-allowed"
-                                        : "border-border bg-card hover:border-primary/40"
+                                            ? "border-border bg-muted/20 opacity-60 cursor-not-allowed"
+                                            : "border-border bg-card hover:border-primary/40"
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
@@ -320,11 +320,11 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
                                                 ? "Ky sesion është rezervuar nga ju"
                                                 : requiresAdminPaymentApproval
                                                     ? "Rezervimi bllokohet derisa pagesa vjetore të verifikohet nga administratori"
-                                                : reachedMaxReservations
-                                                    ? "Maksimumi i rezervimeve është arritur"
-                                                    : isFull
-                                                        ? "Sesioni plotë — Listë Pritjeje"
-                                                        : `${remaining} vende të lira nga ${d.maxParticipants}`}
+                                                    : reachedMaxReservations
+                                                        ? "Maksimumi i rezervimeve është arritur"
+                                                        : isFull
+                                                            ? "Sesioni plotë — Listë Pritjeje"
+                                                            : `${remaining} vende të lira nga ${d.maxParticipants}`}
                                         </p>
                                     </div>
                                 </div>
