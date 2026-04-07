@@ -123,11 +123,10 @@ function LecturerFeedbackContent() {
                       className="rounded p-0.5 transition-transform hover:scale-110"
                     >
                       <Star
-                        className={`h-7 w-7 transition-colors ${
-                          s <= (hovered || rating)
+                        className={`h-7 w-7 transition-colors ${s <= (hovered || rating)
                             ? "fill-amber-400 text-amber-400"
                             : "text-muted-foreground"
-                        }`}
+                          }`}
                       />
                     </button>
                   ))}
@@ -154,9 +153,8 @@ function LecturerFeedbackContent() {
                   role="checkbox"
                   aria-checked={isAnonymous}
                   onClick={() => setIsAnonymous(!isAnonymous)}
-                  className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
-                    isAnonymous ? "border-primary bg-primary" : "border-border bg-background"
-                  }`}
+                  className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${isAnonymous ? "border-primary bg-primary" : "border-border bg-background"
+                    }`}
                 >
                   {isAnonymous && (
                     <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
