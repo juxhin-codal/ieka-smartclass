@@ -421,7 +421,8 @@ public class EmailService(
                 ["MODULE_NAME"] = item.ModuleName,
                 ["SESSION_DATE"] = item.SessionDate,
                 ["LECTURER_NAME"] = item.LecturerName,
-                ["ACTION_LINK"] = actionLink
+                ["ACTION_LINK"] = actionLink,
+                ["RAW_ACTION_LINK"] = actionLink
             });
 
         return SendUserEmailAsync(user, $"Vlerësoni lektorin: {item.ModuleName}", body, cancellationToken);
@@ -563,7 +564,7 @@ public class EmailService(
         }
 
         var baseUrl = string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
-            ? "http://localhost:3000"
+            ? "https://iekaclass.vercel.app"
             : _settings.FrontendBaseUrl.TrimEnd('/');
         var normalizedPath = link.StartsWith('/') ? link : $"/{link}";
         return $"{baseUrl}{normalizedPath}";
