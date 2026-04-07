@@ -54,11 +54,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-/api}"
         API_INTERNAL_URL: "${API_INTERNAL_URL:-http://api:8080}"
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-/api}"
       API_INTERNAL_URL: "${API_INTERNAL_URL:-http://api:8080}"
     depends_on:
       - api

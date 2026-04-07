@@ -1316,7 +1316,7 @@ export function MyDocumentsView() {
     try {
       const response = await fetchWithAuth(doc.fileUrl, { method: "GET" })
       if (!response.ok) {
-        throw new Error("Nuk u hap dokumenti.")
+        throw new Error(`Nuk u hap dokumenti. (${response.status})`)
       }
 
       const blob = await response.blob()

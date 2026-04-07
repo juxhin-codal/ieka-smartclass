@@ -74,7 +74,7 @@ function resolveAnyUrl(url: string) {
         resolved = url.substring(idx)
     }
 
-    // On Vercel, route /api/ paths directly to production API (rewrites won't reach Docker backend)
+    // On Vercel or non-HTTP origins (e.g. file:// in PWA/WebView), route directly to production API
     if (resolved.startsWith("/api/") && typeof window !== "undefined") {
         const base = getApiBaseUrl()
         if (base.startsWith("http")) {
@@ -82,7 +82,12 @@ function resolveAnyUrl(url: string) {
             const apiOrigin = new URL(base).origin
             return `${apiOrigin}${resolved}`
         }
-        return `${window.location.origin}${resolved}`
+        const origin = window.location.origin
+        if (origin.startsWith("http://") || origin.startsWith("https://")) {
+            return `${origin}${resolved}`
+        }
+        // Fallback for file:// or null origins (PWA standalone, WebView)
+        return `${DEFAULT_DIRECT_API_BASE_URL.replace(/\/api$/, "")}${resolved}`
     }
 
     return resolved
