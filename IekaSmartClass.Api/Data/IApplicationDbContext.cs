@@ -22,6 +22,7 @@ public interface IApplicationDbContext
     DbSet<StudentModuleDocument> StudentModuleDocuments { get; }
     DbSet<StudentModuleAssignment> StudentModuleAssignments { get; }
     DbSet<StudentModuleTopicAttendance> StudentModuleTopicAttendances { get; }
+    DbSet<StudentModuleTopicFeedback> StudentModuleTopicFeedbacks { get; }
     DbSet<TopicQuestionnaire> TopicQuestionnaires { get; }
     DbSet<TopicQuestionnaireQuestion> TopicQuestionnaireQuestions { get; }
     DbSet<TopicQuestionnaireResponse> TopicQuestionnaireResponses { get; }

@@ -17,6 +17,14 @@ type FeedbackInfo = {
 function LecturerFeedbackContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token") ?? ""
+  const type = searchParams.get("type") ?? "event" // "event" | "topic"
+
+  const infoUrl = type === "topic"
+    ? `/StudentModules/topic-feedback/info?token=${encodeURIComponent(token)}`
+    : `/Events/lecturer-feedback/info?token=${encodeURIComponent(token)}`
+  const submitUrl = type === "topic"
+    ? `/StudentModules/topic-feedback/submit?token=${encodeURIComponent(token)}`
+    : `/Events/lecturer-feedback/submit?token=${encodeURIComponent(token)}`
 
   const [info, setInfo] = useState<FeedbackInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,17 +42,17 @@ function LecturerFeedbackContent() {
       setLoading(false)
       return
     }
-    fetchApi(`/Events/lecturer-feedback/info?token=${encodeURIComponent(token)}`)
+    fetchApi(infoUrl)
       .then((data) => setInfo(data as FeedbackInfo))
       .catch(() => setError("Linku është i pavlefshëm ose ka skaduar."))
       .finally(() => setLoading(false))
-  }, [token])
+  }, [token, infoUrl])
 
   async function handleSubmit() {
     if (rating === 0) return
     setSubmitting(true)
     try {
-      await fetchApi(`/Events/lecturer-feedback/submit?token=${encodeURIComponent(token)}`, {
+      await fetchApi(submitUrl, {
         method: "POST",
         body: JSON.stringify({ rating, comment: comment.trim() || null, isAnonymous }),
       })

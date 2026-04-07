@@ -1,9 +1,11 @@
+using IekaSmartClass.Api.Data;
 using IekaSmartClass.Api.Services.Interface;
 using IekaSmartClass.Api.Data.Entities;
 using IekaSmartClass.Api.Utilities.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace IekaSmartClass.Api.Controllers;
 
@@ -785,6 +787,153 @@ public class StudentModulesController(
                 a.AnswerText)).ToList())));
     }
 
+    // ── Lecturer Feedback via Email Token ───────────────────────────────────
+
+    [HttpPost("topics/{topicId:guid}/send-feedback-emails")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SendTopicFeedbackEmails(
+        Guid topicId,
+        [FromServices] IApplicationDbContext db,
+        [FromServices] IEmailService emailService,
+        CancellationToken cancellationToken)
+    {
+        var topic = await db.StudentModuleTopics
+            .Include(t => t.StudentModule)
+            .Include(t => t.Attendances).ThenInclude(a => a.Student)
+            .FirstOrDefaultAsync(t => t.Id == topicId, cancellationToken);
+
+        if (topic is null) return NotFound();
+
+        var attendances = topic.Attendances.ToList();
+        if (attendances.Count == 0) return Ok(new { sent = 0 });
+
+        foreach (var att in attendances)
+            att.SetFeedbackToken(Guid.NewGuid().ToString("N"));
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        var sessionDateLabel = topic.ScheduledDate.HasValue
+            ? topic.ScheduledDate.Value.ToString("dd MMM yyyy")
+            : "—";
+        int sent = 0;
+        foreach (var att in attendances)
+        {
+            try
+            {
+                var link = $"/lecturer-feedback?type=topic&token={att.FeedbackToken}";
+                await emailService.SendLecturerFeedbackRequestAsync(
+                    att.Student,
+                    new LecturerFeedbackEmailItem(topic.Name, sessionDateLabel, topic.Lecturer, link),
+                    cancellationToken);
+                sent++;
+            }
+            catch { }
+        }
+
+        return Ok(new { sent });
+    }
+
+    [HttpGet("topic-feedback/info")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetTopicFeedbackInfo(
+        [FromQuery] string token,
+        [FromServices] IApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+
+        var attendance = await db.StudentModuleTopicAttendances
+            .Include(a => a.Topic).ThenInclude(t => t.StudentModule)
+            .FirstOrDefaultAsync(a => a.FeedbackToken == token, cancellationToken);
+
+        if (attendance is null) return NotFound();
+
+        var alreadySubmitted = await db.StudentModuleTopicFeedbacks.AnyAsync(
+            f => f.TopicId == attendance.TopicId && f.StudentId == attendance.StudentId,
+            cancellationToken);
+
+        return Ok(new
+        {
+            eventName = attendance.Topic.Name,
+            sessionDate = attendance.Topic.ScheduledDate.HasValue
+                ? attendance.Topic.ScheduledDate.Value.ToString("dd MMM yyyy")
+                : "—",
+            lecturerName = attendance.Topic.Lecturer,
+            alreadySubmitted
+        });
+    }
+
+    [HttpPost("topic-feedback/submit")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SubmitTopicFeedback(
+        [FromQuery] string token,
+        [FromBody] SubmitTopicFeedbackRequest request,
+        [FromServices] IApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+
+        var attendance = await db.StudentModuleTopicAttendances
+            .FirstOrDefaultAsync(a => a.FeedbackToken == token, cancellationToken);
+
+        if (attendance is null) return NotFound();
+
+        var alreadySubmitted = await db.StudentModuleTopicFeedbacks.AnyAsync(
+            f => f.TopicId == attendance.TopicId && f.StudentId == attendance.StudentId,
+            cancellationToken);
+
+        if (alreadySubmitted) return Conflict(new { message = "Feedback është dërguar tashmë." });
+
+        var rating = Math.Clamp(request.Rating, 1, 5);
+        var feedback = new StudentModuleTopicFeedback(
+            attendance.TopicId, attendance.StudentId,
+            rating, request.Comment?.Trim(), request.IsAnonymous);
+        db.StudentModuleTopicFeedbacks.Add(feedback);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpGet("topic-feedback/all")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> GetAllTopicFeedback(
+        [FromServices] IApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var feedbacks = await db.StudentModuleTopicFeedbacks
+            .Include(f => f.Topic).ThenInclude(t => t.StudentModule)
+            .OrderByDescending(f => f.SubmittedAt)
+            .ToListAsync(cancellationToken);
+
+        var userIds = feedbacks.Where(f => !f.IsAnonymous).Select(f => f.StudentId).Distinct().ToList();
+        var users = await db.Users
+            .Where(u => userIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, cancellationToken);
+
+        var result = feedbacks.Select(f =>
+        {
+            users.TryGetValue(f.StudentId, out var user);
+            return new
+            {
+                topicId = f.TopicId.ToString(),
+                topicName = f.Topic.Name,
+                moduleName = f.Topic.StudentModule.Title,
+                sessionDate = f.Topic.ScheduledDate.HasValue
+                    ? f.Topic.ScheduledDate.Value.ToString("dd MMM yyyy")
+                    : (string?)null,
+                lecturerName = f.Topic.Lecturer,
+                rating = f.Rating,
+                comment = f.Comment,
+                isAnonymous = f.IsAnonymous,
+                firstName = f.IsAnonymous ? null : user?.FirstName,
+                lastName = f.IsAnonymous ? null : user?.LastName,
+                submittedAt = f.SubmittedAt
+            };
+        });
+
+        return Ok(result);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
     private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
 
@@ -1011,3 +1160,5 @@ public record MyQuestionnaireResponseItem(
     int YearGrade,
     string SubmittedAt,
     List<QuestionnaireAnswerItem> Answers);
+
+public record SubmitTopicFeedbackRequest(int Rating, string? Comment, bool IsAnonymous);

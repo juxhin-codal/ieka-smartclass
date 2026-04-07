@@ -122,6 +122,7 @@ public class StudentModuleTopicAttendance
     public Guid TopicId { get; private set; }
     public Guid StudentId { get; private set; }
     public DateTime AttendedAt { get; private set; }
+    public string? FeedbackToken { get; private set; }
 
     public StudentModuleTopic Topic { get; private set; } = null!;
     public AppUser Student { get; private set; } = null!;
@@ -134,6 +135,35 @@ public class StudentModuleTopicAttendance
         TopicId = topicId;
         StudentId = studentId;
         AttendedAt = DateTime.UtcNow;
+    }
+
+    public void SetFeedbackToken(string token) { FeedbackToken = token; }
+}
+
+public class StudentModuleTopicFeedback
+{
+    public Guid Id { get; private set; }
+    public Guid TopicId { get; private set; }
+    public Guid StudentId { get; private set; }
+    public int Rating { get; private set; }
+    public string? Comment { get; private set; }
+    public bool IsAnonymous { get; private set; }
+    public DateTime SubmittedAt { get; private set; }
+
+    public StudentModuleTopic Topic { get; private set; } = null!;
+    public AppUser Student { get; private set; } = null!;
+
+    private StudentModuleTopicFeedback() { }
+
+    public StudentModuleTopicFeedback(Guid topicId, Guid studentId, int rating, string? comment, bool isAnonymous)
+    {
+        Id = Guid.NewGuid();
+        TopicId = topicId;
+        StudentId = studentId;
+        Rating = rating;
+        Comment = comment;
+        IsAnonymous = isAnonymous;
+        SubmittedAt = DateTime.UtcNow;
     }
 }
 

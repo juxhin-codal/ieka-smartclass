@@ -28,6 +28,7 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
     public DbSet<StudentModuleDocument> StudentModuleDocuments => Set<StudentModuleDocument>();
     public DbSet<StudentModuleAssignment> StudentModuleAssignments => Set<StudentModuleAssignment>();
     public DbSet<StudentModuleTopicAttendance> StudentModuleTopicAttendances => Set<StudentModuleTopicAttendance>();
+    public DbSet<StudentModuleTopicFeedback> StudentModuleTopicFeedbacks => Set<StudentModuleTopicFeedback>();
     public DbSet<TopicQuestionnaire> TopicQuestionnaires => Set<TopicQuestionnaire>();
     public DbSet<TopicQuestionnaireQuestion> TopicQuestionnaireQuestions => Set<TopicQuestionnaireQuestion>();
     public DbSet<TopicQuestionnaireResponse> TopicQuestionnaireResponses => Set<TopicQuestionnaireResponse>();
@@ -251,9 +252,26 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
         {
             entity.HasIndex(x => new { x.TopicId, x.StudentId }).IsUnique();
             entity.HasIndex(x => x.StudentId);
+            entity.HasIndex(x => x.FeedbackToken).IsUnique().HasFilter("[FeedbackToken] IS NOT NULL");
 
             entity.HasOne(x => x.Topic)
                 .WithMany(t => t.Attendances)
+                .HasForeignKey(x => x.TopicId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<StudentModuleTopicFeedback>(entity =>
+        {
+            entity.HasIndex(x => new { x.TopicId, x.StudentId }).IsUnique();
+            entity.HasIndex(x => x.StudentId);
+
+            entity.HasOne(x => x.Topic)
+                .WithMany()
                 .HasForeignKey(x => x.TopicId)
                 .OnDelete(DeleteBehavior.Cascade);
 

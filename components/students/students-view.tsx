@@ -75,6 +75,7 @@ import {
   XCircle,
   Users,
   RefreshCw,
+  Mail,
 } from "lucide-react"
 import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pagination-bar"
 
@@ -623,6 +624,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [expandedAttTopicId, setExpandedAttTopicId] = useState<string | null>(null)
   const [showPastModuleTopics, setShowPastModuleTopics] = useState(false)
   const [modTopicAttUpdating, setModTopicAttUpdating] = useState<string | null>(null)
+  const [topicFeedbackEmailState, setTopicFeedbackEmailState] = useState<Record<string, "idle" | "loading" | { sent: number } | "error">>({})
 
   // Module detail: per-topic document states
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
@@ -2216,6 +2218,16 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     } catch { /* ignore */ } finally { setModTopicAttUpdating(null) }
   }
 
+  async function sendTopicFeedbackEmails(topicId: string) {
+    setTopicFeedbackEmailState(prev => ({ ...prev, [topicId]: "loading" }))
+    try {
+      const data = await fetchApi(`/StudentModules/topics/${topicId}/send-feedback-emails`, { method: "POST" })
+      setTopicFeedbackEmailState(prev => ({ ...prev, [topicId]: { sent: (data as any)?.sent ?? 0 } }))
+    } catch {
+      setTopicFeedbackEmailState(prev => ({ ...prev, [topicId]: "error" }))
+    }
+  }
+
   function openEndStazhModal(student: AppUser) {
     setEndingStazhStudent(student)
     setEndingStazhRating(5)
@@ -3653,6 +3665,32 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                             <ClipboardList className="h-3.5 w-3.5" />
                                           </button>
                                         )}
+                                        {isTopicPast && (() => {
+                                          const fbState = topicFeedbackEmailState[topic.id]
+                                          return (
+                                            <button
+                                              type="button"
+                                              disabled={fbState === "loading"}
+                                              onClick={() => sendTopicFeedbackEmails(topic.id)}
+                                              className={cn(
+                                                "rounded-md p-1 shrink-0",
+                                                fbState === "error" ? "text-destructive bg-destructive/10"
+                                                  : typeof fbState === "object" ? "text-green-600 bg-green-500/10"
+                                                  : "text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10"
+                                              )}
+                                              title={
+                                                fbState === "loading" ? "Duke dërguar..."
+                                                  : fbState === "error" ? "Gabim — provo sërish"
+                                                  : typeof fbState === "object" ? `Dërguar ${fbState.sent} email`
+                                                  : "Dërgo Feedback Email"
+                                              }
+                                            >
+                                              {fbState === "loading"
+                                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                : <Mail className="h-3.5 w-3.5" />}
+                                            </button>
+                                          )
+                                        })()}
                                       </div>
 
                                       {/* ── Inline Attendance for past topics ── */}
@@ -5192,12 +5230,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   )
 }
 
-type LecturerFeedbackEntry = {
-  eventId: string
-  eventName: string
-  dateId: string | null
+type TopicFeedbackEntry = {
+  topicId: string
+  topicName: string
+  moduleName: string
   sessionDate: string | null
-  lecturerName: string | null
+  lecturerName: string
   rating: number
   comment: string | null
   isAnonymous: boolean
@@ -5207,28 +5245,28 @@ type LecturerFeedbackEntry = {
 }
 
 function LecturerRatingsView() {
-  const [entries, setEntries] = useState<LecturerFeedbackEntry[]>([])
+  const [topicEntries, setTopicEntries] = useState<TopicFeedbackEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({})
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    fetchApi("/Events/feedback/all")
-      .then((data) => setEntries(data as LecturerFeedbackEntry[]))
-      .catch(() => setEntries([]))
+    fetchApi("/StudentModules/topic-feedback/all")
+      .then((data) => setTopicEntries(data as TopicFeedbackEntry[]))
+      .catch(() => setTopicEntries([]))
       .finally(() => setLoading(false))
   }, [])
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, { eventName: string; sessions: Map<string, LecturerFeedbackEntry[]> }>()
-    for (const e of entries) {
-      if (!map.has(e.eventId)) map.set(e.eventId, { eventName: e.eventName, sessions: new Map() })
-      const sessionKey = e.sessionDate ?? "—"
-      const group = map.get(e.eventId)!
-      if (!group.sessions.has(sessionKey)) group.sessions.set(sessionKey, [])
-      group.sessions.get(sessionKey)!.push(e)
+  const topicGrouped = useMemo(() => {
+    const map = new Map<string, { moduleName: string; topics: Map<string, TopicFeedbackEntry[]> }>()
+    for (const e of topicEntries) {
+      if (!map.has(e.moduleName)) map.set(e.moduleName, { moduleName: e.moduleName, topics: new Map() })
+      const topicKey = `${e.topicName} (${e.sessionDate ?? "—"})`
+      const group = map.get(e.moduleName)!
+      if (!group.topics.has(topicKey)) group.topics.set(topicKey, [])
+      group.topics.get(topicKey)!.push(e)
     }
     return map
-  }, [entries])
+  }, [topicEntries])
 
   if (loading) return (
     <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -5236,7 +5274,7 @@ function LecturerRatingsView() {
     </div>
   )
 
-  if (grouped.size === 0) return (
+  if (topicGrouped.size === 0) return (
     <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
       Asnjë vlerësim ende.
     </div>
@@ -5244,36 +5282,32 @@ function LecturerRatingsView() {
 
   return (
     <div className="flex flex-col gap-4">
-      {Array.from(grouped.entries()).map(([eventId, { eventName, sessions }]) => {
-        const totalRatings = Array.from(sessions.values()).flat().length
-        const avgRating = totalRatings > 0
-          ? (Array.from(sessions.values()).flat().reduce((s, e) => s + e.rating, 0) / totalRatings).toFixed(1)
+      {Array.from(topicGrouped.entries()).map(([moduleName, { topics }]) => {
+        const allFbs = Array.from(topics.values()).flat()
+        const avgRating = allFbs.length > 0
+          ? (allFbs.reduce((s, e) => s + e.rating, 0) / allFbs.length).toFixed(1)
           : "—"
-        const isExpanded = expandedEvents[eventId] !== false // default open
-
+        const isExpanded = expandedModules[moduleName] !== false
         return (
-          <div key={eventId} className="rounded-lg border border-border bg-card overflow-hidden">
+          <div key={moduleName} className="rounded-lg border border-border bg-card overflow-hidden">
             <button
               type="button"
-              onClick={() => setExpandedEvents(prev => ({ ...prev, [eventId]: !isExpanded }))}
+              onClick={() => setExpandedModules(prev => ({ ...prev, [moduleName]: !isExpanded }))}
               className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-muted/30 transition-colors"
             >
               <div>
-                <p className="text-sm font-semibold text-foreground">{eventName}</p>
+                <p className="text-sm font-semibold text-foreground">{moduleName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {totalRatings} vlerësim{totalRatings !== 1 ? "e" : ""} · Mesatare: {avgRating}/5
+                  {allFbs.length} vlerësim{allFbs.length !== 1 ? "e" : ""} · Mesatare: {avgRating}/5
                 </p>
               </div>
               {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </button>
-
             {isExpanded && (
               <div className="border-t border-border px-5 py-4 flex flex-col gap-4">
-                {Array.from(sessions.entries()).map(([sessionDate, feedbacks]) => (
-                  <div key={sessionDate}>
-                    <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-                      Sesioni: {sessionDate}
-                    </p>
+                {Array.from(topics.entries()).map(([topicKey, feedbacks]) => (
+                  <div key={topicKey}>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">{topicKey}</p>
                     <div className="flex flex-col gap-2">
                       {feedbacks.map((fb, i) => (
                         <div key={i} className="rounded-md border border-border bg-muted/20 px-4 py-3 flex items-start gap-3">
