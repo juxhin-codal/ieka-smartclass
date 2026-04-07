@@ -3691,6 +3691,16 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                             </button>
                                           )
                                         })()}
+                                        {isTopicPast && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setDeletingTopicId(topic.id)}
+                                            className="rounded-md p-1 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                            title="Fshi temën"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
                                       </div>
 
                                       {/* ── Inline Attendance for past topics ── */}

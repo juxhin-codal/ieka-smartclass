@@ -543,7 +543,9 @@ public class EmailService(
 
     private string BuildFrontendUri(string path, IDictionary<string, string> queryParams)
     {
-        var baseUrl = (_settings.FrontendBaseUrl ?? "http://localhost:3000").TrimEnd('/');
+        var baseUrl = string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
+            ? "http://localhost:3000"
+            : _settings.FrontendBaseUrl.TrimEnd('/');
         var normalizedPath = path.StartsWith('/') ? path : $"/{path}";
         var query = string.Join(
             "&",
@@ -560,8 +562,11 @@ public class EmailService(
             return absolute.ToString();
         }
 
+        var baseUrl = string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
+            ? "http://localhost:3000"
+            : _settings.FrontendBaseUrl.TrimEnd('/');
         var normalizedPath = link.StartsWith('/') ? link : $"/{link}";
-        return $"{(_settings.FrontendBaseUrl ?? "http://localhost:3000").TrimEnd('/')}{normalizedPath}";
+        return $"{baseUrl}{normalizedPath}";
     }
 
     private string RenderTemplate(string fileName, IDictionary<string, string>? tokens = null)
@@ -577,7 +582,9 @@ public class EmailService(
         var mergedTokens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["APP_NAME"] = _settings.AppName,
-            ["PLATFORM_URL"] = (_settings.FrontendBaseUrl ?? "http://localhost:3000").TrimEnd('/')
+            ["PLATFORM_URL"] = string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
+                ? "http://localhost:3000"
+                : _settings.FrontendBaseUrl.TrimEnd('/')
         };
 
         if (tokens is not null)
@@ -605,7 +612,9 @@ public class EmailService(
 
     private string BuildPlatformButton()
     {
-        var url = System.Net.WebUtility.HtmlEncode((_settings.FrontendBaseUrl ?? "http://localhost:3000").TrimEnd('/'));
+        var url = System.Net.WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
+            ? "http://localhost:3000"
+            : _settings.FrontendBaseUrl.TrimEnd('/'));
         return $@"<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin:20px 0 0;'>
         <tr>
             <td style='background-color:#0f2138;border-radius:6px;'>
