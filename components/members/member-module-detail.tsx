@@ -42,6 +42,14 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
         void refreshProfile()
     }, [refreshProfile])
 
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onBack()
+        }
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [onBack])
+
     if (!event) {
         return (
             <div className="mx-auto max-w-2xl px-4 py-12 text-center">

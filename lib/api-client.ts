@@ -66,11 +66,11 @@ function resolveApiUrl(endpoint: string) {
 }
 
 function resolveAnyUrl(url: string) {
-    // Convert absolute download URLs to relative path first (e.g. old Azure URLs stored in DB)
+    // Convert absolute download URLs to relative path first (e.g. old Azure URLs or file:// URLs stored in DB)
     const downloadMarker = "/api/LearningStorage/download/"
     let resolved = url
     const idx = url.indexOf(downloadMarker)
-    if (idx > 0 && (url.startsWith("http://") || url.startsWith("https://"))) {
+    if (idx > 0 && (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://"))) {
         resolved = url.substring(idx)
     }
 
