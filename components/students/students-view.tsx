@@ -80,7 +80,7 @@ import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pag
 
 type SortKey = "name" | "attendance" | "mentor"
 type SortDir = "asc" | "desc"
-type ManagementTab = "modules" | "students" | "attendance"
+type ManagementTab = "modules" | "students" | "attendance" | "ratings"
 
 type ScheduleRow = {
   id: string
@@ -469,7 +469,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const defaultTab: ManagementTab = forcedTab ?? (isMentor ? "attendance" : "modules")
   const tabFromUrl = searchParams.get("tab") as ManagementTab | null
-  const validTabs: ManagementTab[] = ["modules", "students", "attendance"]
+  const validTabs: ManagementTab[] = ["modules", "students", "attendance", "ratings"]
   const [activeTab, setActiveTabState] = useState<ManagementTab>(
     !forcedTab && tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : defaultTab
   )
@@ -2262,17 +2262,21 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               <UserCheck className="h-5 w-5 text-primary" />
             ) : activeTab === "modules" ? (
               <Library className="h-5 w-5 text-primary" />
+            ) : activeTab === "ratings" ? (
+              <Star className="h-5 w-5 text-primary" />
             ) : (
               <GraduationCap className="h-5 w-5 text-primary" />
             )}
-            {activeTab === "attendance" ? "Prezenca" : activeTab === "modules" ? "Modulet e Studentëve" : "Studentë"}
+            {activeTab === "attendance" ? "Prezenca" : activeTab === "modules" ? "Modulet e Studentëve" : activeTab === "ratings" ? "Vlerësimet" : "Studentë"}
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {activeTab === "attendance"
               ? "Menaxhimi i prezencës dhe skanimit QR për studentët"
               : activeTab === "modules"
                 ? "Menaxhimi i moduleve të trajnimit për studentët"
-                : "Menaxhimi i studentëve dhe orarit të stazhit"}
+                : activeTab === "ratings"
+                  ? "Vlerësimet e lektorëve nga studentët dhe anëtarët"
+                  : "Menaxhimi i studentëve dhe orarit të stazhit"}
           </p>
         </div>
         {isAdmin && activeTab === "students" && (
@@ -2288,7 +2292,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       </div>
 
       {!forcedTab && (
-        <div className="mb-6 grid w-full grid-cols-3 gap-2 rounded-2xl border border-border bg-card p-1.5 sm:w-fit">
+        <div className="mb-6 grid w-full grid-cols-4 gap-2 rounded-2xl border border-border bg-card p-1.5 sm:w-fit">
           <button
             onClick={() => setActiveTab("modules")}
             className={cn(
@@ -2321,6 +2325,17 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
             )}
           >
             Prezenca
+          </button>
+          <button
+            onClick={() => setActiveTab("ratings")}
+            className={cn(
+              "rounded-xl px-3 py-2 text-sm font-medium transition-all",
+              activeTab === "ratings"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            Vlersime
           </button>
         </div>
       )}
@@ -5171,6 +5186,123 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           </div>
         </div>
       )}
+
+      {activeTab === "ratings" && <LecturerRatingsView />}
+    </div>
+  )
+}
+
+type LecturerFeedbackEntry = {
+  eventId: string
+  eventName: string
+  dateId: string | null
+  sessionDate: string | null
+  lecturerName: string | null
+  rating: number
+  comment: string | null
+  isAnonymous: boolean
+  firstName: string | null
+  lastName: string | null
+  submittedAt: string
+}
+
+function LecturerRatingsView() {
+  const [entries, setEntries] = useState<LecturerFeedbackEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    fetchApi("/Events/feedback/all")
+      .then((data) => setEntries(data as LecturerFeedbackEntry[]))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { eventName: string; sessions: Map<string, LecturerFeedbackEntry[]> }>()
+    for (const e of entries) {
+      if (!map.has(e.eventId)) map.set(e.eventId, { eventName: e.eventName, sessions: new Map() })
+      const sessionKey = e.sessionDate ?? "—"
+      const group = map.get(e.eventId)!
+      if (!group.sessions.has(sessionKey)) group.sessions.set(sessionKey, [])
+      group.sessions.get(sessionKey)!.push(e)
+    }
+    return map
+  }, [entries])
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin mr-2" /> Duke ngarkuar...
+    </div>
+  )
+
+  if (grouped.size === 0) return (
+    <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">
+      Asnjë vlerësim ende.
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+      {Array.from(grouped.entries()).map(([eventId, { eventName, sessions }]) => {
+        const totalRatings = Array.from(sessions.values()).flat().length
+        const avgRating = totalRatings > 0
+          ? (Array.from(sessions.values()).flat().reduce((s, e) => s + e.rating, 0) / totalRatings).toFixed(1)
+          : "—"
+        const isExpanded = expandedEvents[eventId] !== false // default open
+
+        return (
+          <div key={eventId} className="rounded-lg border border-border bg-card overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setExpandedEvents(prev => ({ ...prev, [eventId]: !isExpanded }))}
+              className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-muted/30 transition-colors"
+            >
+              <div>
+                <p className="text-sm font-semibold text-foreground">{eventName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {totalRatings} vlerësim{totalRatings !== 1 ? "e" : ""} · Mesatare: {avgRating}/5
+                </p>
+              </div>
+              {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {isExpanded && (
+              <div className="border-t border-border px-5 py-4 flex flex-col gap-4">
+                {Array.from(sessions.entries()).map(([sessionDate, feedbacks]) => (
+                  <div key={sessionDate}>
+                    <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                      Sesioni: {sessionDate}
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {feedbacks.map((fb, i) => (
+                        <div key={i} className="rounded-md border border-border bg-muted/20 px-4 py-3 flex items-start gap-3">
+                          <div className="flex gap-0.5 shrink-0 mt-0.5">
+                            {[1, 2, 3, 4, 5].map(s => (
+                              <Star key={s} className={`h-3.5 w-3.5 ${s <= fb.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                            ))}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-xs font-medium text-foreground">
+                                {fb.isAnonymous ? "Anonim" : `${fb.firstName ?? ""} ${fb.lastName ?? ""}`.trim() || "—"}
+                              </span>
+                              {fb.isAnonymous && (
+                                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">anonim</span>
+                              )}
+                            </div>
+                            {fb.comment && <p className="text-xs text-muted-foreground">{fb.comment}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

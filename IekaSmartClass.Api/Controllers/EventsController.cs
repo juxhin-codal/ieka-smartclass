@@ -2,6 +2,9 @@ using IekaSmartClass.Api.Services.Interface;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using IekaSmartClass.Api.Data;
+using IekaSmartClass.Api.Data.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace IekaSmartClass.Api.Controllers;
 
@@ -211,6 +214,155 @@ public class EventsController(IEventsService eventsService) : ControllerBase
         }
     }
 
+    // ── Lecturer Feedback via Email Token ──────────────────────────────────────
+
+    [HttpPost("{eventId:guid}/dates/{dateId:guid}/send-lecturer-feedback-emails")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SendLecturerFeedbackEmails(
+        Guid eventId, Guid dateId,
+        [FromServices] IApplicationDbContext db,
+        [FromServices] IEmailService emailService,
+        CancellationToken cancellationToken)
+    {
+        var eventItem = await db.Events
+            .Include(e => e.Dates)
+            .FirstOrDefaultAsync(e => e.Id == eventId, cancellationToken);
+        if (eventItem is null) return NotFound();
+
+        var sessionDate = eventItem.Dates.FirstOrDefault(d => d.Id == dateId);
+        if (sessionDate is null) return NotFound();
+
+        var participants = await db.Participants
+            .Include(p => p.User)
+            .Where(p => p.EventItemId == eventId && p.DateId == dateId && p.Attendance == "attended")
+            .ToListAsync(cancellationToken);
+
+        if (participants.Count == 0) return Ok(new { sent = 0 });
+
+        foreach (var p in participants)
+            p.SetFeedbackToken(Guid.NewGuid().ToString("N"));
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        var sessionDateLabel = sessionDate.Date.ToString("dd MMM yyyy");
+        var lecturerName = string.IsNullOrWhiteSpace(eventItem.LecturerName) ? "—" : eventItem.LecturerName;
+        int sent = 0;
+        foreach (var p in participants)
+        {
+            try
+            {
+                var link = $"/lecturer-feedback?token={p.FeedbackToken}";
+                await emailService.SendLecturerFeedbackRequestAsync(
+                    p.User,
+                    new LecturerFeedbackEmailItem(eventItem.Name, sessionDateLabel, lecturerName, link),
+                    cancellationToken);
+                sent++;
+            }
+            catch { /* continue sending other emails */ }
+        }
+
+        return Ok(new { sent });
+    }
+
+    [HttpGet("lecturer-feedback/info")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetLecturerFeedbackInfo(
+        [FromQuery] string token,
+        [FromServices] IApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+
+        var participant = await db.Participants
+            .Include(p => p.EventItem).ThenInclude(e => e.Dates)
+            .FirstOrDefaultAsync(p => p.FeedbackToken == token, cancellationToken);
+
+        if (participant is null) return NotFound();
+
+        var sessionDate = participant.EventItem.Dates.FirstOrDefault(d => d.Id == participant.DateId);
+        var alreadySubmitted = await db.EventFeedbacks.AnyAsync(
+            f => f.EventItemId == participant.EventItemId && f.DateId == participant.DateId && f.UserId == participant.UserId,
+            cancellationToken);
+
+        return Ok(new
+        {
+            eventName = participant.EventItem.Name,
+            sessionDate = sessionDate?.Date.ToString("dd MMM yyyy") ?? "—",
+            lecturerName = participant.EventItem.LecturerName ?? "—",
+            alreadySubmitted
+        });
+    }
+
+    [HttpPost("lecturer-feedback/submit")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SubmitLecturerFeedback(
+        [FromQuery] string token,
+        [FromBody] SubmitLecturerFeedbackRequest request,
+        [FromServices] IApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return BadRequest();
+
+        var participant = await db.Participants
+            .Include(p => p.EventItem)
+            .FirstOrDefaultAsync(p => p.FeedbackToken == token, cancellationToken);
+
+        if (participant is null) return NotFound();
+
+        var alreadySubmitted = await db.EventFeedbacks.AnyAsync(
+            f => f.EventItemId == participant.EventItemId && f.DateId == participant.DateId && f.UserId == participant.UserId,
+            cancellationToken);
+
+        if (alreadySubmitted) return Conflict(new { message = "Feedback është dërguar tashmë." });
+
+        var rating = Math.Clamp(request.Rating, 1, 5);
+        var feedback = new EventFeedback(participant.EventItemId, participant.DateId, participant.UserId, rating, request.Comment?.Trim(), request.IsAnonymous);
+        db.EventFeedbacks.Add(feedback);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpGet("feedback/all")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> GetAllLecturerFeedback(
+        [FromServices] IApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var feedbacks = await db.EventFeedbacks
+            .Include(f => f.EventItem).ThenInclude(e => e.Dates)
+            .Where(f => f.LecturerRating > 0)
+            .OrderByDescending(f => f.SubmittedAt)
+            .ToListAsync(cancellationToken);
+
+        var userIds = feedbacks.Where(f => !f.IsAnonymous).Select(f => f.UserId).Distinct().ToList();
+        var users = await db.Users
+            .Where(u => userIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, cancellationToken);
+
+        var result = feedbacks.Select(f =>
+        {
+            var sessionDate = f.EventItem.Dates.FirstOrDefault(d => d.Id == f.DateId);
+            users.TryGetValue(f.UserId, out var user);
+            return new
+            {
+                eventId = f.EventItemId.ToString(),
+                eventName = f.EventItem.Name,
+                dateId = f.DateId?.ToString(),
+                sessionDate = sessionDate?.Date.ToString("dd MMM yyyy"),
+                lecturerName = f.EventItem.LecturerName,
+                rating = f.LecturerRating,
+                comment = f.LecturerComments,
+                isAnonymous = f.IsAnonymous,
+                firstName = f.IsAnonymous ? null : user?.FirstName,
+                lastName = f.IsAnonymous ? null : user?.LastName,
+                submittedAt = f.SubmittedAt
+            };
+        });
+
+        return Ok(result);
+    }
+
     private static string? BuildFeedbackQuestionsJson(
         List<FeedbackQuestionRequest>? feedbackQuestions,
         List<FeedbackQuestionnaireRequest>? feedbackQuestionnaires)
@@ -290,3 +442,4 @@ public record MarkAttendanceRequest(string Status);
 
 public record AddEventDocumentRequest(string FileName, string FileUrl);
 public record UploadEventDocumentRequest(IFormFile File, string? FileName);
+public record SubmitLecturerFeedbackRequest(int Rating, string? Comment, bool IsAnonymous);

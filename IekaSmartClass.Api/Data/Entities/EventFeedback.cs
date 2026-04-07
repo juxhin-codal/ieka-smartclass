@@ -18,6 +18,7 @@ public class EventFeedback
     // Step 3: suggestions
     public string? Suggestions { get; private set; }
 
+    public bool IsAnonymous { get; private set; }
     public DateTime SubmittedAt { get; private set; }
 
     [System.Text.Json.Serialization.JsonIgnore]
@@ -33,6 +34,18 @@ public class EventFeedback
         LecturerRating = lecturerRating;
         LecturerComments = lecturerComments;
         Suggestions = suggestions;
+        SubmittedAt = DateTime.UtcNow;
+    }
+
+    // Constructor for lecturer-only feedback submitted via email token link
+    public EventFeedback(Guid eventItemId, Guid? dateId, Guid userId, int lecturerRating, string? lecturerComments, bool isAnonymous)
+    {
+        EventItemId = eventItemId;
+        DateId = dateId;
+        UserId = userId;
+        LecturerRating = lecturerRating;
+        LecturerComments = lecturerComments;
+        IsAnonymous = isAnonymous;
         SubmittedAt = DateTime.UtcNow;
     }
 

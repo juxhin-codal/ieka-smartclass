@@ -40,6 +40,7 @@ import {
   Upload,
   Search,
   Download,
+  Loader2,
 } from "lucide-react"
 
 interface EventDetailProps {
@@ -1033,10 +1034,24 @@ function UpcomingEventDetail({
    PAST EVENT DETAIL - Read Only, inline answers
    ================================================================== */
 function PastEventDetail({ event }: { event: EventItem }) {
+  const { user } = useAuth()
+  const isAdmin = user?.role === "Admin"
   const [showParticipants, setShowParticipants] = useState(true)
   const [expandedParticipantId, setExpandedParticipantId] = useState<string | null>(null)
   const [expandedPastSessionParticipants, setExpandedPastSessionParticipants] = useState<Record<string, boolean>>({})
   const [questionnaireSent, setQuestionnaireSent] = useState(false)
+  const [feedbackEmailState, setFeedbackEmailState] = useState<Record<string, "idle" | "loading" | { sent: number } | "error">>({})
+
+  async function sendFeedbackEmails(dateId: string) {
+    setFeedbackEmailState(prev => ({ ...prev, [dateId]: "loading" }))
+    try {
+      const res = await fetchWithAuth(`/api/Events/${event.id}/dates/${dateId}/send-lecturer-feedback-emails`, { method: "POST" })
+      const data = await res.json()
+      setFeedbackEmailState(prev => ({ ...prev, [dateId]: { sent: data.sent ?? 0 } }))
+    } catch {
+      setFeedbackEmailState(prev => ({ ...prev, [dateId]: "error" }))
+    }
+  }
   const feedbackQuestionnaires = useMemo(() => normalizeFeedbackQuestionnaires(event), [event])
   const flatFeedbackQuestions = useMemo(
     () => feedbackQuestionnaires.flatMap((questionnaire) => questionnaire.questions),
@@ -1164,6 +1179,24 @@ function PastEventDetail({ event }: { event: EventItem }) {
                       </div>
                       <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{participantsForSession.length} pjesëmarrës</span>
+                        {isAdmin && (() => {
+                          const st = feedbackEmailState[sessionDate.id]
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void sendFeedbackEmails(sessionDate.id) }}
+                              disabled={st === "loading"}
+                              className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+                            >
+                              {st === "loading" ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Mail className="h-3 w-3" />
+                              )}
+                              {typeof st === "object" ? `Dërguar ${st.sent}` : st === "error" ? "Gabim" : "Feedback Email"}
+                            </button>
+                          )
+                        })()}
                         {isSessionExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                       </div>
                     </button>

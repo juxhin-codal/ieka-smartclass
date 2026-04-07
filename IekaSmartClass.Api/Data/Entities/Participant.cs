@@ -13,6 +13,7 @@ public class Participant
     public DateTime RegisteredAt { get; private set; }
     public string Status { get; private set; }
     public string Attendance { get; private set; }
+    public string? FeedbackToken { get; private set; }
 
     [NotMapped]
     public string FirstName => User?.FirstName ?? string.Empty;
@@ -61,6 +62,11 @@ public class Participant
     {
         Status = "registered";
         SeatNumber = seatNumber;
+    }
+
+    public void SetFeedbackToken(string token)
+    {
+        FeedbackToken = token;
     }
 
     private Participant() { }

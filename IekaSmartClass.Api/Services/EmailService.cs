@@ -409,6 +409,24 @@ public class EmailService(
         return SendUserEmailAsync(user, item.EmailSubject, body, cancellationToken);
     }
 
+    public Task SendLecturerFeedbackRequestAsync(AppUser user, LecturerFeedbackEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = NormalizeFrontendLink(item.ActionLink);
+
+        var body = RenderTemplate(
+            "lecturer-feedback-request.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_NAME"] = item.ModuleName,
+                ["SESSION_DATE"] = item.SessionDate,
+                ["LECTURER_NAME"] = item.LecturerName,
+                ["ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, $"Vlerësoni lektorin: {item.ModuleName}", body, cancellationToken);
+    }
+
     private Task SendUserEmailAsync(AppUser user, string subject, string body, CancellationToken cancellationToken)
     {
         var recipientName = $"{user.FirstName} {user.LastName}".Trim();

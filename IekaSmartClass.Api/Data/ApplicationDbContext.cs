@@ -113,6 +113,11 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             .HasForeignKey(p => p.DateId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.Entity<Participant>()
+            .HasIndex(p => p.FeedbackToken)
+            .IsUnique()
+            .HasFilter("[FeedbackToken] IS NOT NULL");
+
         builder.Entity<StudentTrainingSession>(entity =>
         {
             entity.Property(x => x.StartTime).HasMaxLength(20);
