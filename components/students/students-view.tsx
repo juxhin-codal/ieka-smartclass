@@ -4134,7 +4134,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
                             <div className="flex items-center justify-between mb-4">
                               <h3 className="text-base font-semibold text-foreground">{questionnaireEditId ? "Ndrysho Pyetësor" : "Shto Pyetësor"} - {questionnaireTopicName}</h3>
-                              <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                              <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted" title="Mbyll"><X className="h-4 w-4" /></button>
                             </div>
 
                             <div className="space-y-4">
@@ -4281,7 +4281,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     <Download className="h-4 w-4" />
                                   </button>
                                 )}
-                                <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                                <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted" title="Mbyll"><X className="h-4 w-4" /></button>
                               </div>
                             </div>
 
