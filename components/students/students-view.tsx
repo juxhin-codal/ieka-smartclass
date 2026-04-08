@@ -605,6 +605,9 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   // Module list filters
   const [moduleYearFilter, setModuleYearFilter] = useState<number | null>(null)
   const [moduleTimeFilter, setModuleTimeFilter] = useState<"upcoming" | "past" | "all">("upcoming")
+  const [moduleSearch, setModuleSearch] = useState("")
+  const [modulesPage, setModulesPage] = useState(1)
+  const [modulesPageSize, setModulesPageSize] = useState<PageSize>(25)
 
   // Student list year filter
   const [studentYearFilter, setStudentYearFilter] = useState<number | null>(null)
@@ -1566,6 +1569,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   const filteredModules = useMemo(() => {
     let result = studentModules
+    if (moduleSearch.trim()) {
+      const q = moduleSearch.trim().toLowerCase()
+      result = result.filter((m) => m.title.toLowerCase().includes(q))
+    }
     if (moduleYearFilter !== null) result = result.filter((m) => m.yearGrade === moduleYearFilter)
     if (moduleTimeFilter !== "all") {
       const todayStr = localTodayStr()
@@ -1579,7 +1586,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       })
     }
     return result
-  }, [studentModules, moduleYearFilter, moduleTimeFilter])
+  }, [studentModules, moduleSearch, moduleYearFilter, moduleTimeFilter])
+
+  // Reset modules page when filters change
+  useEffect(() => { setModulesPage(1) }, [moduleSearch, moduleYearFilter, moduleTimeFilter])
+  const pagedModules = usePagination(filteredModules, modulesPageSize, modulesPage)
 
   const pagedStudents = usePagination(filteredStudents, pageSize, currentPage)
   const scheduleDuplicateDateSet = useMemo(() => getDuplicateScheduleDates(scheduleRows), [scheduleRows])
@@ -3290,6 +3301,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
             </div>
           )}
 
+          {/* Module Search */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Kërko module sipas emrit..."
+              value={moduleSearch}
+              onChange={(e) => setModuleSearch(e.target.value)}
+              className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
           {/* Module Filters */}
           <div className="mb-4 flex flex-wrap items-center gap-1.5">
             {(["upcoming", "past", "all"] as const).map((value) => {
@@ -3345,8 +3368,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
               <p className="text-sm text-muted-foreground">Asnjë modul për këtë filtër</p>
             </div>
           ) : (
+            <>
             <div className="space-y-3">
-              {filteredModules.map((mod) => (
+              {pagedModules.map((mod) => {
+                const modYear = mod.createdAt ? new Date(mod.createdAt).getFullYear() : null
+                return (
                 <div key={mod.id} className="rounded-xl border border-border bg-card p-5 shadow-sm cursor-pointer hover:border-primary/30 transition-colors" onClick={() => openModuleDetail(mod.id)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -3361,7 +3387,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         )}>
                           {formatYearGradeLabel(mod.yearGrade)}
                         </span>
-                        <h3 className="text-base font-semibold text-foreground">{mod.title}</h3>
+                        <h3 className="text-base font-semibold text-foreground">{mod.title}{modYear ? ` - (${modYear})` : ""}</h3>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                         <span>{mod.topics.length} temë</span>
@@ -3389,8 +3415,18 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                     </div>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
+            <PaginationBar
+              totalItems={filteredModules.length}
+              pageSize={modulesPageSize}
+              currentPage={modulesPage}
+              onPageChange={setModulesPage}
+              onPageSizeChange={setModulesPageSize}
+              className="mt-4"
+            />
+            </>
           )}
 
           {deletingModuleId && (
