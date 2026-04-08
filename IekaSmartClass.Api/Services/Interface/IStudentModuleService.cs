@@ -76,10 +76,12 @@ public sealed record StudentResultInput(
     string? Note = null);
 
 public sealed record QuestionnaireQuestionInput(
+    Guid? QuestionId,
     string Text,
     QuestionType Type,
     int Order,
-    List<string>? Options = null);
+    List<string>? Options = null,
+    string? CorrectAnswer = null);
 
 public sealed record QuestionnaireAnswerInput(
     Guid QuestionId,

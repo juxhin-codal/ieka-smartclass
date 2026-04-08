@@ -91,6 +91,15 @@ type ScheduleRow = {
   notes: string
 }
 
+type EditableQuestionnaireQuestion = {
+  id?: string
+  text: string
+  type: "Options" | "FreeText" | "Stars"
+  order: number
+  options: string[]
+  correctAnswer?: string
+}
+
 type StudentSummaryApi = {
   id: string
   firstName: string
@@ -652,10 +661,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   // Questionnaire state
   const [showQuestionnaireModal, setShowQuestionnaireModal] = useState(false)
+  const [questionnaireEditId, setQuestionnaireEditId] = useState<string | null>(null)
   const [questionnaireTopicId, setQuestionnaireTopicId] = useState<string | null>(null)
   const [questionnaireTopicName, setQuestionnaireTopicName] = useState("")
   const [questionnaireTitle, setQuestionnaireTitle] = useState("")
-  const [questionnaireQuestions, setQuestionnaireQuestions] = useState<Array<{ text: string; type: "Options" | "FreeText" | "Stars"; order: number; options: string[] }>>([])
+  const [questionnaireQuestions, setQuestionnaireQuestions] = useState<EditableQuestionnaireQuestion[]>([])
+  const [questionnaireLoading, setQuestionnaireLoading] = useState(false)
   const [questionnaireSaving, setQuestionnaireSaving] = useState(false)
   const [questionnaireError, setQuestionnaireError] = useState("")
 
@@ -1233,17 +1244,53 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   // ── Questionnaire handlers ──────────────────────────────────────────────
 
+  function createEmptyQuestion(order: number): EditableQuestionnaireQuestion {
+    return { text: "", type: "Options", order, options: ["", ""], correctAnswer: "" }
+  }
+
   function openCreateQuestionnaire(topicId: string, topicName: string) {
+    setQuestionnaireEditId(null)
     setQuestionnaireTopicId(topicId)
     setQuestionnaireTopicName(topicName)
     setQuestionnaireTitle("")
-    setQuestionnaireQuestions([{ text: "", type: "Options", order: 1, options: ["", ""] }])
+    setQuestionnaireQuestions([createEmptyQuestion(1)])
+    setQuestionnaireLoading(false)
     setQuestionnaireError("")
     setShowQuestionnaireModal(true)
   }
 
+  async function openEditQuestionnaire(questionnaireId: string, topicId: string, topicName: string) {
+    setQuestionnaireEditId(questionnaireId)
+    setQuestionnaireTopicId(topicId)
+    setQuestionnaireTopicName(topicName)
+    setQuestionnaireTitle("")
+    setQuestionnaireQuestions([])
+    setQuestionnaireError("")
+    setQuestionnaireLoading(true)
+    setShowQuestionnaireModal(true)
+
+    try {
+      const detail = (await fetchApi(`/StudentModules/questionnaires/${questionnaireId}`)) as QuestionnaireDetail
+      setQuestionnaireTitle(detail.title)
+      setQuestionnaireQuestions(
+        detail.questions.map((question, index) => ({
+          id: question.id,
+          text: question.text,
+          type: question.type,
+          order: index + 1,
+          options: question.type === "Options" ? (question.options?.length ? [...question.options] : ["", ""]) : [],
+          correctAnswer: question.correctAnswer ?? "",
+        }))
+      )
+    } catch (e: any) {
+      setQuestionnaireError(e?.message ?? "Gabim gjatë ngarkimit të pyetësorit.")
+    } finally {
+      setQuestionnaireLoading(false)
+    }
+  }
+
   function addQuestionnaireQuestion() {
-    setQuestionnaireQuestions(prev => [...prev, { text: "", type: "Options", order: prev.length + 1, options: ["", ""] }])
+    setQuestionnaireQuestions(prev => [...prev, createEmptyQuestion(prev.length + 1)])
   }
 
   function removeQuestionnaireQuestion(index: number) {
@@ -1254,7 +1301,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setQuestionnaireQuestions(prev => prev.map((q, i) => {
       if (i !== index) return q
       if (field === "type") {
-        return { ...q, type: value, options: value === "Options" ? ["", ""] : [] }
+        return {
+          ...q,
+          type: value,
+          options: value === "Options" ? (q.options.length ? q.options : ["", ""]) : [],
+          correctAnswer: value === "Options" ? q.correctAnswer ?? "" : "",
+        }
       }
       return { ...q, [field]: value }
     }))
@@ -1264,8 +1316,13 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     setQuestionnaireQuestions(prev => prev.map((q, i) => {
       if (i !== qIndex) return q
       const newOpts = [...q.options]
+      const previousValue = newOpts[optIndex]
       newOpts[optIndex] = value
-      return { ...q, options: newOpts }
+      return {
+        ...q,
+        options: newOpts,
+        correctAnswer: q.correctAnswer === previousValue ? value : q.correctAnswer,
+      }
     }))
   }
 
@@ -1279,31 +1336,56 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   function removeQuestionOption(qIndex: number, optIndex: number) {
     setQuestionnaireQuestions(prev => prev.map((q, i) => {
       if (i !== qIndex) return q
-      return { ...q, options: q.options.filter((_, j) => j !== optIndex) }
+      const removedOption = q.options[optIndex]
+      return {
+        ...q,
+        options: q.options.filter((_, j) => j !== optIndex),
+        correctAnswer: q.correctAnswer === removedOption ? "" : q.correctAnswer,
+      }
     }))
   }
 
-  async function handleCreateQuestionnaire() {
+  async function handleSaveQuestionnaire() {
     if (!questionnaireTopicId || !questionnaireTitle.trim()) return
     const validQuestions = questionnaireQuestions.filter(q => q.text.trim())
     if (validQuestions.length === 0) { setQuestionnaireError("Shtoni të paktën një pyetje."); return }
 
+    for (const question of validQuestions) {
+      if (question.type !== "Options") continue
+
+      const validOptions = question.options.map(option => option.trim()).filter(Boolean)
+      if (validOptions.length < 2) {
+        setQuestionnaireError("Pyetjet me opsione duhet të kenë të paktën 2 opsione.")
+        return
+      }
+
+      if (!question.correctAnswer?.trim() || !validOptions.includes(question.correctAnswer.trim())) {
+        setQuestionnaireError("Zgjidhni përgjigjen e saktë për çdo pyetje me opsione.")
+        return
+      }
+    }
+
     setQuestionnaireSaving(true)
     setQuestionnaireError("")
     try {
-      await fetchApi(`/StudentModules/topics/${questionnaireTopicId}/questionnaire`, {
-        method: "POST",
+      await fetchApi(questionnaireEditId
+        ? `/StudentModules/questionnaires/${questionnaireEditId}`
+        : `/StudentModules/topics/${questionnaireTopicId}/questionnaire`, {
+        method: questionnaireEditId ? "PUT" : "POST",
         body: JSON.stringify({
           title: questionnaireTitle.trim(),
-          questions: validQuestions.map(q => ({
+          questions: validQuestions.map((q, index) => ({
+            id: q.id ?? null,
             text: q.text.trim(),
             type: q.type === "Options" ? 0 : q.type === "FreeText" ? 1 : 2,
-            order: q.order,
-            options: q.type === "Options" ? q.options.filter(o => o.trim()) : null
+            order: index + 1,
+            options: q.type === "Options" ? q.options.map(option => option.trim()).filter(Boolean) : null,
+            correctAnswer: q.type === "Options" ? q.correctAnswer?.trim() ?? null : null,
           }))
         })
       })
       setShowQuestionnaireModal(false)
+      setQuestionnaireEditId(null)
       // Refresh module detail
       if (selectedModuleDetail) {
         const updated = (await fetchApi(`/StudentModules/${selectedModuleDetail.id}`)) as StudentModuleDetailResponse
@@ -1347,6 +1429,39 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     } catch { /* ignore */ } finally {
       setQuestionnaireResultsLoading(false)
     }
+  }
+
+  function downloadQuestionnaireResults() {
+    if (!questionnaireResponses.length) return
+    const title = questionnaireResultsDetail?.title ?? "Pyetësor"
+    const lines: string[] = []
+    lines.push(`REZULTATET E PYETËSORIT - ${title}`)
+    lines.push(`Gjeneruar: ${format(new Date(), "dd MMM yyyy, HH:mm")}`)
+    lines.push("=".repeat(60))
+    lines.push("")
+    for (const resp of questionnaireResponses) {
+      lines.push(`Studenti: ${resp.firstName} ${resp.lastName}`)
+      lines.push(`Data e Plotësimit: ${format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}`)
+      lines.push("-".repeat(40))
+      resp.answers.forEach((ans, idx) => {
+        const typeLabel = ans.questionType === "Options" ? "Opsione" : ans.questionType === "FreeText" ? "Tekst" : "Yje"
+        lines.push(`${idx + 1}. ${ans.questionText} (${typeLabel})`)
+        const answerDisplay = ans.questionType === "Stars" ? `${ans.answer}/5 yje` : ans.answer
+        lines.push(`   Përgjigje: ${answerDisplay}`)
+        if (ans.questionType === "Options" && ans.correctAnswer) {
+          const correct = ans.isCorrect ? "✓ Saktë" : `✗ Gabim (Saktë: ${ans.correctAnswer})`
+          lines.push(`   ${correct}`)
+        }
+      })
+      lines.push("")
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `pyetesor-${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}-rezultate.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function openQuestionnaireQr(questionnaireId: string) {
@@ -3176,40 +3291,40 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
           {/* Module Filters */}
           <div className="mb-4 flex flex-wrap items-center gap-1.5">
-              {(["upcoming", "past", "all"] as const).map((value) => {
-                const label = value === "upcoming" ? "Të ardhshme" : value === "past" ? "Të kaluara" : "Të gjitha"
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setModuleTimeFilter(value)}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                      moduleTimeFilter === value
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    )}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-              <div className="mx-1 h-4 w-px bg-border" />
-              {([1, 2, 3] as const).map((grade) => (
+            {(["upcoming", "past", "all"] as const).map((value) => {
+              const label = value === "upcoming" ? "Të ardhshme" : value === "past" ? "Të kaluara" : "Të gjitha"
+              return (
                 <button
-                  key={grade}
+                  key={value}
                   type="button"
-                  onClick={() => setModuleYearFilter(moduleYearFilter === grade ? null : grade)}
+                  onClick={() => setModuleTimeFilter(value)}
                   className={cn(
                     "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                    moduleYearFilter === grade
-                      ? grade === 1 ? "bg-blue-500/20 text-blue-600" : grade === 2 ? "bg-purple-500/20 text-purple-600" : "bg-emerald-500/20 text-emerald-600"
+                    moduleTimeFilter === value
+                      ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
-                  {formatYearGradeLabel(grade)}
+                  {label}
                 </button>
-              ))}
+              )
+            })}
+            <div className="mx-1 h-4 w-px bg-border" />
+            {([1, 2, 3] as const).map((grade) => (
+              <button
+                key={grade}
+                type="button"
+                onClick={() => setModuleYearFilter(moduleYearFilter === grade ? null : grade)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  moduleYearFilter === grade
+                    ? grade === 1 ? "bg-blue-500/20 text-blue-600" : grade === 2 ? "bg-purple-500/20 text-purple-600" : "bg-emerald-500/20 text-emerald-600"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                {formatYearGradeLabel(grade)}
+              </button>
+            ))}
           </div>
 
           {/* Modules List */}
@@ -3516,384 +3631,394 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           const pastTopics = sortedTopics.filter(t => t.scheduledDate && t.scheduledDate.slice(0, 10) < todayStr)
                           const upcomingTopics = sortedTopics.filter(t => !t.scheduledDate || t.scheduledDate.slice(0, 10) >= todayStr)
                           const renderTopic = (topic: StudentModuleTopicResponse, isTopicPast: boolean) => (
-                                <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
-                                  {editingTopicId === topic.id ? (
-                                    /* Edit Topic Inline */
-                                    <div className="p-4 space-y-3 bg-muted/20">
-                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                        <div className="flex flex-col gap-1">
-                                          <Label className="text-xs">Emri i Temës *</Label>
-                                          <Input value={editTopicName} onChange={(e) => setEditTopicName(e.target.value)} className="h-8 text-xs" />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                          <Label className="text-xs">Lektori *</Label>
-                                          <Input value={editTopicLecturer} onChange={(e) => setEditTopicLecturer(e.target.value)} className="h-8 text-xs" />
-                                        </div>
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                        <div className="flex flex-col gap-1">
-                                          <Label className="text-xs">Data</Label>
-                                          <Input type="date" value={editTopicScheduledDate} onChange={(e) => setEditTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                          <Label className="text-xs">Ora</Label>
-                                          <Input type="time" value={editTopicScheduledTime} onChange={(e) => setEditTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                          <Label className="text-xs">Vendndodhja</Label>
-                                          <Input value={editTopicLocation} onChange={(e) => setEditTopicLocation(e.target.value)} className="h-8 text-xs" />
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <input type="checkbox" id="editTopicRequireLocation" checked={editTopicRequireLocation} onChange={(e) => setEditTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
-                                        <Label htmlFor="editTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko validim vendndodhje GPS</Label>
-                                      </div>
-                                      {editTopicRequireLocation && (
-                                        <div className="flex flex-col gap-1">
-                                          <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
-                                          <Input value={editTopicGoogleMapsUrl} onChange={(e) => { setEditTopicGoogleMapsUrl(e.target.value); setMapUrlResolveError(""); resolveShortMapUrl(e.target.value, setEditTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
-                                          {resolvingMapUrl && (
-                                            <p className="text-[10px] text-muted-foreground">Duke zgjidhur linkun...</p>
-                                          )}
-                                          {editTopicGoogleMapsUrl && !resolvingMapUrl && parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
-                                            <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
-                                          )}
-                                          {editTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
-                                            <p className="text-[10px] text-destructive">{mapUrlResolveError || "Formati i linkut nuk u njoh. Ngjitni koordinatat direkt (p.sh. 41.321, 19.826)."}</p>
-                                          )}
-                                          {!editTopicGoogleMapsUrl && (
-                                            <p className="text-[10px] text-muted-foreground">Pa link = vendndodhja standarte (Zyra IEKA)</p>
-                                          )}
-                                        </div>
+                            <div key={topic.id} className="rounded-xl border border-border overflow-hidden">
+                              {editingTopicId === topic.id ? (
+                                /* Edit Topic Inline */
+                                <div className="p-4 space-y-3 bg-muted/20">
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Emri i Temës *</Label>
+                                      <Input value={editTopicName} onChange={(e) => setEditTopicName(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Lektori *</Label>
+                                      <Input value={editTopicLecturer} onChange={(e) => setEditTopicLecturer(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Data</Label>
+                                      <Input type="date" value={editTopicScheduledDate} onChange={(e) => setEditTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Ora</Label>
+                                      <Input type="time" value={editTopicScheduledTime} onChange={(e) => setEditTopicScheduledTime(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-xs">Vendndodhja</Label>
+                                      <Input value={editTopicLocation} onChange={(e) => setEditTopicLocation(e.target.value)} className="h-8 text-xs" />
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <input type="checkbox" id="editTopicRequireLocation" checked={editTopicRequireLocation} onChange={(e) => setEditTopicRequireLocation(e.target.checked)} className="h-3.5 w-3.5 rounded border-border" />
+                                    <Label htmlFor="editTopicRequireLocation" className="text-[11px] cursor-pointer text-muted-foreground">Kërko validim vendndodhje GPS</Label>
+                                  </div>
+                                  {editTopicRequireLocation && (
+                                    <div className="flex flex-col gap-1">
+                                      <Label className="text-[11px] text-muted-foreground">Google Maps Link ose koordinata (lat, lng)</Label>
+                                      <Input value={editTopicGoogleMapsUrl} onChange={(e) => { setEditTopicGoogleMapsUrl(e.target.value); setMapUrlResolveError(""); resolveShortMapUrl(e.target.value, setEditTopicGoogleMapsUrl) }} placeholder="Ngjit linkun e Google Maps ose p.sh. 41.321, 19.826" className="h-8 text-xs" />
+                                      {resolvingMapUrl && (
+                                        <p className="text-[10px] text-muted-foreground">Duke zgjidhur linkun...</p>
                                       )}
-                                      <div className="flex items-center gap-2 justify-end">
-                                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>
-                                        <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim() || resolvingMapUrl || (!!editTopicGoogleMapsUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl))}>
-                                          {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                          {topicSaving ? "Duke ruajtur..." : "Ruaj"}
-                                        </Button>
+                                      {editTopicGoogleMapsUrl && !resolvingMapUrl && parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
+                                        <p className="text-[10px] text-green-600">Koordinatat: {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lat.toFixed(6)}, {parseGoogleMapsCoords(editTopicGoogleMapsUrl)!.lng.toFixed(6)}</p>
+                                      )}
+                                      {editTopicGoogleMapsUrl && !resolvingMapUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl) && (
+                                        <p className="text-[10px] text-destructive">{mapUrlResolveError || "Formati i linkut nuk u njoh. Ngjitni koordinatat direkt (p.sh. 41.321, 19.826)."}</p>
+                                      )}
+                                      {!editTopicGoogleMapsUrl && (
+                                        <p className="text-[10px] text-muted-foreground">Pa link = vendndodhja standarte (Zyra IEKA)</p>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTopicId(null)} disabled={topicSaving}>Anulo</Button>
+                                    <Button size="sm" className="h-7 text-xs" onClick={() => handleUpdateTopic(topic.id)} disabled={topicSaving || !editTopicName.trim() || !editTopicLecturer.trim() || resolvingMapUrl || (!!editTopicGoogleMapsUrl && !parseGoogleMapsCoords(editTopicGoogleMapsUrl))}>
+                                      {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                      {topicSaving ? "Duke ruajtur..." : "Ruaj"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* Display Topic */
+                                <div className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-semibold text-foreground">{topic.name}</p>
+                                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                        <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
+                                        {topic.scheduledDate && (
+                                          <span className="inline-flex items-center gap-1">
+                                            <CalendarDays className="h-3 w-3" />
+                                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                                          </span>
+                                        )}
+                                        {topic.location && (
+                                          <span className="inline-flex items-center gap-1">
+                                            <MapPin className="h-3 w-3" />
+                                            {topic.location}
+                                          </span>
+                                        )}
+                                        <span className="inline-flex items-center gap-1">
+                                          <UserCheck className="h-3 w-3" />
+                                          {topic.attendanceCount} prezencë
+                                        </span>
                                       </div>
                                     </div>
-                                  ) : (
-                                    /* Display Topic */
-                                    <div className="px-4 py-3">
-                                      <div className="flex items-center gap-2">
-                                        <div className="min-w-0 flex-1">
-                                          <p className="text-sm font-semibold text-foreground">{topic.name}</p>
-                                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                            <span>Lektori: <strong className="text-foreground">{topic.lecturer}</strong></span>
-                                            {topic.scheduledDate && (
-                                              <span className="inline-flex items-center gap-1">
-                                                <CalendarDays className="h-3 w-3" />
-                                                {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
-                                              </span>
-                                            )}
-                                            {topic.location && (
-                                              <span className="inline-flex items-center gap-1">
-                                                <MapPin className="h-3 w-3" />
-                                                {topic.location}
-                                              </span>
-                                            )}
-                                            <span className="inline-flex items-center gap-1">
-                                              <UserCheck className="h-3 w-3" />
-                                              {topic.attendanceCount} prezencë
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="shrink-0 w-[100px] flex justify-end">
-                                          {topic.scheduledDate && (() => {
-                                            const topicDateStr = topic.scheduledDate!.slice(0, 10)
-                                            const todayStr = localTodayStr()
-                                            const isUpcoming = topicDateStr >= todayStr
-                                            return isUpcoming ? (
-                                              <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
-                                            ) : topic.attendanceCount > 0 ? (
-                                              <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Me prezencë</span>
-                                            ) : (
-                                              <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Pa prezencë</span>
-                                            )
-                                          })()}
-                                        </div>
-                                        {!isTopicPast && (
-                                          <div className="flex items-center gap-1 shrink-0">
-                                            <button
-                                              type="button"
-                                              onClick={() => handleOpenQrPopup(topic.id, topic.name, selectedModuleDetail.yearGrade)}
-                                              className="rounded-md p-1 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                                              title="Shfaq QR"
-                                            >
-                                              <QrCode className="h-3.5 w-3.5" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => startEditTopic(topic)}
-                                              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                              title="Ndrysho"
-                                            >
-                                              <Pencil className="h-3.5 w-3.5" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => setDeletingTopicId(topic.id)}
-                                              className="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                              title="Fshi temën"
-                                            >
-                                              <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                          </div>
-                                        )}
+                                    <div className="shrink-0 w-[100px] flex justify-end">
+                                      {topic.scheduledDate && (() => {
+                                        const topicDateStr = topic.scheduledDate!.slice(0, 10)
+                                        const todayStr = localTodayStr()
+                                        const isUpcoming = topicDateStr >= todayStr
+                                        return isUpcoming ? (
+                                          <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600">Në pritje</span>
+                                        ) : topic.attendanceCount > 0 ? (
+                                          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Me prezencë</span>
+                                        ) : (
+                                          <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Pa prezencë</span>
+                                        )
+                                      })()}
+                                    </div>
+                                    {!isTopicPast && (
+                                      <div className="flex items-center gap-1 shrink-0">
                                         <button
                                           type="button"
-                                          onClick={() => handleExportSingleTopicAttendance(topic.id, topic.name)}
-                                          className="rounded-md p-1 text-muted-foreground hover:text-green-600 hover:bg-green-500/10 shrink-0"
-                                          title="List Prezenca"
+                                          onClick={() => handleOpenQrPopup(topic.id, topic.name, selectedModuleDetail.yearGrade)}
+                                          className="rounded-md p-1 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                          title="Shfaq QR"
                                         >
-                                          <Download className="h-3.5 w-3.5" />
+                                          <QrCode className="h-3.5 w-3.5" />
                                         </button>
-                                        {isTopicPast && (
-                                          <button
-                                            type="button"
-                                            onClick={() => setExpandedAttTopicId(expandedAttTopicId === topic.id ? null : topic.id)}
-                                            className={cn(
-                                              "rounded-md p-1 shrink-0",
-                                              expandedAttTopicId === topic.id
-                                                ? "text-primary bg-primary/10"
-                                                : "text-muted-foreground hover:text-primary hover:bg-primary/10"
-                                            )}
-                                            title="Menaxho Prezencën"
-                                          >
-                                            <ClipboardList className="h-3.5 w-3.5" />
-                                          </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => startEditTopic(topic)}
+                                          className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                          title="Ndrysho"
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setDeletingTopicId(topic.id)}
+                                          className="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                          title="Fshi temën"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportSingleTopicAttendance(topic.id, topic.name)}
+                                      className="rounded-md p-1 text-muted-foreground hover:text-green-600 hover:bg-green-500/10 shrink-0"
+                                      title="List Prezenca"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                    </button>
+                                    {isTopicPast && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedAttTopicId(expandedAttTopicId === topic.id ? null : topic.id)}
+                                        className={cn(
+                                          "rounded-md p-1 shrink-0",
+                                          expandedAttTopicId === topic.id
+                                            ? "text-primary bg-primary/10"
+                                            : "text-muted-foreground hover:text-primary hover:bg-primary/10"
                                         )}
-                                        {isTopicPast && (() => {
-                                          const fbState = topicFeedbackEmailState[topic.id]
-                                          return (
-                                            <button
-                                              type="button"
-                                              disabled={fbState === "loading"}
-                                              onClick={() => sendTopicFeedbackEmails(topic.id)}
-                                              className={cn(
-                                                "rounded-md p-1 shrink-0",
-                                                fbState === "error" ? "text-destructive bg-destructive/10"
-                                                  : typeof fbState === "object" ? "text-green-600 bg-green-500/10"
-                                                  : "text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10"
-                                              )}
-                                              title={
-                                                fbState === "loading" ? "Duke dërguar..."
-                                                  : fbState === "error" ? "Gabim — provo sërish"
-                                                  : typeof fbState === "object" ? `Dërguar ${fbState.sent} email`
+                                        title="Menaxho Prezencën"
+                                      >
+                                        <ClipboardList className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                    {isTopicPast && (() => {
+                                      const fbState = topicFeedbackEmailState[topic.id]
+                                      return (
+                                        <button
+                                          type="button"
+                                          disabled={fbState === "loading"}
+                                          onClick={() => sendTopicFeedbackEmails(topic.id)}
+                                          className={cn(
+                                            "rounded-md p-1 shrink-0",
+                                            fbState === "error" ? "text-destructive bg-destructive/10"
+                                              : typeof fbState === "object" ? "text-green-600 bg-green-500/10"
+                                                : "text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10"
+                                          )}
+                                          title={
+                                            fbState === "loading" ? "Duke dërguar..."
+                                              : fbState === "error" ? "Gabim — provo sërish"
+                                                : typeof fbState === "object" ? `Dërguar ${fbState.sent} email`
                                                   : "Dërgo Feedback Email"
-                                              }
-                                            >
-                                              {fbState === "loading"
-                                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                : <Mail className="h-3.5 w-3.5" />}
-                                            </button>
-                                          )
-                                        })()}
-                                        {isTopicPast && (
-                                          <button
-                                            type="button"
-                                            onClick={() => setDeletingTopicId(topic.id)}
-                                            className="rounded-md p-1 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                            title="Fshi temën"
-                                          >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                          </button>
-                                        )}
-                                      </div>
+                                          }
+                                        >
+                                          {fbState === "loading"
+                                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            : <Mail className="h-3.5 w-3.5" />}
+                                        </button>
+                                      )
+                                    })()}
+                                    {isTopicPast && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setDeletingTopicId(topic.id)}
+                                        className="rounded-md p-1 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                        title="Fshi temën"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
 
-                                      {/* ── Inline Attendance for past topics ── */}
-                                      {isTopicPast && expandedAttTopicId === topic.id && selectedModuleDetail && (
-                                        <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
-                                          <p className="text-xs font-semibold text-foreground mb-2">Prezenca e studentëve</p>
-                                          {selectedModuleDetail.assignments.length === 0 ? (
-                                            <p className="text-xs text-muted-foreground">Nuk ka studentë të regjistruar.</p>
-                                          ) : (
-                                            <div className="space-y-1.5">
-                                              {selectedModuleDetail.assignments.map((assignment) => {
-                                                const attendance = assignment.topicAttendances.find(ta => ta.topicId === topic.id)
-                                                const wasBeforeAssignment = topic.scheduledDate && assignment.assignedAt
-                                                  ? new Date(topic.scheduledDate) < new Date(assignment.assignedAt)
-                                                  : false
-                                                const isUpdating = modTopicAttUpdating?.startsWith(`${topic.id}-${assignment.studentId}`)
-                                                return (
-                                                  <div key={assignment.studentId} className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2 border border-border/40">
-                                                    <div className="min-w-0">
-                                                      <p className="text-xs font-medium text-foreground truncate">{assignment.firstName} {assignment.lastName}</p>
-                                                      <p className="text-[10px] text-muted-foreground truncate">{assignment.email}</p>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                      {wasBeforeAssignment ? (
-                                                        <span className="text-[10px] text-muted-foreground">I pa regjistruar</span>
-                                                      ) : attendance ? (
-                                                        <>
-                                                          <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Prezent</span>
-                                                          <button
-                                                            type="button"
-                                                            disabled={!!isUpdating}
-                                                            onClick={() => handleModTopicUnmark(topic.id, assignment.studentId)}
-                                                            className="rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 disabled:opacity-50"
-                                                          >
-                                                            {isUpdating ? "..." : "Hiq"}
-                                                          </button>
-                                                        </>
-                                                      ) : (
-                                                        <>
-                                                          <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Mungon</span>
-                                                          <button
-                                                            type="button"
-                                                            disabled={!!isUpdating}
-                                                            onClick={() => handleModTopicMark(topic.id, assignment.studentId)}
-                                                            className="rounded-md px-2 py-1 text-[10px] font-medium text-green-600 bg-green-500/10 hover:bg-green-500/20 disabled:opacity-50"
-                                                          >
-                                                            {isUpdating ? "..." : "Prano"}
-                                                          </button>
-                                                        </>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                )
-                                              })}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* ── Documents Section ── */}
-                                      <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <div className="flex items-center gap-1.5">
-                                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                            <span className="text-xs font-semibold text-foreground">Dokumente</span>
-                                            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{topic.documents.length}</span>
-                                          </div>
-                                          {!isTopicPast && (
-                                            <div>
-                                              <input
-                                                type="file"
-                                                multiple
-                                                id={`topic-file-upload-${topic.id}`}
-                                                className="hidden"
-                                                onChange={(e) => {
-                                                  if (e.target.files && e.target.files.length > 0) {
-                                                    handleUploadTopicDocs(topic.id, Array.from(e.target.files))
-                                                    e.target.value = ""
-                                                  }
-                                                }}
-                                              />
-                                              <button
-                                                type="button"
-                                                onClick={() => document.getElementById(`topic-file-upload-${topic.id}`)?.click()}
-                                                disabled={uploadingDocs && uploadingDocsTopicId === topic.id}
-                                                className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
-                                              >
-                                                {uploadingDocs && uploadingDocsTopicId === topic.id ? (
-                                                  <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                                                ) : (
-                                                  <Plus className="h-2.5 w-2.5" />
-                                                )}
-                                                Ngarko
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
-                                        {topic.documents.length > 0 ? (
-                                          <div className="space-y-1">
-                                            {topic.documents.map((doc) => (
-                                              <div key={doc.id} className="group flex items-center justify-between gap-2 rounded-md border border-border/50 bg-card px-2.5 py-1.5 text-[11px] hover:bg-muted/30 transition-colors">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
-                                                  className="inline-flex items-center gap-1.5 min-w-0 hover:underline text-foreground"
-                                                >
-                                                  <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
-                                                  <span className="truncate">{doc.fileName}</span>
-                                                </button>
-                                                {!isTopicPast && (
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => { setDeletingDocId(doc.id); setDeletingDocTopicId(topic.id) }}
-                                                    className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity shrink-0"
-                                                  >
-                                                    <X className="h-3 w-3" />
-                                                  </button>
-                                                )}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <p className="text-[11px] text-muted-foreground italic">Asnjë dokument i ngarkuar.</p>
-                                        )}
-                                      </div>
-
-                                      {/* ── Questionnaires Section ── */}
-                                      <div className="mt-2 rounded-lg border border-primary/20 bg-primary/[0.02] p-3">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <div className="flex items-center gap-1.5">
-                                            <ClipboardList className="h-3.5 w-3.5 text-primary" />
-                                            <span className="text-xs font-semibold text-foreground">Pyetësorët</span>
-                                            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{(topic.questionnaires ?? []).length}</span>
-                                          </div>
-                                          {!isTopicPast && (
-                                            <button
-                                              type="button"
-                                              onClick={() => openCreateQuestionnaire(topic.id, topic.name)}
-                                              className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
-                                            >
-                                              <Plus className="h-2.5 w-2.5" />
-                                              Shto Pyetësor
-                                            </button>
-                                          )}
-                                        </div>
-                                        {(topic.questionnaires ?? []).length > 0 ? (
-                                          <div className="space-y-1.5">
-                                            {(topic.questionnaires ?? []).map((q) => (
-                                              <div key={q.id} className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-card px-2.5 py-2 text-[11px] hover:bg-primary/5 transition-colors">
-                                                <div className="flex items-center gap-1.5 min-w-0">
-                                                  <ClipboardList className="h-3 w-3 text-primary shrink-0" />
-                                                  <span className="font-medium text-foreground truncate">{q.title}</span>
-                                                  <span className="text-muted-foreground shrink-0">({q.questionCount} pyetje • {q.responseCount} përgjigje)</span>
+                                  {/* ── Inline Attendance for past topics ── */}
+                                  {isTopicPast && expandedAttTopicId === topic.id && selectedModuleDetail && (
+                                    <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
+                                      <p className="text-xs font-semibold text-foreground mb-2">Prezenca e studentëve</p>
+                                      {selectedModuleDetail.assignments.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground">Nuk ka studentë të regjistruar.</p>
+                                      ) : (
+                                        <div className="space-y-1.5">
+                                          {selectedModuleDetail.assignments.map((assignment) => {
+                                            const attendance = assignment.topicAttendances.find(ta => ta.topicId === topic.id)
+                                            const wasBeforeAssignment = topic.scheduledDate && assignment.assignedAt
+                                              ? new Date(topic.scheduledDate) < new Date(assignment.assignedAt)
+                                              : false
+                                            const isUpdating = modTopicAttUpdating?.startsWith(`${topic.id}-${assignment.studentId}`)
+                                            return (
+                                              <div key={assignment.studentId} className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2 border border-border/40">
+                                                <div className="min-w-0">
+                                                  <p className="text-xs font-medium text-foreground truncate">{assignment.firstName} {assignment.lastName}</p>
+                                                  <p className="text-[10px] text-muted-foreground truncate">{assignment.email}</p>
                                                 </div>
-                                                <div className="flex items-center gap-0.5 shrink-0">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => openQuestionnaireQr(q.id)}
-                                                    className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
-                                                    title="QR Pyetësor"
-                                                  >
-                                                    <QrCode className="h-3 w-3" />
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => openQuestionnaireResults(q.id)}
-                                                    className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
-                                                    title="Shiko Rezultatet"
-                                                  >
-                                                    <Eye className="h-3 w-3" />
-                                                  </button>
-                                                  {!isTopicPast && (
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => setDeletingQuestionnaireId(q.id)}
-                                                      className="rounded-md p-1 text-destructive hover:bg-destructive/10 transition-colors"
-                                                      title="Fshi Pyetësorin"
-                                                    >
-                                                      <Trash2 className="h-3 w-3" />
-                                                    </button>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                  {wasBeforeAssignment ? (
+                                                    <span className="text-[10px] text-muted-foreground">I pa regjistruar</span>
+                                                  ) : attendance ? (
+                                                    <>
+                                                      <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600">Prezent</span>
+                                                      <button
+                                                        type="button"
+                                                        disabled={!!isUpdating}
+                                                        onClick={() => handleModTopicUnmark(topic.id, assignment.studentId)}
+                                                        className="rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 disabled:opacity-50"
+                                                      >
+                                                        {isUpdating ? "..." : "Hiq"}
+                                                      </button>
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600">Mungon</span>
+                                                      <button
+                                                        type="button"
+                                                        disabled={!!isUpdating}
+                                                        onClick={() => handleModTopicMark(topic.id, assignment.studentId)}
+                                                        className="rounded-md px-2 py-1 text-[10px] font-medium text-green-600 bg-green-500/10 hover:bg-green-500/20 disabled:opacity-50"
+                                                      >
+                                                        {isUpdating ? "..." : "Prano"}
+                                                      </button>
+                                                    </>
                                                   )}
                                                 </div>
                                               </div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <p className="text-[11px] text-muted-foreground italic">Asnjë pyetësor i shtuar.</p>
-                                        )}
-                                      </div>
+                                            )
+                                          })}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
+
+                                  {/* ── Documents Section ── */}
+                                  <div className="mt-3 rounded-lg border border-border/60 bg-muted/10 p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span className="text-xs font-semibold text-foreground">Dokumente</span>
+                                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{topic.documents.length}</span>
+                                      </div>
+                                      {!isTopicPast && (
+                                        <div>
+                                          <input
+                                            type="file"
+                                            multiple
+                                            id={`topic-file-upload-${topic.id}`}
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              if (e.target.files && e.target.files.length > 0) {
+                                                handleUploadTopicDocs(topic.id, Array.from(e.target.files))
+                                                e.target.value = ""
+                                              }
+                                            }}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => document.getElementById(`topic-file-upload-${topic.id}`)?.click()}
+                                            disabled={uploadingDocs && uploadingDocsTopicId === topic.id}
+                                            className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                                          >
+                                            {uploadingDocs && uploadingDocsTopicId === topic.id ? (
+                                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                            ) : (
+                                              <Plus className="h-2.5 w-2.5" />
+                                            )}
+                                            Ngarko
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {topic.documents.length > 0 ? (
+                                      <div className="space-y-1">
+                                        {topic.documents.map((doc) => (
+                                          <div key={doc.id} className="group flex items-center justify-between gap-2 rounded-md border border-border/50 bg-card px-2.5 py-1.5 text-[11px] hover:bg-muted/30 transition-colors">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadModuleDoc(doc.fileUrl, doc.fileName)}
+                                              className="inline-flex items-center gap-1.5 min-w-0 hover:underline text-foreground"
+                                            >
+                                              <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                                              <span className="truncate">{doc.fileName}</span>
+                                            </button>
+                                            {!isTopicPast && (
+                                              <button
+                                                type="button"
+                                                onClick={() => { setDeletingDocId(doc.id); setDeletingDocTopicId(topic.id) }}
+                                                className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity shrink-0"
+                                              >
+                                                <X className="h-3 w-3" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-[11px] text-muted-foreground italic">Asnjë dokument i ngarkuar.</p>
+                                    )}
+                                  </div>
+
+                                  {/* ── Questionnaires Section ── */}
+                                  <div className="mt-2 rounded-lg border border-primary/20 bg-primary/[0.02] p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <ClipboardList className="h-3.5 w-3.5 text-primary" />
+                                        <span className="text-xs font-semibold text-foreground">Pyetësorët</span>
+                                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{(topic.questionnaires ?? []).length}</span>
+                                      </div>
+                                      {!isTopicPast && (
+                                        <button
+                                          type="button"
+                                          onClick={() => openCreateQuestionnaire(topic.id, topic.name)}
+                                          className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                                        >
+                                          <Plus className="h-2.5 w-2.5" />
+                                          Shto Pyetësor
+                                        </button>
+                                      )}
+                                    </div>
+                                    {(topic.questionnaires ?? []).length > 0 ? (
+                                      <div className="space-y-1.5">
+                                        {(topic.questionnaires ?? []).map((q) => (
+                                          <div key={q.id} className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-card px-2.5 py-2 text-[11px] hover:bg-primary/5 transition-colors">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                              <ClipboardList className="h-3 w-3 text-primary shrink-0" />
+                                              <span className="font-medium text-foreground truncate">{q.title}</span>
+                                              <span className="text-muted-foreground shrink-0">({q.questionCount} pyetje • {q.responseCount} përgjigje)</span>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 shrink-0">
+                                              {!isTopicPast && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => void openEditQuestionnaire(q.id, topic.id, topic.name)}
+                                                  className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
+                                                  title="Ndrysho Pyetësorin"
+                                                >
+                                                  <Pencil className="h-3 w-3" />
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => openQuestionnaireQr(q.id)}
+                                                className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
+                                                title="QR Pyetësor"
+                                              >
+                                                <QrCode className="h-3 w-3" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => openQuestionnaireResults(q.id)}
+                                                className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
+                                                title="Shiko Rezultatet"
+                                              >
+                                                <Eye className="h-3 w-3" />
+                                              </button>
+                                              {!isTopicPast && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setDeletingQuestionnaireId(q.id)}
+                                                  className="rounded-md p-1 text-destructive hover:bg-destructive/10 transition-colors"
+                                                  title="Fshi Pyetësorin"
+                                                >
+                                                  <Trash2 className="h-3 w-3" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-[11px] text-muted-foreground italic">Asnjë pyetësor i shtuar.</p>
+                                    )}
+                                  </div>
                                 </div>
-                              )
+                              )}
+                            </div>
+                          )
                           return (
                             <div className="space-y-2">
                               {pastTopics.length > 0 && (
@@ -3915,88 +4040,113 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         })()}
                       </div>
 
-                      {/* Create Questionnaire Modal */}
+                      {/* Questionnaire Modal */}
                       {showQuestionnaireModal && (
                         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
                           <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
                             <div className="flex items-center justify-between mb-4">
-                              <h3 className="text-base font-semibold text-foreground">Shto Pyetësor - {questionnaireTopicName}</h3>
+                              <h3 className="text-base font-semibold text-foreground">{questionnaireEditId ? "Ndrysho Pyetësor" : "Shto Pyetësor"} - {questionnaireTopicName}</h3>
                               <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
                             </div>
 
                             <div className="space-y-4">
                               <div className="flex flex-col gap-1">
                                 <Label className="text-xs">Titulli i Pyetësorit *</Label>
-                                <Input value={questionnaireTitle} onChange={(e) => setQuestionnaireTitle(e.target.value)} placeholder="Titulli..." className="h-8 text-xs" />
+                                <Input value={questionnaireTitle} onChange={(e) => setQuestionnaireTitle(e.target.value)} placeholder="Titulli..." className="h-8 text-xs" disabled={questionnaireLoading} />
                               </div>
 
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-xs font-semibold">Pyetjet ({questionnaireQuestions.length})</Label>
-                                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={addQuestionnaireQuestion}>
-                                    <Plus className="mr-1 h-2.5 w-2.5" /> Shto Pyetje
-                                  </Button>
+                              {questionnaireLoading ? (
+                                <div className="flex justify-center py-8">
+                                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
                                 </div>
-
-                                {questionnaireQuestions.map((q, qIdx) => (
-                                  <div key={qIdx} className="rounded-lg border border-border p-3 space-y-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-[10px] font-medium text-muted-foreground">Pyetja {qIdx + 1}</span>
-                                      <div className="flex items-center gap-2">
-                                        <select
-                                          value={q.type}
-                                          onChange={(e) => updateQuestionnaireQuestion(qIdx, "type", e.target.value)}
-                                          className="h-6 rounded border border-border bg-card px-1.5 text-[10px]"
-                                        >
-                                          <option value="Options">Me opsione</option>
-                                          <option value="FreeText">Tekst i lirë</option>
-                                          <option value="Stars">Yje (1-5)</option>
-                                        </select>
-                                        {questionnaireQuestions.length > 1 && (
-                                          <button type="button" onClick={() => removeQuestionnaireQuestion(qIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
-                                            <Trash2 className="h-3 w-3" />
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <Input
-                                      value={q.text}
-                                      onChange={(e) => updateQuestionnaireQuestion(qIdx, "text", e.target.value)}
-                                      placeholder="Teksti i pyetjes..."
-                                      className="h-7 text-xs"
-                                    />
-                                    {q.type === "Options" && (
-                                      <div className="space-y-1 pl-2">
-                                        {q.options.map((opt, optIdx) => (
-                                          <div key={optIdx} className="flex items-center gap-1">
-                                            <span className="text-[10px] text-muted-foreground w-4">{optIdx + 1}.</span>
-                                            <Input
-                                              value={opt}
-                                              onChange={(e) => updateQuestionOption(qIdx, optIdx, e.target.value)}
-                                              placeholder={`Opsioni ${optIdx + 1}...`}
-                                              className="h-6 text-[10px] flex-1"
-                                            />
-                                            {q.options.length > 2 && (
-                                              <button type="button" onClick={() => removeQuestionOption(qIdx, optIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
-                                                <X className="h-2.5 w-2.5" />
-                                              </button>
-                                            )}
-                                          </div>
-                                        ))}
-                                        <button type="button" onClick={() => addQuestionOption(qIdx)} className="text-[10px] text-primary hover:underline">+ Shto opsion</button>
-                                      </div>
-                                    )}
+                              ) : (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-xs font-semibold">Pyetjet ({questionnaireQuestions.length})</Label>
+                                    <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={addQuestionnaireQuestion}>
+                                      <Plus className="mr-1 h-2.5 w-2.5" /> Shto Pyetje
+                                    </Button>
                                   </div>
-                                ))}
-                              </div>
+
+                                  {questionnaireQuestions.map((q, qIdx) => (
+                                    <div key={qIdx} className="rounded-lg border border-border p-3 space-y-2">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] font-medium text-muted-foreground">Pyetja {qIdx + 1}</span>
+                                        <div className="flex items-center gap-2">
+                                          <select
+                                            value={q.type}
+                                            onChange={(e) => updateQuestionnaireQuestion(qIdx, "type", e.target.value)}
+                                            className="h-6 rounded border border-border bg-card px-1.5 text-[10px]"
+                                          >
+                                            <option value="Options">Me opsione</option>
+                                            <option value="FreeText">Tekst i lirë</option>
+                                            <option value="Stars">Yje (1-5)</option>
+                                          </select>
+                                          {questionnaireQuestions.length > 1 && (
+                                            <button type="button" onClick={() => removeQuestionnaireQuestion(qIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <Input
+                                        value={q.text}
+                                        onChange={(e) => updateQuestionnaireQuestion(qIdx, "text", e.target.value)}
+                                        placeholder="Teksti i pyetjes..."
+                                        className="h-7 text-xs"
+                                      />
+                                      {q.type === "Options" && (
+                                        <div className="space-y-1 pl-2">
+                                          {q.options.map((opt, optIdx) => (
+                                            <div key={optIdx} className="flex items-center gap-1">
+                                              <span className="text-[10px] text-muted-foreground w-4">{optIdx + 1}.</span>
+                                              <Input
+                                                value={opt}
+                                                onChange={(e) => updateQuestionOption(qIdx, optIdx, e.target.value)}
+                                                placeholder={`Opsioni ${optIdx + 1}...`}
+                                                className="h-6 text-[10px] flex-1"
+                                              />
+                                              {q.options.length > 2 && (
+                                                <button type="button" onClick={() => removeQuestionOption(qIdx, optIdx)} className="rounded p-0.5 text-destructive hover:bg-destructive/10">
+                                                  <X className="h-2.5 w-2.5" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+                                          <div className="pt-1">
+                                            <Label className="text-[10px] text-muted-foreground">Përgjigjja e saktë</Label>
+                                            <select
+                                              value={q.correctAnswer ?? ""}
+                                              onChange={(e) => updateQuestionnaireQuestion(qIdx, "correctAnswer", e.target.value)}
+                                              className="mt-1 h-7 w-full rounded border border-border bg-card px-2 text-[10px]"
+                                            >
+                                              <option value="">Zgjidh përgjigjen e saktë...</option>
+                                              {q.options.map((opt, optIdx) => {
+                                                const normalizedOption = opt.trim()
+                                                if (!normalizedOption) return null
+                                                return (
+                                                  <option key={`${normalizedOption}-${optIdx}`} value={normalizedOption}>
+                                                    {normalizedOption}
+                                                  </option>
+                                                )
+                                              })}
+                                            </select>
+                                          </div>
+                                          <button type="button" onClick={() => addQuestionOption(qIdx)} className="text-[10px] text-primary hover:underline">+ Shto opsion</button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
 
                               {questionnaireError && <p className="text-xs text-destructive">{questionnaireError}</p>}
 
                               <div className="flex items-center gap-2 justify-end pt-2">
                                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowQuestionnaireModal(false)} disabled={questionnaireSaving}>Anulo</Button>
-                                <Button size="sm" className="h-7 text-xs" onClick={handleCreateQuestionnaire} disabled={questionnaireSaving || !questionnaireTitle.trim()}>
+                                <Button size="sm" className="h-7 text-xs" onClick={handleSaveQuestionnaire} disabled={questionnaireSaving || questionnaireLoading || !questionnaireTitle.trim()}>
                                   {questionnaireSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                  {questionnaireSaving ? "Duke ruajtur..." : "Ruaj Pyetësorin"}
+                                  {questionnaireSaving ? "Duke ruajtur..." : questionnaireEditId ? "Ruaj Ndryshimet" : "Ruaj Pyetësorin"}
                                 </Button>
                               </div>
                             </div>
@@ -4037,7 +4187,14 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 Rezultatet e Pyetësorit
                                 {questionnaireResultsDetail && <span className="text-muted-foreground font-normal"> - {questionnaireResultsDetail.title}</span>}
                               </h3>
-                              <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                              <div className="flex items-center gap-1">
+                                {!questionnaireResultsLoading && questionnaireResponses.length > 0 && (
+                                  <button type="button" onClick={downloadQuestionnaireResults} title="Shkarko rezultatet" className="rounded-md p-1 hover:bg-muted text-muted-foreground hover:text-foreground">
+                                    <Download className="h-4 w-4" />
+                                  </button>
+                                )}
+                                <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+                              </div>
                             </div>
 
                             {questionnaireResultsLoading ? (
@@ -4525,47 +4682,47 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                 )}
                               </div>
                               {!s.wasBeforeAssignment ? (
-                              <div className="mt-3 flex gap-2">
-                                <Button
-                                  size="sm"
-                                  className="h-7 flex-1 text-[11px]"
-                                  variant={s.attended ? "default" : "outline"}
-                                  disabled={s.attended || isUpdating || attIsFutureTopic}
-                                  onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
-                                >
-                                  {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="h-7 flex-1 text-[11px]"
-                                  variant={!s.attended ? "destructive" : "outline"}
-                                  disabled={!s.attended || isUpdating || attIsFutureTopic}
-                                  onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
-                                >
-                                  {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
-                                </Button>
-                              </div>
+                                <div className="mt-3 flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 flex-1 text-[11px]"
+                                    variant={s.attended ? "default" : "outline"}
+                                    disabled={s.attended || isUpdating || attIsFutureTopic}
+                                    onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                                  >
+                                    {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-7 flex-1 text-[11px]"
+                                    variant={!s.attended ? "destructive" : "outline"}
+                                    disabled={!s.attended || isUpdating || attIsFutureTopic}
+                                    onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                                  >
+                                    {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
+                                  </Button>
+                                </div>
                               ) : !attIsFutureTopic && (
-                              <div className="mt-3 flex gap-2">
-                                <Button
-                                  size="sm"
-                                  className="h-7 flex-1 text-[11px]"
-                                  variant="outline"
-                                  disabled={s.attended || isUpdating}
-                                  onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
-                                >
-                                  {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="h-7 flex-1 text-[11px]"
-                                  variant="outline"
-                                  disabled={!s.attended || isUpdating}
-                                  onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
-                                >
-                                  {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
-                                </Button>
-                              </div>
+                                <div className="mt-3 flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 flex-1 text-[11px]"
+                                    variant="outline"
+                                    disabled={s.attended || isUpdating}
+                                    onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                                  >
+                                    {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Prano"}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-7 flex-1 text-[11px]"
+                                    variant="outline"
+                                    disabled={!s.attended || isUpdating}
+                                    onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                                  >
+                                    {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mungesë"}
+                                  </Button>
+                                </div>
                               )}
                             </div>
                           )
@@ -4610,28 +4767,28 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     {s.wasBeforeAssignment && attIsFutureTopic ? (
                                       <div className="text-center text-[10px] text-muted-foreground/50">—</div>
                                     ) : (
-                                    <div className="flex items-center justify-center gap-2">
-                                      <Button
-                                        size="sm"
-                                        className="h-7 min-w-[5rem] text-[11px]"
-                                        variant={s.attended ? "default" : "outline"}
-                                        disabled={s.attended || isUpdating || attIsFutureTopic}
-                                        onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
-                                      >
-                                        {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                        Prano
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        className="h-7 min-w-[5rem] text-[11px]"
-                                        variant={!s.attended ? "destructive" : "outline"}
-                                        disabled={!s.attended || isUpdating || attIsFutureTopic}
-                                        onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
-                                      >
-                                        {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                                        Mungesë
-                                      </Button>
-                                    </div>
+                                      <div className="flex items-center justify-center gap-2">
+                                        <Button
+                                          size="sm"
+                                          className="h-7 min-w-[5rem] text-[11px]"
+                                          variant={s.attended ? "default" : "outline"}
+                                          disabled={s.attended || isUpdating || attIsFutureTopic}
+                                          onClick={() => handleMarkAttendance(attSelectedTopicId, s.studentId)}
+                                        >
+                                          {isUpdating && attUpdatingKey?.endsWith("-mark") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                          Prano
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 min-w-[5rem] text-[11px]"
+                                          variant={!s.attended ? "destructive" : "outline"}
+                                          disabled={!s.attended || isUpdating || attIsFutureTopic}
+                                          onClick={() => handleRemoveAttendance(attSelectedTopicId, s.studentId)}
+                                        >
+                                          {isUpdating && attUpdatingKey?.endsWith("-remove") ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                                          Mungesë
+                                        </Button>
+                                      </div>
                                     )}
                                   </td>
                                 </tr>
@@ -6178,7 +6335,22 @@ export function StudentEvaluationsView() {
                                 <span className="ml-1 text-xs text-muted-foreground">({a.answer}/5)</span>
                               </div>
                             ) : (
-                              <p className="text-sm text-foreground">{a.answer}</p>
+                              <div className="space-y-1">
+                                <p className="text-sm text-foreground">{a.answer}</p>
+                                {a.questionType === "Options" && a.correctAnswer && (
+                                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                                    <span className={cn(
+                                      "inline-flex rounded-full px-2 py-0.5 font-medium",
+                                      a.isCorrect ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
+                                    )}>
+                                      {a.isCorrect ? "Përgjigje e saktë" : "Përgjigje jo e saktë"}
+                                    </span>
+                                    {!a.isCorrect && (
+                                      <span className="text-muted-foreground">Përgjigjja e saktë: {a.correctAnswer}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}

@@ -720,11 +720,7 @@ public class StudentModuleService(
 
         foreach (var q in questions)
         {
-            string? optionsJson = null;
-            if (q.Type == QuestionType.Options && q.Options is { Count: > 0 })
-                optionsJson = System.Text.Json.JsonSerializer.Serialize(q.Options);
-
-            var question = new TopicQuestionnaireQuestion(questionnaire.Id, q.Text, q.Type, q.Order, optionsJson);
+            var question = BuildQuestionnaireQuestion(questionnaire.Id, q);
             _db.TopicQuestionnaireQuestions.Add(question);
         }
 
@@ -745,22 +741,47 @@ public class StudentModuleService(
     {
         var questionnaire = await _db.TopicQuestionnaires
             .Include(q => q.Questions)
+            .ThenInclude(q => q.Answers)
             .FirstOrDefaultAsync(q => q.Id == questionnaireId, cancellationToken)
             ?? throw new KeyNotFoundException("Questionnaire not found.");
 
         questionnaire.UpdateTitle(title);
 
-        // Remove old questions
-        _db.TopicQuestionnaireQuestions.RemoveRange(questionnaire.Questions);
+        var existingQuestions = questionnaire.Questions.ToDictionary(q => q.Id);
+        var incomingQuestionIds = questions
+            .Where(q => q.QuestionId.HasValue)
+            .Select(q => q.QuestionId!.Value)
+            .ToHashSet();
 
-        // Add new questions
-        foreach (var q in questions)
+        var unknownQuestionIds = incomingQuestionIds.Where(id => !existingQuestions.ContainsKey(id)).ToList();
+        if (unknownQuestionIds.Count > 0)
+            throw new InvalidOperationException("One or more questionnaire questions were not found.");
+
+        foreach (var existingQuestion in questionnaire.Questions.ToList())
         {
-            string? optionsJson = null;
-            if (q.Type == QuestionType.Options && q.Options is { Count: > 0 })
-                optionsJson = System.Text.Json.JsonSerializer.Serialize(q.Options);
+            if (incomingQuestionIds.Contains(existingQuestion.Id))
+                continue;
 
-            var question = new TopicQuestionnaireQuestion(questionnaire.Id, q.Text, q.Type, q.Order, optionsJson);
+            if (existingQuestion.Answers.Count > 0)
+                throw new InvalidOperationException("Questions with submitted answers cannot be removed.");
+
+            _db.TopicQuestionnaireQuestions.Remove(existingQuestion);
+        }
+
+        foreach (var input in questions)
+        {
+            if (input.QuestionId.HasValue && existingQuestions.TryGetValue(input.QuestionId.Value, out var existingQuestion))
+            {
+                existingQuestion.Update(
+                    input.Text,
+                    input.Type,
+                    input.Order,
+                    SerializeQuestionOptions(input),
+                    input.CorrectAnswer);
+                continue;
+            }
+
+            var question = BuildQuestionnaireQuestion(questionnaire.Id, input);
             _db.TopicQuestionnaireQuestions.Add(question);
         }
 
@@ -827,10 +848,21 @@ public class StudentModuleService(
         var response = new TopicQuestionnaireResponse(payload.QuestionnaireId, studentId);
         _db.TopicQuestionnaireResponses.Add(response);
 
-        var questionIds = questionnaire.Questions.Select(q => q.Id).ToHashSet();
-        foreach (var a in answers)
+        var questionLookup = questionnaire.Questions.ToDictionary(q => q.Id);
+        var normalizedAnswers = answers
+            .Where(a => questionLookup.ContainsKey(a.QuestionId))
+            .Select(a => new QuestionnaireAnswerInput(a.QuestionId, a.Answer?.Trim() ?? string.Empty))
+            .Where(a => !string.IsNullOrWhiteSpace(a.Answer))
+            .GroupBy(a => a.QuestionId)
+            .Select(g => g.Last())
+            .ToList();
+
+        if (normalizedAnswers.Count == 0)
+            throw new InvalidOperationException("Duhet të përgjigjeni të paktën një pyetje.");
+
+        foreach (var a in normalizedAnswers)
         {
-            if (!questionIds.Contains(a.QuestionId)) continue;
+            ValidateQuestionnaireAnswer(questionLookup[a.QuestionId], a.Answer);
             var answer = new TopicQuestionnaireAnswer(response.Id, a.QuestionId, a.Answer);
             _db.TopicQuestionnaireAnswers.Add(answer);
         }
@@ -845,6 +877,7 @@ public class StudentModuleService(
             .AsNoTracking()
             .Include(r => r.Student)
             .Include(r => r.Answers).ThenInclude(a => a.Question)
+            .ThenInclude(q => q.Questionnaire)
             .Where(r => r.QuestionnaireId == questionnaireId)
             .OrderBy(r => r.SubmittedAt)
             .ToListAsync(cancellationToken);
@@ -940,6 +973,53 @@ public class StudentModuleService(
         }
         catch (InvalidOperationException) { throw; }
         catch { throw new InvalidOperationException("Kodi QR është i pavlefshëm."); }
+    }
+
+    private static TopicQuestionnaireQuestion BuildQuestionnaireQuestion(Guid questionnaireId, QuestionnaireQuestionInput input)
+    {
+        return new TopicQuestionnaireQuestion(
+            questionnaireId,
+            input.Text,
+            input.Type,
+            input.Order,
+            SerializeQuestionOptions(input),
+            input.CorrectAnswer);
+    }
+
+    private static string? SerializeQuestionOptions(QuestionnaireQuestionInput input)
+    {
+        if (input.Type != QuestionType.Options || input.Options is not { Count: > 0 })
+            return null;
+
+        var normalizedOptions = input.Options
+            .Select(option => option?.Trim() ?? string.Empty)
+            .Where(option => !string.IsNullOrWhiteSpace(option))
+            .ToList();
+
+        return normalizedOptions.Count == 0
+            ? null
+            : JsonSerializer.Serialize(normalizedOptions);
+    }
+
+    private static void ValidateQuestionnaireAnswer(TopicQuestionnaireQuestion question, string answer)
+    {
+        if (question.Type == QuestionType.Options)
+        {
+            var options = string.IsNullOrWhiteSpace(question.OptionsJson)
+                ? []
+                : JsonSerializer.Deserialize<List<string>>(question.OptionsJson) ?? [];
+
+            if (!options.Contains(answer, StringComparer.Ordinal))
+                throw new InvalidOperationException("Përgjigjja e zgjedhur nuk është e vlefshme.");
+
+            return;
+        }
+
+        if (question.Type == QuestionType.Stars)
+        {
+            if (!int.TryParse(answer, out var stars) || stars < 1 || stars > 5)
+                throw new InvalidOperationException("Vlerësimi me yje duhet të jetë nga 1 deri në 5.");
+        }
     }
 
     // --- Year Grade Filtering ---

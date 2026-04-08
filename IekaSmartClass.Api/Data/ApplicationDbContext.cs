@@ -297,6 +297,7 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
         {
             entity.Property(x => x.Text).HasMaxLength(1000);
             entity.Property(x => x.OptionsJson).HasMaxLength(4000);
+            entity.Property(x => x.CorrectAnswer).HasMaxLength(1000);
             entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(x => x.QuestionnaireId);
 

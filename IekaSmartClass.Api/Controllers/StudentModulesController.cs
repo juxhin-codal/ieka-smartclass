@@ -148,6 +148,10 @@ public class StudentModulesController(
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPut("topics/{topicId:guid}")]
@@ -556,6 +560,46 @@ public class StudentModulesController(
             t.Questionnaires.Select(q => new QuestionnaireInfoResponse(
                 q.Id, q.Title, q.Questions.Count, q.Responses.Count)).ToList());
 
+    private static List<string>? DeserializeQuestionOptions(string? optionsJson)
+    {
+        return string.IsNullOrWhiteSpace(optionsJson)
+            ? null
+            : System.Text.Json.JsonSerializer.Deserialize<List<string>>(optionsJson);
+    }
+
+    private static QuestionnaireQuestionResponse MapQuestionResponse(TopicQuestionnaireQuestion question, bool includeCorrectAnswer = false)
+    {
+        return new QuestionnaireQuestionResponse(
+            question.Id,
+            question.Text,
+            question.Type.ToString(),
+            question.Order,
+            DeserializeQuestionOptions(question.OptionsJson),
+            includeCorrectAnswer ? question.CorrectAnswer : null);
+    }
+
+    private static QuestionnaireAnswerItem MapAnswerItem(TopicQuestionnaireAnswer answer, bool includeCorrectAnswer = false)
+    {
+        var correctAnswer = includeCorrectAnswer ? answer.Question?.CorrectAnswer : null;
+        bool? isCorrect = null;
+
+        if (includeCorrectAnswer &&
+            answer.Question?.Type == QuestionType.Options &&
+            !string.IsNullOrWhiteSpace(correctAnswer))
+        {
+            isCorrect = string.Equals(answer.AnswerText, correctAnswer, StringComparison.Ordinal);
+        }
+
+        return new QuestionnaireAnswerItem(
+            answer.QuestionId,
+            answer.Question?.Text ?? string.Empty,
+            answer.Question?.Type.ToString() ?? string.Empty,
+            answer.AnswerText,
+            DeserializeQuestionOptions(answer.Question?.OptionsJson),
+            correctAnswer,
+            isCorrect);
+    }
+
     [HttpPost("topics/{topicId:guid}/questionnaire")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateQuestionnaire(
@@ -571,7 +615,7 @@ public class StudentModulesController(
         try
         {
             var inputs = request.Questions.Select(q =>
-                new QuestionnaireQuestionInput(q.Text, q.Type, q.Order, q.Options)).ToList();
+                new QuestionnaireQuestionInput(q.Id, q.Text, q.Type, q.Order, q.Options, q.CorrectAnswer)).ToList();
             var questionnaire = await _studentModuleService.CreateQuestionnaireAsync(
                 topicId, request.Title, inputs, cancellationToken);
             return Ok(new { id = questionnaire.Id });
@@ -618,13 +662,21 @@ public class StudentModulesController(
         try
         {
             var inputs = request.Questions.Select(q =>
-                new QuestionnaireQuestionInput(q.Text, q.Type, q.Order, q.Options)).ToList();
+                new QuestionnaireQuestionInput(q.Id, q.Text, q.Type, q.Order, q.Options, q.CorrectAnswer)).ToList();
             await _studentModuleService.UpdateQuestionnaireAsync(questionnaireId, request.Title, inputs, cancellationToken);
             return NoContent();
         }
         catch (KeyNotFoundException)
         {
             return NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 
@@ -642,11 +694,8 @@ public class StudentModulesController(
             q.TopicId,
             q.Title,
             q.CreatedAt.ToString("o"),
-            q.Questions.OrderBy(x => x.Order).Select(x => new QuestionnaireQuestionResponse(
-                x.Id, x.Text, x.Type.ToString(), x.Order,
-                string.IsNullOrEmpty(x.OptionsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<List<string>>(x.OptionsJson))).ToList(),
-            q.Responses.Count));
-    }
+            q.Questions.OrderBy(x => x.Order).Select(x => MapQuestionResponse(x, includeCorrectAnswer: true)).ToList(),
+            q.Responses.Count));    }
 
     [HttpGet("questionnaires/{questionnaireId:guid}/qr")]
     [Authorize(Roles = "Admin,Mentor")]
@@ -678,11 +727,7 @@ public class StudentModulesController(
             r.Student != null ? r.Student.FirstName : "",
             r.Student != null ? r.Student.LastName : "",
             r.SubmittedAt.ToString("o"),
-            r.Answers.Select(a => new QuestionnaireAnswerItem(
-                a.QuestionId,
-                a.Question?.Text ?? "",
-                a.Question?.Type.ToString() ?? "",
-                a.AnswerText)).ToList())));
+            r.Answers.Select(a => MapAnswerItem(a, includeCorrectAnswer: true)).ToList())));
     }
 
     [HttpPost("questionnaires/submit")]
@@ -696,15 +741,41 @@ public class StudentModulesController(
 
         if (string.IsNullOrWhiteSpace(request.QrToken))
             return BadRequest(new { message = "Kodi QR është i detyrueshëm." });
-        if (request.Answers is null || request.Answers.Count == 0)
-            return BadRequest(new { message = "Duhet të përgjigjeni të paktën një pyetje." });
+        if (request.Answers is null)
+            return BadRequest(new { message = "Përgjigjet mungojnë." });
 
         try
         {
             var inputs = request.Answers.Select(a => new QuestionnaireAnswerInput(a.QuestionId, a.Answer)).ToList();
             var response = await _studentModuleService.SubmitQuestionnaireAsync(
                 request.QrToken, context.UserId.Value, inputs, cancellationToken);
-            return Ok(new { responseId = response.Id, submittedAt = response.SubmittedAt.ToString("o") });
+
+            var questionnaire = await _studentModuleService.GetQuestionnaireAsync(response.QuestionnaireId, cancellationToken);
+            var submittedAnswers = request.Answers
+                .Where(a => !string.IsNullOrWhiteSpace(a.Answer))
+                .GroupBy(a => a.QuestionId)
+                .Select(g => g.Last())
+                .ToDictionary(a => a.QuestionId, a => a.Answer.Trim());
+
+            var review = questionnaire?.Questions
+                .OrderBy(q => q.Order)
+                .Where(q => submittedAnswers.ContainsKey(q.Id))
+                .Select(q => new QuestionnaireAnswerItem(
+                    q.Id,
+                    q.Text,
+                    q.Type.ToString(),
+                    submittedAnswers[q.Id],
+                    DeserializeQuestionOptions(q.OptionsJson),
+                    q.CorrectAnswer,
+                    q.Type == QuestionType.Options && !string.IsNullOrWhiteSpace(q.CorrectAnswer)
+                        ? string.Equals(submittedAnswers[q.Id], q.CorrectAnswer, StringComparison.Ordinal)
+                        : null))
+                .ToList() ?? [];
+
+            return Ok(new SubmitQuestionnaireResponse(
+                response.Id,
+                response.SubmittedAt.ToString("o"),
+                review));
         }
         catch (InvalidOperationException ex)
         {
@@ -726,11 +797,8 @@ public class StudentModulesController(
             q.TopicId,
             q.Title,
             q.CreatedAt.ToString("o"),
-            q.Questions.OrderBy(x => x.Order).Select(x => new QuestionnaireQuestionResponse(
-                x.Id, x.Text, x.Type.ToString(), x.Order,
-                string.IsNullOrEmpty(x.OptionsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<List<string>>(x.OptionsJson))).ToList(),
-            q.Responses.Count));
-    }
+            q.Questions.OrderBy(x => x.Order).Select(x => MapQuestionResponse(x)).ToList(),
+            q.Responses.Count));    }
 
     [HttpGet("questionnaires/by-token")]
     [Authorize(Roles = "Student")]
@@ -753,9 +821,7 @@ public class StudentModulesController(
                 questionnaire.Id,
                 questionnaire.Title,
                 alreadyAnswered,
-                questionnaire.Questions.OrderBy(x => x.Order).Select(x => new QuestionnaireQuestionResponse(
-                    x.Id, x.Text, x.Type.ToString(), x.Order,
-                    string.IsNullOrEmpty(x.OptionsJson) ? null : System.Text.Json.JsonSerializer.Deserialize<List<string>>(x.OptionsJson))).ToList()));
+                questionnaire.Questions.OrderBy(x => x.Order).Select(x => MapQuestionResponse(x)).ToList()));
         }
         catch (InvalidOperationException ex)
         {
@@ -780,11 +846,7 @@ public class StudentModulesController(
             r.Questionnaire?.Topic?.StudentModule?.Title ?? "",
             r.Questionnaire?.Topic?.StudentModule?.YearGrade ?? 0,
             r.SubmittedAt.ToString("o"),
-            r.Answers.Select(a => new QuestionnaireAnswerItem(
-                a.QuestionId,
-                a.Question?.Text ?? "",
-                a.Question?.Type.ToString() ?? "",
-                a.AnswerText)).ToList())));
+            r.Answers.Select(a => MapAnswerItem(a, includeCorrectAnswer: true)).ToList())));
     }
 
     // ── Lecturer Feedback via Email Token ───────────────────────────────────
@@ -1099,10 +1161,12 @@ public record CreateQuestionnaireRequest(
     List<CreateQuestionnaireQuestionItem> Questions);
 
 public record CreateQuestionnaireQuestionItem(
+    Guid? Id,
     string Text,
     QuestionType Type,
     int Order,
-    List<string>? Options = null);
+    List<string>? Options = null,
+    string? CorrectAnswer = null);
 
 public record QuestionnaireDetailResponse(
     Guid Id,
@@ -1117,7 +1181,8 @@ public record QuestionnaireQuestionResponse(
     string Text,
     string Type,
     int Order,
-    List<string>? Options);
+    List<string>? Options,
+    string? CorrectAnswer);
 
 public record QuestionnaireQrResponse(
     Guid QuestionnaireId,
@@ -1137,6 +1202,11 @@ public record SubmitAnswerItem(
     Guid QuestionId,
     string Answer);
 
+public record SubmitQuestionnaireResponse(
+    Guid ResponseId,
+    string SubmittedAt,
+    List<QuestionnaireAnswerItem> Answers);
+
 public record QuestionnaireResponseItem(
     Guid ResponseId,
     Guid StudentId,
@@ -1149,7 +1219,10 @@ public record QuestionnaireAnswerItem(
     Guid QuestionId,
     string QuestionText,
     string QuestionType,
-    string Answer);
+    string Answer,
+    List<string>? Options,
+    string? CorrectAnswer,
+    bool? IsCorrect);
 
 public record MyQuestionnaireResponseItem(
     Guid ResponseId,

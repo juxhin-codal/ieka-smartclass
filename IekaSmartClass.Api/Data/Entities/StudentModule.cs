@@ -249,23 +249,70 @@ public class TopicQuestionnaireQuestion
     public QuestionType Type { get; private set; }
     public int Order { get; private set; }
     public string? OptionsJson { get; private set; } // JSON array of option strings for Options type
+    public string? CorrectAnswer { get; private set; }
 
     public TopicQuestionnaire Questionnaire { get; private set; } = null!;
     public ICollection<TopicQuestionnaireAnswer> Answers { get; private set; } = new List<TopicQuestionnaireAnswer>();
 
     private TopicQuestionnaireQuestion() { }
 
-    public TopicQuestionnaireQuestion(Guid questionnaireId, string text, QuestionType type, int order, string? optionsJson = null)
+    public TopicQuestionnaireQuestion(Guid questionnaireId, string text, QuestionType type, int order, string? optionsJson = null, string? correctAnswer = null)
     {
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("Question text is required.", nameof(text));
 
         Id = Guid.NewGuid();
         QuestionnaireId = questionnaireId;
-        Text = text.Trim();
+        Apply(text, type, order, optionsJson, correctAnswer);
+    }
+
+    public void Update(string text, QuestionType type, int order, string? optionsJson = null, string? correctAnswer = null)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            throw new ArgumentException("Question text is required.", nameof(text));
+
+        Apply(text, type, order, optionsJson, correctAnswer);
+    }
+
+    private void Apply(string text, QuestionType type, int order, string? optionsJson, string? correctAnswer)
+    {
+        var normalizedText = text.Trim();
+        var normalizedCorrectAnswer = string.IsNullOrWhiteSpace(correctAnswer) ? null : correctAnswer.Trim();
+        var normalizedOptionsJson = string.IsNullOrWhiteSpace(optionsJson) ? null : optionsJson;
+
+        if (type == QuestionType.Options)
+        {
+            var options = string.IsNullOrWhiteSpace(normalizedOptionsJson)
+                ? null
+                : System.Text.Json.JsonSerializer.Deserialize<List<string>>(normalizedOptionsJson);
+
+            if (options is null || options.Count < 2)
+                throw new ArgumentException("Questions with options must contain at least two options.", nameof(optionsJson));
+
+            var normalizedOptions = options
+                .Select(option => option.Trim())
+                .Where(option => !string.IsNullOrWhiteSpace(option))
+                .ToList();
+
+            if (normalizedOptions.Count < 2)
+                throw new ArgumentException("Questions with options must contain at least two options.", nameof(optionsJson));
+
+            if (normalizedCorrectAnswer is not null && !normalizedOptions.Contains(normalizedCorrectAnswer, StringComparer.Ordinal))
+                throw new ArgumentException("Correct answer must match one of the available options.", nameof(correctAnswer));
+
+            normalizedOptionsJson = System.Text.Json.JsonSerializer.Serialize(normalizedOptions);
+        }
+        else
+        {
+            normalizedOptionsJson = null;
+            normalizedCorrectAnswer = null;
+        }
+
+        Text = normalizedText;
         Type = type;
         Order = order;
-        OptionsJson = optionsJson;
+        OptionsJson = normalizedOptionsJson;
+        CorrectAnswer = normalizedCorrectAnswer;
     }
 }
 

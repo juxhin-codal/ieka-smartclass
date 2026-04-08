@@ -299,6 +299,7 @@ export interface QuestionnaireQuestion {
   type: "Options" | "FreeText" | "Stars"
   order: number
   options?: string[] | null
+  correctAnswer?: string | null
 }
 
 export interface QuestionnaireByTokenResponse {
@@ -322,6 +323,15 @@ export interface QuestionnaireAnswer {
   questionText: string
   questionType: string
   answer: string
+  options?: string[] | null
+  correctAnswer?: string | null
+  isCorrect?: boolean | null
+}
+
+export interface SubmitQuestionnaireResponse {
+  responseId: string
+  submittedAt: string
+  answers: QuestionnaireAnswer[]
 }
 
 export interface MyQuestionnaireResponseItem {
