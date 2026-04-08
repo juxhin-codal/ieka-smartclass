@@ -32,6 +32,7 @@ public class StudentModuleService(
     {
         return await _db.StudentModules
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(m => m.Topics).ThenInclude(t => t.Documents)
             .Include(m => m.Topics).ThenInclude(t => t.Attendances)
             .Include(m => m.Topics).ThenInclude(t => t.Questionnaires).ThenInclude(q => q.Questions)
@@ -46,6 +47,7 @@ public class StudentModuleService(
     {
         return await _db.StudentModules
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(m => m.Topics).ThenInclude(t => t.Documents)
             .Include(m => m.Topics).ThenInclude(t => t.Attendances)
             .Include(m => m.Topics).ThenInclude(t => t.Questionnaires).ThenInclude(q => q.Questions)
@@ -139,6 +141,7 @@ public class StudentModuleService(
     {
         return await _db.StudentModules
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(m => m.Topics).ThenInclude(t => t.Documents)
             .Include(m => m.Topics).ThenInclude(t => t.Attendances)
             .Include(m => m.Assignments)
@@ -1086,6 +1089,7 @@ public class StudentModuleService(
 
         // Find all modules for this year grade that have upcoming topics
         var modules = await _db.StudentModules
+            .AsSplitQuery()
             .Include(m => m.Assignments)
             .Include(m => m.Topics)
             .Where(m => m.YearGrade == yearGrade)
@@ -1137,6 +1141,7 @@ public class StudentModuleService(
             .ToListAsync(cancellationToken);
 
         var modules = await _db.StudentModules
+            .AsSplitQuery()
             .Include(m => m.Assignments)
             .Include(m => m.Topics).ThenInclude(t => t.Attendances)
             .ToListAsync(cancellationToken);
@@ -1188,6 +1193,7 @@ public class StudentModuleService(
         var yearGrade = GetStudentCurrentYearGrade(student, now);
 
         var modules = await _db.StudentModules
+            .AsSplitQuery()
             .Include(m => m.Assignments)
             .Include(m => m.Topics).ThenInclude(t => t.Attendances)
             .ToListAsync(cancellationToken);
