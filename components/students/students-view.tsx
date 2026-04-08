@@ -1437,35 +1437,86 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
   function downloadQuestionnaireResults() {
     if (!questionnaireResponses.length) return
-    const title = questionnaireResultsDetail?.title ?? "Pyetësor"
-    const lines: string[] = []
-    lines.push(`REZULTATET E PYETËSORIT - ${title}`)
-    lines.push(`Gjeneruar: ${format(new Date(), "dd MMM yyyy, HH:mm")}`)
-    lines.push("=".repeat(60))
-    lines.push("")
-    for (const resp of questionnaireResponses) {
-      lines.push(`Studenti: ${resp.firstName} ${resp.lastName}`)
-      lines.push(`Data e Plotësimit: ${format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}`)
-      lines.push("-".repeat(40))
-      resp.answers.forEach((ans, idx) => {
-        const typeLabel = ans.questionType === "Options" ? "Opsione" : ans.questionType === "FreeText" ? "Tekst" : "Yje"
-        lines.push(`${idx + 1}. ${ans.questionText} (${typeLabel})`)
-        const answerDisplay = ans.questionType === "Stars" ? `${ans.answer}/5 yje` : ans.answer
-        lines.push(`   Përgjigje: ${answerDisplay}`)
-        if (ans.questionType === "Options" && ans.correctAnswer) {
-          const correct = ans.isCorrect ? "✓ Saktë" : `✗ Gabim (Saktë: ${ans.correctAnswer})`
-          lines.push(`   ${correct}`)
+    import("jspdf").then(({ jsPDF }) => {
+      const title = questionnaireResultsDetail?.title ?? "Pyetësor"
+      const doc = new jsPDF({ unit: "mm", format: "a4" })
+      const pageW = doc.internal.pageSize.getWidth()
+      const marginL = 15
+      const marginR = 15
+      const usable = pageW - marginL - marginR
+      let y = 20
+
+      const ensureSpace = (needed: number) => {
+        if (y + needed > doc.internal.pageSize.getHeight() - 15) {
+          doc.addPage()
+          y = 20
         }
-      })
-      lines.push("")
-    }
-    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `pyetesor-${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}-rezultate.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+      }
+
+      // Header
+      doc.setFontSize(16)
+      doc.setFont("helvetica", "bold")
+      doc.text(`Rezultatet - ${title}`, marginL, y)
+      y += 8
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(120, 120, 120)
+      doc.text(`Gjeneruar: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, marginL, y)
+      y += 4
+      doc.setDrawColor(200, 200, 200)
+      doc.line(marginL, y, pageW - marginR, y)
+      y += 8
+      doc.setTextColor(0, 0, 0)
+
+      for (const resp of questionnaireResponses) {
+        ensureSpace(30)
+        // Student name
+        doc.setFontSize(11)
+        doc.setFont("helvetica", "bold")
+        doc.text(`${resp.firstName} ${resp.lastName}`, marginL, y)
+        y += 5
+        doc.setFontSize(8)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(100, 100, 100)
+        doc.text(`Plotesuar: ${format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}`, marginL, y)
+        y += 6
+        doc.setTextColor(0, 0, 0)
+
+        // Answers
+        resp.answers.forEach((ans, idx) => {
+          ensureSpace(18)
+          const typeLabel = ans.questionType === "Options" ? "Opsione" : ans.questionType === "FreeText" ? "Tekst" : "Yje"
+          doc.setFontSize(9)
+          doc.setFont("helvetica", "bold")
+          const qLines = doc.splitTextToSize(`${idx + 1}. ${ans.questionText} (${typeLabel})`, usable)
+          doc.text(qLines, marginL, y)
+          y += qLines.length * 4.5
+
+          doc.setFont("helvetica", "normal")
+          const answerDisplay = ans.questionType === "Stars" ? `${ans.answer}/5 yje` : ans.answer
+          const aLines = doc.splitTextToSize(`Pergjigje: ${answerDisplay}`, usable - 5)
+          doc.text(aLines, marginL + 5, y)
+          y += aLines.length * 4.5
+
+          if (ans.questionType === "Options" && ans.correctAnswer) {
+            const correct = ans.isCorrect ? "Sakte" : `Gabim (Sakte: ${ans.correctAnswer})`
+            doc.setTextColor(ans.isCorrect ? 22 : 200, ans.isCorrect ? 163 : 30, ans.isCorrect ? 74 : 30)
+            doc.text(correct, marginL + 5, y)
+            doc.setTextColor(0, 0, 0)
+            y += 4.5
+          }
+          y += 2
+        })
+
+        // Separator
+        ensureSpace(6)
+        doc.setDrawColor(230, 230, 230)
+        doc.line(marginL, y, pageW - marginR, y)
+        y += 8
+      }
+
+      doc.save(`pyetesor-${title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}-rezultate.pdf`)
+    })
   }
 
   async function openQuestionnaireQr(questionnaireId: string) {
