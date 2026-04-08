@@ -334,6 +334,21 @@ public class MembersService(
             }
         }
 
+        var yearsChanged = oldStudentStartYear != user.StudentStartYear
+            || oldYear2StartYear != user.StudentYear2StartYear
+            || oldYear3StartYear != user.StudentYear3StartYear;
+        if (yearsChanged && string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await studentModuleService.ReassignStudentModulesAsync(id, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not reassign modules for student {StudentId} after year change.", id);
+            }
+        }
+
         // Notify student about profile changes
         if (string.Equals(role, "Student", StringComparison.OrdinalIgnoreCase))
         {

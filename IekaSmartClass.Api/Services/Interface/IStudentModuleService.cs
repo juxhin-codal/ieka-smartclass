@@ -53,6 +53,9 @@ public interface IStudentModuleService
 
     // Reassign all students to correct modules based on Jan-Dec year grade logic
     Task<ReassignResult> ReassignAllStudentModulesAsync(CancellationToken cancellationToken = default);
+
+    // Reassign a single student to correct modules based on their updated year grade
+    Task<ReassignResult> ReassignStudentModulesAsync(Guid studentId, CancellationToken cancellationToken = default);
 }
 
 public sealed record ReassignResult(int Added, int Removed);

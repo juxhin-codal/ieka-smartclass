@@ -1176,4 +1176,48 @@ public class StudentModuleService(
         await _db.SaveChangesAsync(cancellationToken);
         return new ReassignResult(added, removed);
     }
+
+    public async Task<ReassignResult> ReassignStudentModulesAsync(Guid studentId, CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        var student = await _db.Users
+            .FirstOrDefaultAsync(u => u.Id == studentId && u.Role == "Student" && u.IsActive && u.StudentStartYear != null, cancellationToken);
+        if (student is null) return new ReassignResult(0, 0);
+
+        var yearGrade = GetStudentCurrentYearGrade(student, now);
+
+        var modules = await _db.StudentModules
+            .Include(m => m.Assignments)
+            .Include(m => m.Topics).ThenInclude(t => t.Attendances)
+            .ToListAsync(cancellationToken);
+
+        var removed = 0;
+        var added = 0;
+
+        foreach (var module in modules)
+        {
+            var isAssigned = module.Assignments.Any(a => a.StudentId == studentId);
+            var isCorrectYear = yearGrade != 0 && module.YearGrade == yearGrade;
+
+            if (isAssigned && !isCorrectYear)
+            {
+                var hasAttendance = module.Topics.Any(t => t.Attendances.Any(a => a.StudentId == studentId));
+                if (!hasAttendance)
+                {
+                    var assignment = module.Assignments.First(a => a.StudentId == studentId);
+                    _db.StudentModuleAssignments.Remove(assignment);
+                    removed++;
+                }
+            }
+            else if (!isAssigned && isCorrectYear)
+            {
+                _db.StudentModuleAssignments.Add(new StudentModuleAssignment(module.Id, studentId));
+                added++;
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return new ReassignResult(added, removed);
+    }
 }

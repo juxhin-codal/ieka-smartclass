@@ -877,6 +877,9 @@ public class StudentModulesController(
         var sessionDateLabel = topic.ScheduledDate.HasValue
             ? topic.ScheduledDate.Value.ToString("dd MMM yyyy")
             : "—";
+        var sessionTimeLabel = topic.ScheduledDate.HasValue
+            ? topic.ScheduledDate.Value.ToString("HH:mm")
+            : "—";
         int sent = 0;
         foreach (var att in attendances)
         {
@@ -885,7 +888,14 @@ public class StudentModulesController(
                 var link = $"/lecturer-feedback?type=topic&token={att.FeedbackToken}";
                 await emailService.SendLecturerFeedbackRequestAsync(
                     att.Student,
-                    new LecturerFeedbackEmailItem(topic.Name, sessionDateLabel, topic.Lecturer, link),
+                    new LecturerFeedbackEmailItem(
+                        topic.StudentModule.Title,
+                        topic.Name,
+                        sessionDateLabel,
+                        sessionTimeLabel,
+                        topic.Lecturer,
+                        string.IsNullOrWhiteSpace(topic.Location) ? "IEKA" : topic.Location,
+                        link),
                     cancellationToken);
                 sent++;
             }

@@ -419,13 +419,16 @@ public class EmailService(
             {
                 ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
                 ["MODULE_NAME"] = item.ModuleName,
+                ["TOPIC_NAME"] = item.TopicName,
                 ["SESSION_DATE"] = item.SessionDate,
+                ["SESSION_TIME"] = item.SessionTime,
                 ["LECTURER_NAME"] = item.LecturerName,
+                ["TOPIC_LOCATION"] = item.TopicLocation,
                 ["ACTION_LINK"] = actionLink,
                 ["RAW_ACTION_LINK"] = actionLink
             });
 
-        return SendUserEmailAsync(user, $"Vlerësoni lektorin: {item.ModuleName}", body, cancellationToken);
+        return SendUserEmailAsync(user, $"Vlerësoni lektorin: {item.TopicName}", body, cancellationToken);
     }
 
     private Task SendUserEmailAsync(AppUser user, string subject, string body, CancellationToken cancellationToken)

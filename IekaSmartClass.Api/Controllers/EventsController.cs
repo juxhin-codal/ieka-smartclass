@@ -245,7 +245,9 @@ public class EventsController(IEventsService eventsService) : ControllerBase
         await db.SaveChangesAsync(cancellationToken);
 
         var sessionDateLabel = sessionDate.Date.ToString("dd MMM yyyy");
+        var sessionTimeLabel = sessionDate.Date.ToString("HH:mm");
         var lecturerName = string.IsNullOrWhiteSpace(eventItem.LecturerName) ? "—" : eventItem.LecturerName;
+        var locationLabel = string.IsNullOrWhiteSpace(sessionDate.Location) ? "IEKA" : sessionDate.Location;
         int sent = 0;
         foreach (var p in participants)
         {
@@ -254,7 +256,14 @@ public class EventsController(IEventsService eventsService) : ControllerBase
                 var link = $"/lecturer-feedback?token={p.FeedbackToken}";
                 await emailService.SendLecturerFeedbackRequestAsync(
                     p.User,
-                    new LecturerFeedbackEmailItem(eventItem.Name, sessionDateLabel, lecturerName, link),
+                    new LecturerFeedbackEmailItem(
+                        eventItem.Name,
+                        eventItem.Name,
+                        sessionDateLabel,
+                        sessionTimeLabel,
+                        lecturerName,
+                        locationLabel,
+                        link),
                     cancellationToken);
                 sent++;
             }

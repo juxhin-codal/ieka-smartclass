@@ -2533,8 +2533,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
           </div>
 
           {isAdmin && showAddForm && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-              <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+              <div className="w-full max-w-3xl max-h-[calc(100vh-4rem)] overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
                 <div className="flex items-center justify-between border-b border-border px-6 py-4">
                   <h3 className="text-base font-semibold text-foreground">Shto Student të Ri</h3>
                   <button
@@ -3040,8 +3040,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       {activeTab === "modules" && isAdmin && (
         <>
           {showAddModuleForm && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-              <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+              <div className="w-full max-w-3xl max-h-[calc(100vh-4rem)] overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
                 <div className="flex items-center justify-between border-b border-border px-6 py-4">
                   <h3 className="text-base font-semibold text-foreground">Shto Modul të Ri</h3>
                   <button
@@ -3458,8 +3458,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
 
           {/* Module Detail Modal */}
           {(selectedModuleDetail || moduleDetailLoading) && (
-            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-              <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+              <div className="w-full max-w-3xl max-h-[calc(100vh-4rem)] overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
                 {moduleDetailLoading ? (
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -3780,7 +3780,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         <ClipboardList className="h-3.5 w-3.5" />
                                       </button>
                                     )}
-                                    {isTopicPast && (() => {
+                                    {(isTopicPast || (!!topic.scheduledDate && topic.scheduledDate.slice(0, 10) === todayStr)) && (() => {
                                       const fbState = topicFeedbackEmailState[topic.id]
                                       return (
                                         <button
@@ -4953,8 +4953,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       )}
 
       {editingStudent && isAdmin && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-3xl max-h-[calc(100vh-4rem)] overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Modifiko Studentin</h2>
@@ -5211,8 +5211,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       )}
 
       {scheduleStudent && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-foreground/40 px-4 py-8 backdrop-blur-sm">
-          <div className="w-full max-w-3xl rounded-xl border border-border bg-card shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-foreground/40 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-3xl max-h-[calc(100vh-4rem)] overflow-y-auto rounded-xl border border-border bg-card shadow-lg">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Orari i Studentit</h2>
