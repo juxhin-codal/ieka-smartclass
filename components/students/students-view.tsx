@@ -3823,7 +3823,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                           type="button"
                                           onClick={() => handleOpenQrPopup(topic.id, topic.name, selectedModuleDetail.yearGrade)}
                                           className="rounded-md p-1 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                                          title="Shfaq QR"
+                                          data-tooltip="Shfaq QR"
                                         >
                                           <QrCode className="h-3.5 w-3.5" />
                                         </button>
@@ -3831,7 +3831,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                           type="button"
                                           onClick={() => startEditTopic(topic)}
                                           className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                          title="Ndrysho"
+                                          data-tooltip="Ndrysho"
                                         >
                                           <Pencil className="h-3.5 w-3.5" />
                                         </button>
@@ -3839,7 +3839,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                           type="button"
                                           onClick={() => setDeletingTopicId(topic.id)}
                                           className="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                          title="Fshi temën"
+                                          data-tooltip="Fshi temën"
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
                                         </button>
@@ -3849,7 +3849,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                       type="button"
                                       onClick={() => handleExportSingleTopicAttendance(topic.id, topic.name)}
                                       className="rounded-md p-1 text-muted-foreground hover:text-green-600 hover:bg-green-500/10 shrink-0"
-                                      title="List Prezenca"
+                                      data-tooltip="List Prezenca"
                                     >
                                       <Download className="h-3.5 w-3.5" />
                                     </button>
@@ -3863,7 +3863,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                             ? "text-primary bg-primary/10"
                                             : "text-muted-foreground hover:text-primary hover:bg-primary/10"
                                         )}
-                                        title="Menaxho Prezencën"
+                                        data-tooltip="Menaxho Prezencën"
                                       >
                                         <ClipboardList className="h-3.5 w-3.5" />
                                       </button>
@@ -3881,7 +3881,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                               : typeof fbState === "object" ? "text-green-600 bg-green-500/10"
                                                 : "text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10"
                                           )}
-                                          title={
+                                          data-tooltip={
                                             fbState === "loading" ? "Duke dërguar..."
                                               : fbState === "error" ? "Gabim — provo sërish"
                                                 : typeof fbState === "object" ? `Dërguar ${fbState.sent} email`
@@ -3899,7 +3899,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         type="button"
                                         onClick={() => setDeletingTopicId(topic.id)}
                                         className="rounded-md p-1 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                        title="Fshi temën"
+                                        data-tooltip="Fshi temën"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
                                       </button>
@@ -4064,7 +4064,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                                   type="button"
                                                   onClick={() => void openEditQuestionnaire(q.id, topic.id, topic.name)}
                                                   className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
-                                                  title="Ndrysho Pyetësorin"
+                                                  data-tooltip="Ndrysho Pyetësorin"
                                                 >
                                                   <Pencil className="h-3 w-3" />
                                                 </button>
@@ -4073,7 +4073,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                                 type="button"
                                                 onClick={() => openQuestionnaireQr(q.id)}
                                                 className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
-                                                title="QR Pyetësor"
+                                                data-tooltip="QR Pyetësor"
                                               >
                                                 <QrCode className="h-3 w-3" />
                                               </button>
@@ -4081,7 +4081,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                                 type="button"
                                                 onClick={() => openQuestionnaireResults(q.id)}
                                                 className="rounded-md p-1 text-primary hover:bg-primary/10 transition-colors"
-                                                title="Shiko Rezultatet"
+                                                data-tooltip="Shiko Rezultatet"
                                               >
                                                 <Eye className="h-3 w-3" />
                                               </button>
@@ -4090,7 +4090,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                                   type="button"
                                                   onClick={() => setDeletingQuestionnaireId(q.id)}
                                                   className="rounded-md p-1 text-destructive hover:bg-destructive/10 transition-colors"
-                                                  title="Fshi Pyetësorin"
+                                                  data-tooltip="Fshi Pyetësorin"
                                                 >
                                                   <Trash2 className="h-3 w-3" />
                                                 </button>
@@ -4134,7 +4134,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                           <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
                             <div className="flex items-center justify-between mb-4">
                               <h3 className="text-base font-semibold text-foreground">{questionnaireEditId ? "Ndrysho Pyetësor" : "Shto Pyetësor"} - {questionnaireTopicName}</h3>
-                              <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted" title="Mbyll"><X className="h-4 w-4" /></button>
+                              <button type="button" onClick={() => setShowQuestionnaireModal(false)} className="rounded-md p-1 hover:bg-muted" data-tooltip="Mbyll"><X className="h-4 w-4" /></button>
                             </div>
 
                             <div className="space-y-4">
@@ -4277,11 +4277,11 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                               </h3>
                               <div className="flex items-center gap-1">
                                 {!questionnaireResultsLoading && questionnaireResponses.length > 0 && (
-                                  <button type="button" onClick={downloadQuestionnaireResults} title="Shkarko rezultatet" className="rounded-md p-1 hover:bg-muted text-muted-foreground hover:text-foreground">
+                                  <button type="button" onClick={downloadQuestionnaireResults} data-tooltip="Shkarko rezultatet" className="rounded-md p-1 hover:bg-muted text-muted-foreground hover:text-foreground">
                                     <Download className="h-4 w-4" />
                                   </button>
                                 )}
-                                <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted" title="Mbyll"><X className="h-4 w-4" /></button>
+                                <button type="button" onClick={() => { setShowQuestionnaireResults(false); setSelectedResponseId(null) }} className="rounded-md p-1 hover:bg-muted" data-tooltip="Mbyll"><X className="h-4 w-4" /></button>
                               </div>
                             </div>
 
