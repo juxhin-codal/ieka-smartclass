@@ -35,4 +35,4 @@ public sealed record StudentTrainingStazhEmailItem(DateTime StartedAt, DateTime?
 public sealed record SessionClosedAdminEmailItem(string ModuleName, DateTime SessionDate, string SessionTime, string? SessionLocation);
 public sealed record SessionParticipantEmailItem(string FullName, string RegistryNumber, string Email, string BookingStatus, string AttendanceStatus);
 public sealed record EvaluationEmailItem(string QuestionnaireTitle, string EmailSubject, string EmailBody, string ActionLink);
-public sealed record LecturerFeedbackEmailItem(string ModuleName, string TopicName, string SessionDate, string SessionTime, string LecturerName, string TopicLocation, string ActionLink);
+public sealed record LecturerFeedbackEmailItem(string ModuleName, string TopicName, string SessionDate, string SessionTime, string LecturerName, string TopicLocation, string FeedbackToken, string? FeedbackType = null);

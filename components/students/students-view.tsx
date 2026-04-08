@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useSearchParams, useRouter } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import { useAuth } from "@/lib/auth-context"
@@ -4041,7 +4042,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       </div>
 
                       {/* Questionnaire Modal */}
-                      {showQuestionnaireModal && (
+                      {showQuestionnaireModal && createPortal(
                         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
                           <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
                             <div className="flex items-center justify-between mb-4">
@@ -4152,10 +4153,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             </div>
                           </div>
                         </div>
-                      )}
+                      , document.body)}
 
                       {/* Questionnaire QR Modal */}
-                      {questionnaireQrId && (
+                      {questionnaireQrId && createPortal(
                         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
                           <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl text-center">
                             <h3 className="mb-4 text-base font-semibold text-foreground">QR Pyetësor</h3>
@@ -4176,10 +4177,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             </div>
                           </div>
                         </div>
-                      )}
+                      , document.body)}
 
                       {/* Questionnaire Results Modal */}
-                      {showQuestionnaireResults && (
+                      {showQuestionnaireResults && createPortal(
                         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 px-4 backdrop-blur-sm">
                           <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto overscroll-contain rounded-xl border border-border bg-card p-6 shadow-xl">
                             <div className="flex items-center justify-between mb-4">
@@ -4246,7 +4247,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             )}
                           </div>
                         </div>
-                      )}
+                      , document.body)}
 
                       {/* Student Presence Table with per-topic columns */}
                       <div className="px-5 pb-4">

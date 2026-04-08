@@ -885,7 +885,6 @@ public class StudentModulesController(
         {
             try
             {
-                var link = $"/lecturer-feedback?type=topic&token={att.FeedbackToken}";
                 await emailService.SendLecturerFeedbackRequestAsync(
                     att.Student,
                     new LecturerFeedbackEmailItem(
@@ -895,7 +894,8 @@ public class StudentModulesController(
                         sessionTimeLabel,
                         topic.Lecturer,
                         string.IsNullOrWhiteSpace(topic.Location) ? "IEKA" : topic.Location,
-                        link),
+                        att.FeedbackToken!,
+                        "topic"),
                     cancellationToken);
                 sent++;
             }

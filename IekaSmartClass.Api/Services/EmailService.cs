@@ -103,7 +103,7 @@ public class EmailService(
 
     public Task SendBookingOpenNotificationAsync(AppUser user, BookingOpenEmailItem item, CancellationToken cancellationToken = default)
     {
-        var actionLink = NormalizeFrontendLink(item.ActionLink);
+        var actionLink = BuildFrontendUri(item.ActionLink);
 
         var body = RenderTemplate(
             "booking-open.html",
@@ -122,7 +122,7 @@ public class EmailService(
 
     public Task SendSessionReminderAsync(AppUser user, SessionReminderEmailItem item, CancellationToken cancellationToken = default)
     {
-        var actionLink = NormalizeFrontendLink(item.ActionLink);
+        var actionLink = BuildFrontendUri(item.ActionLink);
 
         var body = RenderTemplate(
             "session-reminder.html",
@@ -141,7 +141,7 @@ public class EmailService(
 
     public Task SendSurveyReminderAsync(AppUser user, SurveyReminderEmailItem item, CancellationToken cancellationToken = default)
     {
-        var actionLink = NormalizeFrontendLink(item.ActionLink);
+        var actionLink = BuildFrontendUri(item.ActionLink);
 
         var body = RenderTemplate(
             "survey-reminder.html",
@@ -159,7 +159,7 @@ public class EmailService(
 
     public Task SendCpdDeadlineReminderAsync(AppUser user, CpdDeadlineEmailItem item, CancellationToken cancellationToken = default)
     {
-        var actionLink = NormalizeFrontendLink(item.ActionLink);
+        var actionLink = BuildFrontendUri(item.ActionLink);
 
         var body = RenderTemplate(
             "cpd-deadline.html",
@@ -394,7 +394,7 @@ public class EmailService(
 
     public Task SendEvaluationQuestionnaireAsync(AppUser user, EvaluationEmailItem item, CancellationToken cancellationToken = default)
     {
-        var actionLink = NormalizeFrontendLink(item.ActionLink);
+        var actionLink = BuildFrontendUri(item.ActionLink);
 
         var body = RenderTemplate(
             "evaluation-questionnaire.html",
@@ -411,7 +411,10 @@ public class EmailService(
 
     public Task SendLecturerFeedbackRequestAsync(AppUser user, LecturerFeedbackEmailItem item, CancellationToken cancellationToken = default)
     {
-        var actionLink = NormalizeFrontendLink(item.ActionLink);
+        var queryParams = new Dictionary<string, string> { ["token"] = item.FeedbackToken };
+        if (!string.IsNullOrEmpty(item.FeedbackType))
+            queryParams["type"] = item.FeedbackType;
+        var actionLink = BuildFrontendUri("/lecturer-feedback", queryParams);
 
         var body = RenderTemplate(
             "lecturer-feedback-request.html",
@@ -545,6 +548,15 @@ public class EmailService(
         });
     }
 
+    private string BuildFrontendUri(string relativePath)
+    {
+        var baseUrl = string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
+            ? "http://localhost:3000"
+            : _settings.FrontendBaseUrl.TrimEnd('/');
+        var normalizedPath = relativePath.StartsWith('/') ? relativePath : $"/{relativePath}";
+        return $"{baseUrl}{normalizedPath}";
+    }
+
     private string BuildFrontendUri(string path, IDictionary<string, string> queryParams)
     {
         var baseUrl = string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
@@ -557,20 +569,6 @@ public class EmailService(
         return string.IsNullOrWhiteSpace(query)
             ? $"{baseUrl}{normalizedPath}"
             : $"{baseUrl}{normalizedPath}?{query}";
-    }
-
-    private string NormalizeFrontendLink(string link)
-    {
-        if (Uri.TryCreate(link, UriKind.Absolute, out var absolute))
-        {
-            return absolute.ToString();
-        }
-
-        var baseUrl = string.IsNullOrWhiteSpace(_settings.FrontendBaseUrl)
-            ? "https://iekaclass.vercel.app"
-            : _settings.FrontendBaseUrl.TrimEnd('/');
-        var normalizedPath = link.StartsWith('/') ? link : $"/{link}";
-        return $"{baseUrl}{normalizedPath}";
     }
 
     private string RenderTemplate(string fileName, IDictionary<string, string>? tokens = null)

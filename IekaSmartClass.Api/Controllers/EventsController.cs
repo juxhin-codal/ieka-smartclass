@@ -253,7 +253,6 @@ public class EventsController(IEventsService eventsService) : ControllerBase
         {
             try
             {
-                var link = $"/lecturer-feedback?token={p.FeedbackToken}";
                 await emailService.SendLecturerFeedbackRequestAsync(
                     p.User,
                     new LecturerFeedbackEmailItem(
@@ -263,7 +262,7 @@ public class EventsController(IEventsService eventsService) : ControllerBase
                         sessionTimeLabel,
                         lecturerName,
                         locationLabel,
-                        link),
+                        p.FeedbackToken!),
                     cancellationToken);
                 sent++;
             }
