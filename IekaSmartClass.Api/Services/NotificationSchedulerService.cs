@@ -7,8 +7,9 @@ public class NotificationSchedulerService(
     ILogger<NotificationSchedulerService> logger) : BackgroundService
 {
     private static readonly TimeZoneInfo AppTimeZone = ResolveAppTimeZone();
-    private const int TargetHour = 19;
-    private const int TargetMinute = 0;
+
+    // Daily run times in local (Europe/Tirane) time
+    private static readonly (int Hour, int Minute)[] RunTimes = [(19, 0)];
 
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly ILogger<NotificationSchedulerService> _logger = logger;
@@ -55,9 +56,15 @@ public class NotificationSchedulerService(
         var utcNow = DateTime.UtcNow;
         var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), AppTimeZone);
 
-        var todayTarget = new DateTime(localNow.Year, localNow.Month, localNow.Day, TargetHour, TargetMinute, 0);
-
-        var nextRun = localNow < todayTarget ? todayTarget : todayTarget.AddDays(1);
+        var nextRun = RunTimes
+            .SelectMany(t => new[]
+            {
+                new DateTime(localNow.Year, localNow.Month, localNow.Day, t.Hour, t.Minute, 0),
+                new DateTime(localNow.Year, localNow.Month, localNow.Day, t.Hour, t.Minute, 0).AddDays(1)
+            })
+            .Where(t => t > localNow)
+            .OrderBy(t => t)
+            .First();
 
         var nextRunUtc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(nextRun, DateTimeKind.Unspecified), AppTimeZone);
         var delay = nextRunUtc - utcNow;

@@ -519,6 +519,54 @@ public class EmailService(
     {
         var actionLink = BuildFrontendUri(item.ActionLink);
 
+        var stepsBlock = item.Scope == "lecturer"
+            ? $"""
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:0 36px 24px;">
+                    <div style="font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Formulari përmban 1 hap:</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding:10px 14px;background-color:#eff6ff;border-radius:8px;">
+                          <div style="font-size:13px;line-height:1.5;color:#1e40af;">
+                            <strong style="color:#0f2138;">1.</strong>&ensp;VLERËSIMI I LEKTORIT &mdash; {System.Net.WebUtility.HtmlEncode(item.LecturerName)}
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              """
+            : $"""
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:0 36px 24px;">
+                    <div style="font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Formulari përmban 3 hapa:</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding:10px 14px;background-color:#f0fdf4;border-radius:8px;">
+                          <div style="font-size:13px;line-height:1.5;color:#166534;"><strong style="color:#0f2138;">1.</strong>&ensp;VLERËSIMI I PËRGJITHSHËM I ORGANIZIMIT</div>
+                        </td>
+                      </tr>
+                      <tr><td style="height:6px;"></td></tr>
+                      <tr>
+                        <td style="padding:10px 14px;background-color:#eff6ff;border-radius:8px;">
+                          <div style="font-size:13px;line-height:1.5;color:#1e40af;"><strong style="color:#0f2138;">2.</strong>&ensp;VLERËSIMI I LEKTORIT &mdash; {System.Net.WebUtility.HtmlEncode(item.LecturerName)}</div>
+                        </td>
+                      </tr>
+                      <tr><td style="height:6px;"></td></tr>
+                      <tr>
+                        <td style="padding:10px 14px;background-color:#faf5ff;border-radius:8px;">
+                          <div style="font-size:13px;line-height:1.5;color:#6b21a8;"><strong style="color:#0f2138;">3.</strong>&ensp;VLERËSIMI FINAL</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              """;
+
         var body = RenderTemplate(
             "module-feedback-request.html",
             new Dictionary<string, string>
@@ -530,6 +578,7 @@ public class EmailService(
                 ["SESSION_DATE"] = item.SessionDate,
                 ["SESSION_TIME"] = item.SessionTime,
                 ["LOCATION"] = item.Location,
+                ["STEPS_BLOCK"] = stepsBlock,
                 ["ACTION_LINK"] = actionLink,
                 ["RAW_ACTION_LINK"] = actionLink
             });

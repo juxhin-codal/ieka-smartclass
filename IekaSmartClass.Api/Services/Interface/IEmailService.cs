@@ -44,7 +44,7 @@ public sealed record SessionParticipantEmailItem(string FullName, string Registr
 public sealed record EvaluationEmailItem(string QuestionnaireTitle, string EmailSubject, string EmailBody, string ActionLink);
 public sealed record LecturerFeedbackEmailItem(string ModuleName, string TopicName, string SessionDate, string SessionTime, string LecturerName, string TopicLocation, string FeedbackToken, string? FeedbackType = null);
 public sealed record SessionDocumentsEmailItem(string ModuleName, string SessionDate, string DocumentsListHtml);
-public sealed record ModuleFeedbackEmailItem(string ModuleTitle, string TopicName, string LecturerName, string SessionDate, string SessionTime, string Location, string ActionLink);
+public sealed record ModuleFeedbackEmailItem(string ModuleTitle, string TopicName, string LecturerName, string SessionDate, string SessionTime, string Location, string ActionLink, string Scope = "all");
 public sealed record ManualModuleFeedbackEmailItem(string ModuleTitle, IReadOnlyList<string> SectionTitles, string ActionLink);
 public sealed record ModuleFeedbackReminderEmailItem(string ModuleTitle, string TopicName, string LecturerName, string SessionDate, string ActionLink);
 public sealed record ReservationChoiceWarningEmailItem(string ModuleName, string ReservedDatesHtml, string ActionLink);

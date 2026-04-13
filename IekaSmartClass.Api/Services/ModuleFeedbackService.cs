@@ -72,6 +72,7 @@ public class ModuleFeedbackService(
         var template = await db.ModuleFeedbackTemplates
             .Include(t => t.Sections.OrderBy(s => s.Order))
                 .ThenInclude(s => s.Questions.OrderBy(q => q.Order))
+            .AsNoTracking()
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Template not found.");
 
@@ -84,7 +85,7 @@ public class ModuleFeedbackService(
                 .ToList();
             template.Sections.Clear();
             foreach (var s in filteredSections)
-                ((ICollection<ModuleFeedbackSection>)template.Sections).Add(s);
+                template.Sections.Add(s);
         }
 
         var module = await db.StudentModules

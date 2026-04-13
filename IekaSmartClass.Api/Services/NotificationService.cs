@@ -479,7 +479,8 @@ public class NotificationService(
                             sessionDateLabel,
                             sessionTimeLabel,
                             string.IsNullOrWhiteSpace(topic.Location) ? "IEKA" : topic.Location,
-                            $"/module-feedback/{topic.StudentModule.Id}{sectionParam}"),
+                            $"/module-feedback/{topic.StudentModule.Id}{sectionParam}",
+                            Scope: "lecturer"),
                         cancellationToken);
                 }
                 catch (Exception ex)
@@ -554,7 +555,8 @@ public class NotificationService(
                             sessionDateLabel,
                             sessionTimeLabel,
                             locationLabel,
-                            $"/module-feedback/{session.EventItem.Id}{sectionParam}"),
+                            $"/module-feedback/{session.EventItem.Id}{sectionParam}",
+                            Scope: "lecturer"),
                         cancellationToken);
                 }
                 catch (Exception ex)
@@ -793,8 +795,9 @@ public class NotificationService(
 
     private async Task<bool> IsModuleFeedbackAutoSendEnabledAsync()
     {
-        var value = await _configService.GetConfigValueAsync("ModuleFeedbackAutoSendEnabled");
-        return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+        // Auto-send is considered enabled when at least one section is marked RepeatsPerTopic.
+        // This keeps the backend in sync with the "Dërgo Email Vlerësimi" toggle in Settings.
+        return await _dbContext.ModuleFeedbackSections.AnyAsync(s => s.RepeatsPerTopic);
     }
 
     private async Task<bool> IsModuleFeedbackReminderEnabledAsync()
