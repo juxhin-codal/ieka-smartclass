@@ -123,6 +123,8 @@ public class StudentModuleTopicAttendance
     public Guid StudentId { get; private set; }
     public DateTime AttendedAt { get; private set; }
     public string? FeedbackToken { get; private set; }
+    public DateTime? FeedbackEmailSentAt { get; private set; }
+    public DateTime? ReminderSentAt { get; private set; }
 
     public StudentModuleTopic Topic { get; private set; } = null!;
     public AppUser Student { get; private set; } = null!;
@@ -137,7 +139,13 @@ public class StudentModuleTopicAttendance
         AttendedAt = DateTime.UtcNow;
     }
 
-    public void SetFeedbackToken(string token) { FeedbackToken = token; }
+    public void SetFeedbackToken(string token)
+    {
+        FeedbackToken = token;
+        FeedbackEmailSentAt = DateTime.UtcNow;
+    }
+
+    public void SetReminderSent() => ReminderSentAt = DateTime.UtcNow;
 }
 
 public class StudentModuleTopicFeedback

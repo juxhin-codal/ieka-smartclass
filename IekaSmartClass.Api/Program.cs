@@ -99,6 +99,8 @@ builder.Services.AddScoped<IStazhService, StazhService>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IStudentModuleService, StudentModuleService>();
 builder.Services.AddScoped<IEvaluationService, EvaluationService>();
+builder.Services.AddScoped<IModuleFeedbackService, ModuleFeedbackService>();
+builder.Services.AddHostedService<NotificationSchedulerService>();
 
 // Add AutoMapper
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());

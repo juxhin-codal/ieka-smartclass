@@ -29,7 +29,7 @@ public class ConfigurationsController(IConfigurationService configurationService
     public async Task<IActionResult> SetConfig([FromBody] SetConfigRequest request)
     {
         await _configurationService.SetConfigValueAsync(request.Key, request.Value, request.Description);
-        return Ok();
+        return NoContent();
     }
 }
 

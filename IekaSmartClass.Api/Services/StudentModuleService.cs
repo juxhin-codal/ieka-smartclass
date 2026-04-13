@@ -560,13 +560,13 @@ public class StudentModuleService(
         await _db.SaveChangesAsync(cancellationToken);
 
         // Notify added students
-        var topicNames = module.Topics.Select(t => t.Name).ToList();
+        var topicItems = module.Topics.OrderBy(t => t.ScheduledDate).Select(t => new ModuleTopicEmailItem(t.Name, t.Lecturer, t.ScheduledDate)).ToList();
         foreach (var student in students)
         {
             try
             {
                 await _emailService.SendStudentAddedToModuleAsync(
-                    student, module.Title, module.YearGrade, module.Location, topicNames, cancellationToken);
+                    student, module.Title, module.YearGrade, module.Location, topicItems, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -1116,9 +1116,9 @@ public class StudentModuleService(
             {
                 try
                 {
-                    var topicNames = module.Topics.Select(t => t.Name).ToList();
+                    var topicItems = module.Topics.OrderBy(t => t.ScheduledDate).Select(t => new ModuleTopicEmailItem(t.Name, t.Lecturer, t.ScheduledDate)).ToList();
                     await _emailService.SendStudentAddedToModuleAsync(
-                        student, module.Title, module.YearGrade, module.Location, topicNames, cancellationToken);
+                        student, module.Title, module.YearGrade, module.Location, topicItems, cancellationToken);
                 }
                 catch (Exception ex)
                 {

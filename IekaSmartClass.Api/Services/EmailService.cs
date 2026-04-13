@@ -282,23 +282,50 @@ public class EmailService(
 
     public Task SendStudentModuleUpdateAsync(AppUser student, string moduleTitle, string changeDescription, CancellationToken cancellationToken = default)
     {
-        var body = $@"
-<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-    <h2 style='color: #1a365d;'>Përditësim i Modulit</h2>
-    <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
-    <p>Moduli <strong>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</strong> ka ndryshime:</p>
-    <div style='padding: 12px 16px; background: #f7fafc; border-left: 4px solid #3182ce; margin: 16px 0;'>
-        {System.Net.WebUtility.HtmlEncode(changeDescription)}
-    </div>
-    <p>Ju lutem kontrolloni platformën për detaje.</p>
-    {BuildPlatformButton()}
-    <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
-</div>";
+        var recipientName = WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}");
+        var moduleTitleEncoded = WebUtility.HtmlEncode(moduleTitle);
+        var changeEncoded = WebUtility.HtmlEncode(changeDescription);
+
+        var body = $@"<!DOCTYPE html>
+<html lang='sq'>
+<head><meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1.0'/></head>
+<body style='margin:0;padding:0;background-color:#f1f4f8;font-family:""Segoe UI"",Tahoma,Arial,sans-serif;color:#1f2937;'>
+  <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='background-color:#f1f4f8;padding:24px 12px;'>
+    <tr><td align='center'>
+      <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='max-width:640px;background-color:#ffffff;border:1px solid #d0d7e2;'>
+        <tr>
+          <td style='padding:20px 28px;background-color:#0f2138;border-bottom:4px solid #24456d;'>
+            <div style='font-size:20px;font-weight:700;color:#ffffff;'>IEKA SmartClass</div>
+            <div style='margin-top:4px;font-size:12px;color:#c6d2e3;'>Njoftim për përditësim moduli</div>
+          </td>
+        </tr>
+        <tr>
+          <td style='padding:28px;'>
+            <h1 style='margin:0 0 14px;font-size:22px;color:#0f172a;'>Përditësim i Modulit</h1>
+            <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#334155;'>
+              Përshëndetje <strong>{recipientName}</strong>,
+            </p>
+            <p style='margin:0 0 16px;font-size:15px;line-height:1.7;color:#334155;'>
+              Moduli <strong>{moduleTitleEncoded}</strong> ka ndryshimet e mëposhtme:
+            </p>
+            <div style='border-left:4px solid #2563eb;background-color:#eff6ff;padding:14px 18px;margin:0 0 20px;border-radius:0 4px 4px 0;'>
+              <p style='margin:0;font-size:14px;line-height:1.6;color:#1e40af;'>{changeEncoded}</p>
+            </div>
+            <p style='margin:0 0 20px;font-size:14px;color:#475569;'>Ju lutem kontrolloni platformën për detaje të plota.</p>
+            {BuildPlatformButton()}
+            <p style='margin:24px 0 0;font-size:11px;color:#94a3b8;'>IEKA SmartClass · Ky është një email automatik.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>";
 
         return SendUserEmailAsync(student, $"Përditësim moduli: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
     }
 
-    public Task SendStudentAddedToModuleAsync(AppUser student, string moduleTitle, int yearGrade, string? location, IReadOnlyList<string> topicNames, CancellationToken cancellationToken = default)
+    public Task SendStudentAddedToModuleAsync(AppUser student, string moduleTitle, int yearGrade, string? location, IReadOnlyList<ModuleTopicEmailItem> topics, CancellationToken cancellationToken = default)
     {
         var yearLabel = yearGrade switch
         {
@@ -308,38 +335,77 @@ public class EmailService(
             _ => $"Viti {yearGrade}"
         };
 
-        var topicRows = topicNames.Count > 0
-            ? string.Join("", topicNames.Select(t =>
-                $"<tr><td style='padding: 6px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(t)}</td></tr>"))
-            : "<tr><td style='padding: 6px 12px; border: 1px solid #e2e8f0; color: #718096;'>Nuk ka tema ende.</td></tr>";
+        var recipientName = WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}");
+        var moduleTitleEncoded = WebUtility.HtmlEncode(moduleTitle);
 
-        var body = $@"
-<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>
-    <h2 style='color: #1a365d;'>Jeni Shtuar në Modul</h2>
-    <p>Përshëndetje {System.Net.WebUtility.HtmlEncode($"{student.FirstName} {student.LastName}")},</p>
-    <p>Jeni shtuar në modulin e mëposhtëm:</p>
-    <table style='width: 100%; border-collapse: collapse; margin: 16px 0;'>
+        var topicRows = topics.Count > 0
+            ? string.Join("", topics.Select((t, i) =>
+            {
+                var bg = i % 2 == 0 ? "#f8fafc" : "#ffffff";
+                var dateStr = t.ScheduledDate.HasValue
+                    ? t.ScheduledDate.Value.ToString("dd MMM yyyy")
+                    : "—";
+                return $@"<tr>
+                  <td style='padding:10px 12px;border:1px solid #e2e8f0;background-color:{bg};font-size:13px;color:#1e293b;'>{WebUtility.HtmlEncode(t.Name)}</td>
+                  <td style='padding:10px 12px;border:1px solid #e2e8f0;background-color:{bg};font-size:13px;color:#475569;'>{WebUtility.HtmlEncode(t.Lecturer)}</td>
+                  <td style='padding:10px 12px;border:1px solid #e2e8f0;background-color:{bg};font-size:13px;color:#475569;white-space:nowrap;'>{dateStr}</td>
+                </tr>";
+            }))
+            : @"<tr><td colspan='3' style='padding:10px 12px;border:1px solid #e2e8f0;color:#94a3b8;font-size:13px;'>Nuk ka tema të planifikuara ende.</td></tr>";
+
+        var body = $@"<!DOCTYPE html>
+<html lang='sq'>
+<head><meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1.0'/></head>
+<body style='margin:0;padding:0;background-color:#f1f4f8;font-family:""Segoe UI"",Tahoma,Arial,sans-serif;color:#1f2937;'>
+  <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='background-color:#f1f4f8;padding:24px 12px;'>
+    <tr><td align='center'>
+      <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='max-width:640px;background-color:#ffffff;border:1px solid #d0d7e2;'>
         <tr>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Moduli</td>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(moduleTitle)}</td>
+          <td style='padding:20px 28px;background-color:#0f2138;border-bottom:4px solid #24456d;'>
+            <div style='font-size:20px;font-weight:700;color:#ffffff;'>IEKA SmartClass</div>
+            <div style='margin-top:4px;font-size:12px;color:#c6d2e3;'>Caktim në modul trajnimi</div>
+          </td>
         </tr>
         <tr>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Viti</td>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{yearLabel}</td>
+          <td style='padding:28px;'>
+            <h1 style='margin:0 0 14px;font-size:22px;color:#0f172a;'>Jeni Shtuar në Modul</h1>
+            <p style='margin:0 0 20px;font-size:15px;line-height:1.7;color:#334155;'>
+              Përshëndetje <strong>{recipientName}</strong>,<br/>
+              jeni caktuar në modulin e trajnimit të mëposhtëm.
+            </p>
+
+            <!-- Module info card -->
+            <div style='border:1px solid #dbe3f5;background-color:#f8fafc;padding:16px 20px;margin:0 0 24px;'>
+              <p style='margin:0 0 6px;font-size:18px;font-weight:700;color:#0f172a;'>{moduleTitleEncoded}</p>
+              <p style='margin:0 0 4px;font-size:13px;color:#475569;'>Viti akademik: <strong>{yearLabel}</strong></p>
+              <p style='margin:0;font-size:13px;color:#475569;'>Vendndodhja: <strong>{WebUtility.HtmlEncode(location ?? "IEKA")}</strong></p>
+            </div>
+
+            <!-- Topics table -->
+            <p style='margin:0 0 10px;font-size:14px;font-weight:600;color:#0f172a;'>Temat e Modulit</p>
+            <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;margin:0 0 24px;'>
+              <thead>
+                <tr>
+                  <th style='padding:10px 12px;border:1px solid #e2e8f0;background-color:#0f2138;color:#ffffff;font-size:12px;font-weight:600;text-align:left;'>Tema</th>
+                  <th style='padding:10px 12px;border:1px solid #e2e8f0;background-color:#0f2138;color:#ffffff;font-size:12px;font-weight:600;text-align:left;'>Lektori</th>
+                  <th style='padding:10px 12px;border:1px solid #e2e8f0;background-color:#0f2138;color:#ffffff;font-size:12px;font-weight:600;text-align:left;'>Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topicRows}
+              </tbody>
+            </table>
+
+            <p style='margin:0 0 20px;font-size:14px;color:#475569;'>Ju lutem kontrolloni platformën për materialet dhe detajet e trajnimit.</p>
+            {BuildPlatformButton()}
+            <p style='margin:24px 0 0;font-size:11px;color:#94a3b8;'>IEKA SmartClass · Ky është një email automatik.</p>
+          </td>
         </tr>
-        <tr>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0; background: #f7fafc; font-weight: bold;'>Vendndodhja</td>
-            <td style='padding: 8px 12px; border: 1px solid #e2e8f0;'>{System.Net.WebUtility.HtmlEncode(location ?? "-")}</td>
-        </tr>
-    </table>
-    <h3 style='color: #2d3748;'>Temat:</h3>
-    <table style='width: 100%; border-collapse: collapse; margin: 8px 0;'>
-        {topicRows}
-    </table>
-    <p>Ju lutem kontrolloni platformën për materialet e trajnimit.</p>
-    {BuildPlatformButton()}
-    <p style='color: #718096; font-size: 12px;'>IEKA SmartClass</p>
-</div>";
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>";
 
         return SendUserEmailAsync(student, $"Jeni shtuar në modulin: {moduleTitle} - IEKA SmartClass", body, cancellationToken);
     }
@@ -447,6 +513,138 @@ public class EmailService(
             });
 
         return SendUserEmailAsync(user, $"Dokumentet e sesionit: {item.ModuleName}", body, cancellationToken);
+    }
+
+    public Task SendModuleFeedbackRequestAsync(AppUser user, ModuleFeedbackEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = BuildFrontendUri(item.ActionLink);
+
+        var body = RenderTemplate(
+            "module-feedback-request.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_TITLE"] = item.ModuleTitle,
+                ["TOPIC_NAME"] = item.TopicName,
+                ["LECTURER_NAME"] = item.LecturerName,
+                ["SESSION_DATE"] = item.SessionDate,
+                ["SESSION_TIME"] = item.SessionTime,
+                ["LOCATION"] = item.Location,
+                ["ACTION_LINK"] = actionLink,
+                ["RAW_ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, $"FORMULAR VLERËSIMI \u2013 MODUL TRAJNIMI {item.ModuleTitle} - {item.TopicName}", body, cancellationToken);
+    }
+
+    public Task SendManualModuleFeedbackRequestAsync(AppUser user, ManualModuleFeedbackEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = BuildFrontendUri(item.ActionLink);
+
+        // Build dynamic section list HTML
+        var sectionsHtml = string.Join("\n", item.SectionTitles.Select((title, i) =>
+            $"""
+            <tr><td style="height:6px;"></td></tr>
+            <tr>
+              <td style="padding:10px 14px;background-color:#f0f9ff;border-radius:8px;">
+                <div style="font-size:13px;line-height:1.5;color:#0f4c81;">
+                  <strong style="color:#0f2138;">{i + 1}.</strong>&ensp;{System.Net.WebUtility.HtmlEncode(title)}
+                </div>
+              </td>
+            </tr>
+            """));
+
+        var body = RenderTemplate(
+            "manual-module-feedback-request.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_TITLE"] = item.ModuleTitle,
+                ["SECTIONS_COUNT"] = item.SectionTitles.Count.ToString(),
+                ["SECTIONS_COUNT_LABEL"] = item.SectionTitles.Count == 1 ? "seksion" : "seksione",
+                ["RAW_SECTIONS_LIST_HTML"] = sectionsHtml,
+                ["ACTION_LINK"] = actionLink,
+                ["RAW_ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, $"FORMULAR VLERËSIMI \u2013 MODUL TRAJNIMI {item.ModuleTitle}", body, cancellationToken);
+    }
+
+    public Task SendModuleFeedbackReminderAsync(AppUser user, ModuleFeedbackReminderEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = BuildFrontendUri(item.ActionLink);
+
+        var body = RenderTemplate(
+            "module-feedback-reminder.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_TITLE"] = item.ModuleTitle,
+                ["TOPIC_NAME"] = item.TopicName,
+                ["LECTURER_NAME"] = item.LecturerName,
+                ["SESSION_DATE"] = item.SessionDate,
+                ["ACTION_LINK"] = actionLink,
+                ["RAW_ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, $"Kujtesë: Formulari i vlerësimit – {item.ModuleTitle} - {item.TopicName}", body, cancellationToken);
+    }
+
+    public Task SendReservationChoiceWarningAsync(AppUser user, ReservationChoiceWarningEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = BuildFrontendUri(item.ActionLink);
+
+        var body = RenderTemplate(
+            "reservation-choice-warning.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_NAME"] = item.ModuleName,
+                ["RESERVED_DATES_HTML"] = item.ReservedDatesHtml,
+                ["ACTION_LINK"] = actionLink,
+                ["RAW_ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, $"Zgjidhni datën e sesionit \u2013 {item.ModuleName}", body, cancellationToken);
+    }
+
+    public Task SendReservationCancelledAsync(AppUser user, ReservationCancelledEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = BuildFrontendUri(item.ActionLink);
+
+        var body = RenderTemplate(
+            "reservation-cancelled.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_NAME"] = item.ModuleName,
+                ["CANCELLED_SESSION_DATE"] = item.CancelledSessionDate,
+                ["CANCELLED_SESSION_TIME"] = item.CancelledSessionTime,
+                ["REMAINING_SESSION_DATE"] = item.RemainingSessionDate,
+                ["REMAINING_SESSION_TIME"] = item.RemainingSessionTime,
+                ["ACTION_LINK"] = actionLink,
+                ["RAW_ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, $"Rezervimi juaj u anulua \u2013 {item.ModuleName}", body, cancellationToken);
+    }
+
+    public Task SendReservationSeatsAvailableAsync(AppUser user, ReservationSeatsAvailableEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var actionLink = BuildFrontendUri(item.ActionLink);
+
+        var body = RenderTemplate(
+            "reservation-seats-available.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_NAME"] = item.ModuleName,
+                ["AVAILABLE_SEATS_HTML"] = item.AvailableSeatsHtml,
+                ["ACTION_LINK"] = actionLink,
+                ["RAW_ACTION_LINK"] = actionLink
+            });
+
+        return SendUserEmailAsync(user, $"Vende të lira \u2013 {item.ModuleName}", body, cancellationToken);
     }
 
     private Task SendUserEmailAsync(AppUser user, string subject, string body, CancellationToken cancellationToken)

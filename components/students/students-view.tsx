@@ -79,6 +79,7 @@ import {
   Mail,
 } from "lucide-react"
 import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pagination-bar"
+import { ModuleFeedbackResponsesView } from "@/components/members/module-feedback-responses-view"
 
 type SortKey = "name" | "attendance" | "mentor"
 type SortDir = "asc" | "desc"
@@ -570,6 +571,10 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
   const [attTopicQrToken, setAttTopicQrToken] = useState("")
   const [attTopicQrLoading, setAttTopicQrLoading] = useState(false)
   const [attShowQrModal, setAttShowQrModal] = useState(false)
+  // Module search-select dropdown state
+  const [attModuleDropdownOpen, setAttModuleDropdownOpen] = useState(false)
+  const [attModuleSearchText, setAttModuleSearchText] = useState("")
+  const attModuleDropdownRef = useRef<HTMLDivElement>(null)
 
   const [endingStazhStudent, setEndingStazhStudent] = useState<AppUser | null>(null)
   const [endingStazhRating, setEndingStazhRating] = useState(5)
@@ -882,6 +887,19 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     return () => document.removeEventListener("mousedown", handler)
   }, [showAddStudentDropdown])
 
+  // Close attendance module dropdown on outside click
+  useEffect(() => {
+    if (!attModuleDropdownOpen) return
+    const handler = (e: MouseEvent) => {
+      if (attModuleDropdownRef.current && !attModuleDropdownRef.current.contains(e.target as Node)) {
+        setAttModuleDropdownOpen(false)
+        setAttModuleSearchText("")
+      }
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [attModuleDropdownOpen])
+
   async function handleCreateModule() {
     if (moduleSaving) return
 
@@ -974,6 +992,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     if (!selectedModuleDetail || topicSaving) return
     if (!newTopicName.trim()) return
     if (!newTopicLecturer.trim()) return
+    if (!newTopicScheduledDate) return
 
     setTopicSaving(true)
     try {
@@ -3420,63 +3439,63 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
             </div>
           ) : (
             <>
-            <div className="space-y-3">
-              {pagedModules.map((mod) => {
-                const modYear = mod.createdAt ? new Date(mod.createdAt).getFullYear() : null
-                return (
-                <div key={mod.id} className="rounded-xl border border-border bg-card p-5 shadow-sm cursor-pointer hover:border-primary/30 transition-colors" onClick={() => openModuleDetail(mod.id)}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={cn(
-                          "rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                          mod.yearGrade === 1
-                            ? "bg-blue-500/10 text-blue-600"
-                            : mod.yearGrade === 2
-                              ? "bg-purple-500/10 text-purple-600"
-                              : "bg-emerald-500/10 text-emerald-600"
-                        )}>
-                          {formatYearGradeLabel(mod.yearGrade)}
-                        </span>
-                        <h3 className="text-base font-semibold text-foreground">{mod.title}{modYear ? ` - (${modYear})` : ""}</h3>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span>{mod.topics.length} temë</span>
-                        {mod.location && (
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {mod.location}
-                          </span>
-                        )}
-                        <span>{mod.assignmentCount} studentë</span>
-                        {mod.createdByName && (
-                          <span>Krijuar nga: {mod.createdByName}</span>
-                        )}
+              <div className="space-y-3">
+                {pagedModules.map((mod) => {
+                  const modYear = mod.createdAt ? new Date(mod.createdAt).getFullYear() : null
+                  return (
+                    <div key={mod.id} className="rounded-xl border border-border bg-card p-5 shadow-sm cursor-pointer hover:border-primary/30 transition-colors" onClick={() => openModuleDetail(mod.id)}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={cn(
+                              "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                              mod.yearGrade === 1
+                                ? "bg-blue-500/10 text-blue-600"
+                                : mod.yearGrade === 2
+                                  ? "bg-purple-500/10 text-purple-600"
+                                  : "bg-emerald-500/10 text-emerald-600"
+                            )}>
+                              {formatYearGradeLabel(mod.yearGrade)}
+                            </span>
+                            <h3 className="text-base font-semibold text-foreground">{mod.title}{modYear ? ` - (${modYear})` : ""}</h3>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span>{mod.topics.length} temë</span>
+                            {mod.location && (
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {mod.location}
+                              </span>
+                            )}
+                            <span>{mod.assignmentCount} studentë</span>
+                            {mod.createdByName && (
+                              <span>Krijuar nga: {mod.createdByName}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setDeletingModuleId(mod.id) }}
+                            className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            title="Fshi modulin"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setDeletingModuleId(mod.id) }}
-                        className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        title="Fshi modulin"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                )
-              })}
-            </div>
-            <PaginationBar
-              totalItems={filteredModules.length}
-              pageSize={modulesPageSize}
-              currentPage={modulesPage}
-              onPageChange={setModulesPage}
-              onPageSizeChange={setModulesPageSize}
-              className="mt-4"
-            />
+                  )
+                })}
+              </div>
+              <PaginationBar
+                totalItems={filteredModules.length}
+                pageSize={modulesPageSize}
+                currentPage={modulesPage}
+                onPageChange={setModulesPage}
+                onPageSizeChange={setModulesPageSize}
+                className="mt-4"
+              />
             </>
           )}
 
@@ -3664,8 +3683,8 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             </div>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                               <div className="flex flex-col gap-1">
-                                <Label className="text-xs">Data</Label>
-                                <Input type="date" value={newTopicScheduledDate} onChange={(e) => setNewTopicScheduledDate(e.target.value)} className="h-8 text-xs" />
+                                <Label className="text-xs">Data *</Label>
+                                <Input type="date" value={newTopicScheduledDate} onChange={(e) => setNewTopicScheduledDate(e.target.value)} className="h-8 text-xs" required />
                               </div>
                               <div className="flex flex-col gap-1">
                                 <Label className="text-xs">Ora</Label>
@@ -3700,7 +3719,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             )}
                             <div className="flex items-center gap-2 justify-end">
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAddTopicForm(false)} disabled={topicSaving}>Anulo</Button>
-                              <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim() || resolvingMapUrl || (!!newTopicGoogleMapsUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl))}>
+                              <Button size="sm" className="h-7 text-xs" onClick={handleAddTopic} disabled={topicSaving || !newTopicName.trim() || !newTopicLecturer.trim() || !newTopicScheduledDate || resolvingMapUrl || (!!newTopicGoogleMapsUrl && !parseGoogleMapsCoords(newTopicGoogleMapsUrl))}>
                                 {topicSaving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                                 {topicSaving ? "Duke ruajtur..." : "Ruaj Temën"}
                               </Button>
@@ -4240,7 +4259,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             </div>
                           </div>
                         </div>
-                      , document.body)}
+                        , document.body)}
 
                       {/* Questionnaire QR Modal */}
                       {questionnaireQrId && createPortal(
@@ -4264,7 +4283,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             </div>
                           </div>
                         </div>
-                      , document.body)}
+                        , document.body)}
 
                       {/* Questionnaire Results Modal */}
                       {showQuestionnaireResults && createPortal(
@@ -4334,7 +4353,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                             )}
                           </div>
                         </div>
-                      , document.body)}
+                        , document.body)}
 
                       {/* Student Presence Table with per-topic columns */}
                       <div className="px-5 pb-4">
@@ -4519,19 +4538,86 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
           {/* Left sidebar - hidden on mobile when a topic is selected */}
           <div className={cn("h-fit rounded-2xl border border-border bg-card p-3 sm:p-4 space-y-4", attSelectedTopicId && "hidden lg:block")}>
-            {/* Module filter */}
-            <div className="relative z-10">
+            {/* Module filter — searchable dropdown */}
+            <div className="relative z-10" ref={attModuleDropdownRef}>
               <Label className="text-xs">Filtro sipas modulit</Label>
-              <select
-                value={attSelectedModuleId}
-                onChange={(e) => setAttSelectedModuleId(e.target.value)}
-                className="mt-1 flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              <button
+                type="button"
+                onClick={() => { setAttModuleDropdownOpen((o) => !o); setAttModuleSearchText("") }}
+                className="mt-1 flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">Zgjidh modulin...</option>
-                {attModules.map((m) => (
-                  <option key={m.id} value={m.id}>Viti {m.yearGrade} - {m.title}</option>
-                ))}
-              </select>
+                <span className={cn("truncate", !attSelectedModuleId && "text-muted-foreground")}>
+                  {attSelectedModuleId
+                    ? (() => { const m = attModules.find(m => m.id === attSelectedModuleId); return m ? `Viti ${m.yearGrade} - ${m.title} - ${new Date(m.createdAt).getFullYear()}` : "Zgjidh modulin..." })()
+                    : "Zgjidh modulin..."}
+                </span>
+                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </button>
+
+              {attModuleDropdownOpen && (
+                <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md">
+                  {/* Search input */}
+                  <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                    <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <input
+                      autoFocus
+                      placeholder="Kërko modul..."
+                      value={attModuleSearchText}
+                      onChange={(e) => setAttModuleSearchText(e.target.value)}
+                      className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                    />
+                    {attModuleSearchText && (
+                      <button type="button" onClick={() => setAttModuleSearchText("")}>
+                        <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    )}
+                  </div>
+                  {/* Options list */}
+                  <div className="max-h-52 overflow-y-auto py-1">
+                    {/* Clear option */}
+                    <button
+                      type="button"
+                      onClick={() => { setAttSelectedModuleId(""); setAttModuleDropdownOpen(false); setAttModuleSearchText("") }}
+                      className={cn(
+                        "w-full px-3 py-2 text-left text-sm hover:bg-accent",
+                        !attSelectedModuleId && "font-medium text-primary"
+                      )}
+                    >
+                      <span className="text-muted-foreground italic">Të gjithë modulet</span>
+                    </button>
+                    {attModules
+                      .filter((m) => {
+                        const q = attModuleSearchText.trim().toLowerCase()
+                        if (!q) return true
+                        const yr = String(new Date(m.createdAt).getFullYear())
+                        return m.title.toLowerCase().includes(q) || `viti ${m.yearGrade}`.includes(q) || yr.includes(q)
+                      })
+                      .map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => { setAttSelectedModuleId(m.id); setAttModuleDropdownOpen(false); setAttModuleSearchText("") }}
+                          className={cn(
+                            "w-full px-3 py-2 text-left text-sm hover:bg-accent",
+                            attSelectedModuleId === m.id && "font-medium text-primary"
+                          )}
+                        >
+                          <span className="font-medium text-xs text-muted-foreground mr-1.5">V{m.yearGrade}</span>
+                          {m.title}
+                          <span className="ml-1.5 text-xs text-muted-foreground">- {new Date(m.createdAt).getFullYear()}</span>
+                        </button>
+                      ))
+                    }
+                    {attModules.filter((m) => {
+                      const q = attModuleSearchText.trim().toLowerCase()
+                      const yr = String(new Date(m.createdAt).getFullYear())
+                      return !q || m.title.toLowerCase().includes(q) || `viti ${m.yearGrade}`.includes(q) || yr.includes(q)
+                    }).length === 0 && (
+                        <p className="px-3 py-4 text-center text-xs text-muted-foreground">Nuk u gjet asnjë modul.</p>
+                      )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {attSelectedModuleId && attModuleDetail && (
@@ -5480,7 +5566,21 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         </div>
       )}
 
-      {activeTab === "ratings" && <LecturerRatingsView />}
+      {activeTab === "ratings" && (
+        <div className="flex flex-col gap-8">
+          {/* Old star ratings (topic feedback) */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Vlerësimet e lektorit</p>
+            <LecturerRatingsView />
+          </div>
+
+          {/* Module feedback form responses */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Formulari i vlerësimit të moduleve</p>
+            <ModuleFeedbackResponsesView />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -5596,7 +5696,28 @@ function LecturerRatingsView() {
   )
 }
 
-type EvalSubTab = "results" | "questionnaires"
+type EvalSubTab = "results" | "questionnaires" | "feedback"
+
+interface MyFeedbackAnswer {
+  questionId: string
+  questionText: string | null
+  questionType: string | null
+  sectionTitle: string | null
+  topicId: string | null
+  topicName: string | null
+  topicLecturer: string | null
+  answerText: string
+}
+
+interface MyFeedbackResponse {
+  id: string
+  studentModuleId: string
+  moduleTitle: string | null
+  moduleYearGrade: number | null
+  sectionScope: string
+  submittedAt: string
+  answers: MyFeedbackAnswer[]
+}
 
 function StudentCalendarView() {
 
@@ -6220,6 +6341,9 @@ export function StudentEvaluationsView() {
   const [myQResponses, setMyQResponses] = useState<MyQuestionnaireResponseItem[]>([])
   const [myQLoading, setMyQLoading] = useState(false)
   const [expandedQResponse, setExpandedQResponse] = useState<string | null>(null)
+  const [myFeedbackResponses, setMyFeedbackResponses] = useState<MyFeedbackResponse[]>([])
+  const [myFeedbackLoading, setMyFeedbackLoading] = useState(false)
+  const [expandedFeedbackResponse, setExpandedFeedbackResponse] = useState<string | null>(null)
 
   useEffect(() => {
     setMyModulesLoading(true)
@@ -6236,6 +6360,16 @@ export function StudentEvaluationsView() {
         .then((data) => setMyQResponses((data ?? []) as MyQuestionnaireResponseItem[]))
         .catch(() => setMyQResponses([]))
         .finally(() => setMyQLoading(false))
+    }
+  }, [evalSubTab])
+
+  useEffect(() => {
+    if (evalSubTab === "feedback" && myFeedbackResponses.length === 0 && !myFeedbackLoading) {
+      setMyFeedbackLoading(true)
+      fetchApi("/ModuleFeedback/my-responses")
+        .then((data) => setMyFeedbackResponses((data ?? []) as MyFeedbackResponse[]))
+        .catch(() => setMyFeedbackResponses([]))
+        .finally(() => setMyFeedbackLoading(false))
     }
   }, [evalSubTab])
 
@@ -6274,6 +6408,18 @@ export function StudentEvaluationsView() {
           <span className="inline-flex items-center gap-1.5">
             <FileText className="h-3.5 w-3.5" />
             Pyetësorët
+          </span>
+        </button>
+        <button
+          onClick={() => setEvalSubTab("feedback")}
+          className={cn(
+            "whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+            evalSubTab === "feedback" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <ClipboardList className="h-3.5 w-3.5" />
+            Formulari i Vlerësimit
           </span>
         </button>
       </div>
@@ -6447,6 +6593,119 @@ export function StudentEvaluationsView() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {evalSubTab === "feedback" && (
+        <div>
+          {myFeedbackLoading ? (
+            <div className="rounded-xl border border-border bg-card px-5 py-8 text-sm text-muted-foreground">
+              Duke ngarkuar vlerësimet...
+            </div>
+          ) : myFeedbackResponses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
+              <ClipboardList className="mb-3 h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Nuk keni plotësuar asnjë formular vlerësimi ende.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myFeedbackResponses.map((resp) => {
+                // Group answers by section title, then by topic (for repeating sections)
+                const sectionMap = new Map<string, { byTopic: Map<string, MyFeedbackAnswer[]> }>()
+                resp.answers.forEach((a) => {
+                  const section = a.sectionTitle ?? "Pa seksion"
+                  if (!sectionMap.has(section)) sectionMap.set(section, { byTopic: new Map() })
+                  const topicKey = a.topicName ? `${a.topicName}${a.topicLecturer ? ` — ${a.topicLecturer}` : ""}` : "_general_"
+                  const topicMap = sectionMap.get(section)!.byTopic
+                  if (!topicMap.has(topicKey)) topicMap.set(topicKey, [])
+                  topicMap.get(topicKey)!.push(a)
+                })
+
+                return (
+                  <div key={resp.id} className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedFeedbackResponse(expandedFeedbackResponse === resp.id ? null : resp.id)}
+                      className="flex w-full items-center justify-between gap-3 p-4 text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {resp.moduleYearGrade != null && (
+                            <span className={cn(
+                              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                              resp.moduleYearGrade === 1
+                                ? "bg-blue-500/10 text-blue-600"
+                                : resp.moduleYearGrade === 2
+                                  ? "bg-purple-500/10 text-purple-600"
+                                  : "bg-emerald-500/10 text-emerald-600"
+                            )}>
+                              Viti {resp.moduleYearGrade}
+                            </span>
+                          )}
+                          <p className="text-sm font-semibold text-foreground">{resp.moduleTitle ?? "Modul i panjohur"}</p>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3" />
+                          Plotësuar më {format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-1 text-[11px] font-medium text-green-600">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Plotësuar
+                        </span>
+                        <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", expandedFeedbackResponse === resp.id && "rotate-90")} />
+                      </div>
+                    </button>
+
+                    {expandedFeedbackResponse === resp.id && (
+                      <div className="border-t border-border px-4 pb-5">
+                        <div className="mt-4 space-y-5">
+                          {[...sectionMap.entries()].map(([sectionTitle, { byTopic }]) => (
+                            <div key={sectionTitle}>
+                              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">{sectionTitle}</h4>
+                              <div className="space-y-4">
+                                {[...byTopic.entries()].map(([topicKey, answers]) => (
+                                  <div key={topicKey}>
+                                    {topicKey !== "_general_" && (
+                                      <p className="mb-1.5 text-xs font-medium text-foreground flex items-center gap-1">
+                                        <Users className="h-3 w-3 text-muted-foreground" />
+                                        {topicKey}
+                                      </p>
+                                    )}
+                                    <div className="space-y-2">
+                                      {answers.map((a, i) => (
+                                        <div key={`${a.questionId}-${a.topicId ?? "g"}`} className="rounded-lg bg-muted/30 p-3">
+                                          <p className="text-xs text-muted-foreground mb-1.5">{i + 1}. {a.questionText}</p>
+                                          {a.questionType === "Stars" ? (
+                                            <div className="flex items-center gap-0.5">
+                                              {[1, 2, 3, 4, 5].map((s) => (
+                                                <Star
+                                                  key={s}
+                                                  className={cn("h-4 w-4", s <= Number(a.answerText) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30")}
+                                                />
+                                              ))}
+                                              <span className="ml-1 text-xs text-muted-foreground">({a.answerText}/5)</span>
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm text-foreground">{a.answerText}</p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

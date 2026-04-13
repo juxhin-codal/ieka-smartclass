@@ -19,12 +19,18 @@ public interface IEmailService
     Task SendSessionClosedParticipantsSummaryAsync(AppUser admin, SessionClosedAdminEmailItem summary, IReadOnlyList<SessionParticipantEmailItem> participants, CancellationToken cancellationToken = default);
     Task SendStudentModuleNotificationAsync(AppUser student, string moduleTitle, int yearGrade, CancellationToken cancellationToken = default);
     Task SendStudentModuleUpdateAsync(AppUser student, string moduleTitle, string changeDescription, CancellationToken cancellationToken = default);
-    Task SendStudentAddedToModuleAsync(AppUser student, string moduleTitle, int yearGrade, string? location, IReadOnlyList<string> topicNames, CancellationToken cancellationToken = default);
+    Task SendStudentAddedToModuleAsync(AppUser student, string moduleTitle, int yearGrade, string? location, IReadOnlyList<ModuleTopicEmailItem> topics, CancellationToken cancellationToken = default);
     Task SendStudentRemovedFromModuleAsync(AppUser student, string moduleTitle, CancellationToken cancellationToken = default);
     Task SendStudentModuleResultAsync(AppUser student, string moduleTitle, string result, string? resultNote, CancellationToken cancellationToken = default);
     Task SendEvaluationQuestionnaireAsync(AppUser user, EvaluationEmailItem item, CancellationToken cancellationToken = default);
     Task SendLecturerFeedbackRequestAsync(AppUser user, LecturerFeedbackEmailItem item, CancellationToken cancellationToken = default);
     Task SendSessionDocumentsAsync(AppUser user, SessionDocumentsEmailItem item, CancellationToken cancellationToken = default);
+    Task SendModuleFeedbackRequestAsync(AppUser user, ModuleFeedbackEmailItem item, CancellationToken cancellationToken = default);
+    Task SendManualModuleFeedbackRequestAsync(AppUser user, ManualModuleFeedbackEmailItem item, CancellationToken cancellationToken = default);
+    Task SendModuleFeedbackReminderAsync(AppUser user, ModuleFeedbackReminderEmailItem item, CancellationToken cancellationToken = default);
+    Task SendReservationChoiceWarningAsync(AppUser user, ReservationChoiceWarningEmailItem item, CancellationToken cancellationToken = default);
+    Task SendReservationCancelledAsync(AppUser user, ReservationCancelledEmailItem item, CancellationToken cancellationToken = default);
+    Task SendReservationSeatsAvailableAsync(AppUser user, ReservationSeatsAvailableEmailItem item, CancellationToken cancellationToken = default);
 }
 
 public sealed record BookingOpenEmailItem(string ModuleName, string DateSummary, string Location, int CpdHours, string ActionLink);
@@ -38,3 +44,10 @@ public sealed record SessionParticipantEmailItem(string FullName, string Registr
 public sealed record EvaluationEmailItem(string QuestionnaireTitle, string EmailSubject, string EmailBody, string ActionLink);
 public sealed record LecturerFeedbackEmailItem(string ModuleName, string TopicName, string SessionDate, string SessionTime, string LecturerName, string TopicLocation, string FeedbackToken, string? FeedbackType = null);
 public sealed record SessionDocumentsEmailItem(string ModuleName, string SessionDate, string DocumentsListHtml);
+public sealed record ModuleFeedbackEmailItem(string ModuleTitle, string TopicName, string LecturerName, string SessionDate, string SessionTime, string Location, string ActionLink);
+public sealed record ManualModuleFeedbackEmailItem(string ModuleTitle, IReadOnlyList<string> SectionTitles, string ActionLink);
+public sealed record ModuleFeedbackReminderEmailItem(string ModuleTitle, string TopicName, string LecturerName, string SessionDate, string ActionLink);
+public sealed record ReservationChoiceWarningEmailItem(string ModuleName, string ReservedDatesHtml, string ActionLink);
+public sealed record ReservationCancelledEmailItem(string ModuleName, string CancelledSessionDate, string CancelledSessionTime, string RemainingSessionDate, string RemainingSessionTime, string ActionLink);
+public sealed record ReservationSeatsAvailableEmailItem(string ModuleName, string AvailableSeatsHtml, string ActionLink);
+public sealed record ModuleTopicEmailItem(string Name, string Lecturer, DateTime? ScheduledDate);

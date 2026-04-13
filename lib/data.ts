@@ -737,6 +737,44 @@ export interface EvaluationResponseItem {
   answers: EvaluationResponseAnswer[]
 }
 
+// Module Feedback Template types
+export interface ModuleFeedbackQuestion {
+  id: string
+  text: string
+  type: number // 1=FreeText, 2=Stars
+  order: number
+}
+
+export interface ModuleFeedbackSection {
+  id: string
+  title: string
+  order: number
+  repeatsPerTopic: boolean
+  ratingLabelLow?: string | null
+  ratingLabelHigh?: string | null
+  questions: ModuleFeedbackQuestion[]
+}
+
+export interface ModuleFeedbackTemplateResponse {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  sections: ModuleFeedbackSection[]
+}
+
+export interface ModuleFeedbackTopicInfo {
+  id: string
+  name: string
+  lecturer?: string | null
+}
+
+export interface ModuleFeedbackFillResponse {
+  template: ModuleFeedbackTemplateResponse
+  topics: ModuleFeedbackTopicInfo[]
+  alreadyAnswered: boolean
+}
+
 export const MOCK_EVENTS: EventItem[] = rawEvents.map((e) => {
   const participants = generateParticipants(e.id, e.dates, e.currentParticipants)
   if (e.status === "past") {

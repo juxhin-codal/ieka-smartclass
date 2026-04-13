@@ -5,7 +5,7 @@ import { useEvents } from "@/lib/events-context"
 import { useAuth } from "@/lib/auth-context"
 import { fetchApi } from "@/lib/api-client"
 import {
-  BookOpen, Users, UserCheck, BarChart3, Clock, AlertCircle, TrendingUp, CalendarRange, GraduationCap, Handshake,
+  BookOpen, Users, UserCheck, BarChart3, Clock, AlertCircle, TrendingUp, CalendarRange, GraduationCap,
 } from "lucide-react"
 
 export function DashboardView() {
@@ -16,7 +16,7 @@ export function DashboardView() {
   // Trigger notification processing once on dashboard load (replaces background scheduler)
   useEffect(() => {
     if (!user) return
-    fetchApi("/Notifications/process", { method: "POST" }).catch(() => {})
+    fetchApi("/Notifications/process", { method: "POST" }).catch(() => { })
   }, [user])
 
   const stats = useMemo(() => {
@@ -41,7 +41,6 @@ export function DashboardView() {
     }, 0)
 
     const totalStudents = users.filter((u) => u.role === "Student").length
-    const totalMentors = users.filter((u) => u.role === "Mentor").length
 
     return {
       upcomingModules: upcoming.length,
@@ -52,7 +51,6 @@ export function DashboardView() {
       compliantCount,
       availableSessions,
       totalStudents,
-      totalMentors,
     }
   }, [events, users])
 
@@ -105,7 +103,7 @@ export function DashboardView() {
       </div>
 
       {/* Top Stat Cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-6">
         <StatCard
           icon={BookOpen}
           title={isLecturer ? "Modulet Tuaja" : "Module Aktive"}
@@ -142,20 +140,6 @@ export function DashboardView() {
               value={stats.totalStudents}
               subtitle="studentë të regjistruar"
               accent="indigo"
-            />
-            <StatCard
-              icon={Handshake}
-              title="Mentorë"
-              value={stats.totalMentors}
-              subtitle="mentorë aktivë"
-              accent="teal"
-            />
-            <StatCard
-              icon={BarChart3}
-              title="Në Listë Pritje"
-              value={stats.totalWaitlisted}
-              subtitle="presin një vend lirimi"
-              accent="amber"
             />
           </>
         )}

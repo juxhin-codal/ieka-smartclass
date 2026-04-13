@@ -11,6 +11,8 @@ import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n"
 import { API_BASE_URL, fetchApi, fetchWithAuth } from "@/lib/api-client"
 import type { NotificationPreferences, EvaluationListItem, EvaluationDetail, EvaluationResponseItem } from "@/lib/data"
+import { ModuleFeedbackSection } from "@/components/settings/module-feedback-section"
+import { ManualFeedbackSendSection } from "@/components/settings/manual-feedback-send"
 import {
     Bell, Mail, Shield, Globe,
     Link2, Lock, Database, ChevronRight, Check, LogOut,
@@ -99,13 +101,27 @@ export function SettingsView() {
     const [exportingData, setExportingData] = useState(false)
     const [exportError, setExportError] = useState("")
 
+    // Reservation auto-cancel toggle (admin only)
+    const [reservationAutoCancelEnabled, setReservationAutoCancelEnabled] = useState(false)
+    const [reservationConfigLoading, setReservationConfigLoading] = useState(true)
+    const [reservationConfigSaving, setReservationConfigSaving] = useState(false)
+
     useEffect(() => {
         let cancelled = false
 
         async function loadPreferences() {
             setPrefsLoading(true)
             try {
-                const response = (await fetchApi("/Notifications/preferences")) as NotificationPreferences
+                const raw = await fetchApi("/Notifications/preferences") as Record<string, unknown>
+                // API returns PascalCase keys; map to camelCase interface
+                const response: NotificationPreferences = {
+                    notifyByEmail: Boolean(raw.NotifyByEmail ?? raw.notifyByEmail),
+                    notifyBySms: Boolean(raw.NotifyBySms ?? raw.notifyBySms),
+                    notifyBookingOpen: Boolean(raw.NotifyBookingOpen ?? raw.notifyBookingOpen),
+                    notifySessionReminder: Boolean(raw.NotifySessionReminder ?? raw.notifySessionReminder),
+                    notifySurveyReminder: Boolean(raw.NotifySurveyReminder ?? raw.notifySurveyReminder),
+                    notifyCpdDeadline: Boolean(raw.NotifyCpdDeadline ?? raw.notifyCpdDeadline),
+                }
                 if (!cancelled) {
                     setPreferences(response)
                     setPrefsError("")
@@ -132,6 +148,44 @@ export function SettingsView() {
             cancelled = true
         }
     }, [])
+
+    // Load reservation auto-cancel config (admin only)
+    useEffect(() => {
+        if (!isAdmin) { setReservationConfigLoading(false); return }
+        let cancelled = false
+        async function loadConfig() {
+            try {
+                const res = (await fetchApi("/Configurations/ReservationAutoCancelEnabled")) as { key: string; value: string }
+                if (!cancelled) setReservationAutoCancelEnabled(res.value?.toLowerCase() === "true")
+            } catch {
+                if (!cancelled) setReservationAutoCancelEnabled(false)
+            } finally {
+                if (!cancelled) setReservationConfigLoading(false)
+            }
+        }
+        void loadConfig()
+        return () => { cancelled = true }
+    }, [isAdmin])
+
+    async function toggleReservationAutoCancel(value: boolean) {
+        const prev = reservationAutoCancelEnabled
+        setReservationAutoCancelEnabled(value)
+        setReservationConfigSaving(true)
+        try {
+            await fetchApi("/Configurations", {
+                method: "POST",
+                body: JSON.stringify({
+                    key: "ReservationAutoCancelEnabled",
+                    value: value ? "true" : "false",
+                    description: "Aktivizo/çaktivizo anulimin automatik të rezervimeve të dyfishta"
+                })
+            })
+        } catch {
+            setReservationAutoCancelEnabled(prev)
+        } finally {
+            setReservationConfigSaving(false)
+        }
+    }
 
     async function savePreferences(nextPreferences: NotificationPreferences) {
         const previous = preferences
@@ -364,6 +418,66 @@ export function SettingsView() {
                 </div>
             </div>
 
+            {/* Section: Module Feedback — Auto-Send Toggle + Template (Admin only) */}
+            {isAdmin && (
+                <div className="rounded-xl border border-border bg-card overflow-hidden mb-4">
+                    {/* Card header */}
+                    <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-5 py-3.5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/10">
+                            <Send className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-sm font-semibold text-foreground">
+                                {lang === "sq" ? "Vlerësimi i Moduleve të Trajnimit" : "Training Module Feedback"}
+                            </h2>
+                            <p className="text-xs text-muted-foreground">
+                                {lang === "sq" ? "Konfiguro formularin dhe dërgimin manual të vlerësimit" : "Configure feedback form and manual delivery"}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="divide-y divide-border">
+                        {/* Sub-section: Feedback form template */}
+                        <div className="px-5 py-4">
+                            <ModuleFeedbackSection />
+                        </div>
+
+                        {/* Sub-section: Manual send */}
+                        <div className="px-5 py-4">
+                            <ManualFeedbackSendSection />
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isAdmin && (
+                <div className="rounded-xl border border-border bg-card p-5 mb-4">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Send className="h-4.5 w-4.5 text-primary" />
+                        <h2 className="text-sm font-semibold text-foreground">
+                            {lang === "sq" ? "Anulimi Automatik i Rezervimeve" : "Automatic Reservation Cancellation"}
+                        </h2>
+                    </div>
+                    <ToggleRow
+                        icon={Bell}
+                        label={lang === "sq" ? "Anulimi Automatik i Rezervimeve të Dyfishta" : "Auto-Cancel Duplicate Reservations"}
+                        description={lang === "sq"
+                            ? "7 ditë para sesionit: njoftim për të zgjedhur datën. 6 ditë para: anulim automatik i rezervimit të fundit"
+                            : "7 days before session: warning to choose date. 6 days before: auto-cancel last booked reservation"}
+                        value={reservationAutoCancelEnabled}
+                        onChange={(v) => void toggleReservationAutoCancel(v)}
+                        color="text-amber-500"
+                        disabled={reservationConfigLoading || reservationConfigSaving}
+                    />
+                    <p className="pt-3 text-xs text-muted-foreground">
+                        {reservationConfigLoading
+                            ? (lang === "sq" ? "Duke ngarkuar..." : "Loading...")
+                            : reservationConfigSaving
+                                ? (lang === "sq" ? "Duke ruajtur..." : "Saving...")
+                                : (lang === "sq" ? "Kur është aktiv, anëtarët me 2 rezervime marrin njoftim 7 ditë para dhe sistemi anulon automatikisht 6 ditë para sesionit të parë." : "When enabled, members with 2 reservations get warned 7 days before and the system auto-cancels 6 days before the first session.")}
+                    </p>
+                </div>
+            )}
+
             {/* Section: Evaluation Questionnaires (Admin only) */}
             {isAdmin && (
                 <EvaluationSection />
@@ -421,8 +535,6 @@ function EvaluationSection() {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [title, setTitle] = useState("")
     const [description, setDescription] = useState("")
-    const [emailSubject, setEmailSubject] = useState("")
-    const [emailBody, setEmailBody] = useState("")
     const [targetMembers, setTargetMembers] = useState(true)
     const [targetStudents, setTargetStudents] = useState(true)
     const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion(0)])
@@ -460,8 +572,6 @@ function EvaluationSection() {
         setEditingId(null)
         setTitle("")
         setDescription("")
-        setEmailSubject("")
-        setEmailBody("")
         setTargetMembers(true)
         setTargetStudents(true)
         setQuestions([emptyQuestion(0)])
@@ -479,8 +589,6 @@ function EvaluationSection() {
             setEditingId(item.id)
             setTitle(detail.title)
             setDescription(detail.description ?? "")
-            setEmailSubject(detail.emailSubject)
-            setEmailBody(detail.emailBody)
             setTargetMembers(detail.targetMembers)
             setTargetStudents(detail.targetStudents)
             setQuestions(
@@ -499,8 +607,8 @@ function EvaluationSection() {
     }
 
     async function handleSave() {
-        if (!title.trim() || !emailSubject.trim() || !emailBody.trim()) {
-            setFormError("Plotësoni titullin, subjektin dhe trupin e emailit.")
+        if (!title.trim()) {
+            setFormError("Plotësoni titullin e pyetësorit.")
             return
         }
         if (questions.some((q) => !q.text.trim())) {
@@ -514,8 +622,8 @@ function EvaluationSection() {
             const body = {
                 title: title.trim(),
                 description: description.trim() || null,
-                emailSubject: emailSubject.trim(),
-                emailBody: emailBody.trim(),
+                emailSubject: `Pyetësor Vlerësimi — ${title.trim()}`,
+                emailBody: "Ju lutem plotësoni pyetësorin e mëposhtëm duke klikuar butonin më poshtë.",
                 targetMembers,
                 targetStudents,
                 questions: questions.map((q, i) => ({
@@ -638,14 +746,6 @@ function EvaluationSection() {
                     <div>
                         <label className="text-xs font-medium text-muted-foreground">Përshkrimi (opsional)</label>
                         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Përshkrimi..." rows={2} />
-                    </div>
-                    <div>
-                        <label className="text-xs font-medium text-muted-foreground">Subjekti i Email-it</label>
-                        <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Subjekti..." />
-                    </div>
-                    <div>
-                        <label className="text-xs font-medium text-muted-foreground">Trupi i Email-it</label>
-                        <Textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} placeholder="Mesazhi që do të shfaqet në email..." rows={3} />
                     </div>
 
                     <div className="flex gap-4">
@@ -818,7 +918,7 @@ function EvaluationSection() {
             <div className="rounded-xl border border-border bg-card p-5 mb-4">
                 <div className="flex items-center gap-2 mb-4">
                     <ClipboardList className="h-4.5 w-4.5 text-primary" />
-                    <h2 className="text-sm font-semibold text-foreground">Vlerësimi i IEKA SmartClass</h2>
+                    <h2 className="text-sm font-semibold text-foreground">Pyetësori i Vlerësimit</h2>
                 </div>
 
                 {error && <p className="text-xs text-destructive mb-2">{error}</p>}

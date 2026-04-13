@@ -253,16 +253,16 @@ public class EventsController(IEventsService eventsService) : ControllerBase
         {
             try
             {
-                await emailService.SendLecturerFeedbackRequestAsync(
+                await emailService.SendModuleFeedbackRequestAsync(
                     p.User,
-                    new LecturerFeedbackEmailItem(
-                        eventItem.Name,
+                    new ModuleFeedbackEmailItem(
                         eventItem.Name,
                         sessionDateLabel,
-                        sessionTimeLabel,
                         lecturerName,
+                        sessionDateLabel,
+                        sessionTimeLabel,
                         locationLabel,
-                        p.FeedbackToken!),
+                        $"/module-feedback/{eventItem.Id}"),
                     cancellationToken);
                 sent++;
             }

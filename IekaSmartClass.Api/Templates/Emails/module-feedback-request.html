@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formular Vlerësimi — {{APP_NAME}}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:'Segoe UI',Tahoma,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f6f9;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;">
+
+          <!-- ── Logo / Brand ── -->
+          <tr>
+            <td style="padding:0 0 20px;text-align:center;">
+              <span style="font-size:13px;font-weight:700;color:#0f2138;letter-spacing:0.12em;text-transform:uppercase;">{{APP_NAME}}</span>
+            </td>
+          </tr>
+
+          <!-- ── Card ── -->
+          <tr>
+            <td style="background-color:#ffffff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);overflow:hidden;">
+
+              <!-- Hero banner -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="background:linear-gradient(135deg,#0f2138 0%,#1e3a5f 100%);padding:32px 36px;text-align:center;">
+                    <div style="font-size:28px;margin-bottom:8px;">&#128203;</div>
+                    <div style="font-size:20px;font-weight:700;color:#ffffff;line-height:1.3;">FORMULAR VLERËSIMI</div>
+                    <div style="font-size:14px;color:rgba(255,255,255,0.8);margin-top:6px;line-height:1.5;font-weight:600;">MODUL TRAJNIMI</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Greeting -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:28px 36px 0;">
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#111827;">Përshëndetje <strong>{{RECIPIENT_NAME}}</strong>,</p>
+                    <p style="margin:10px 0 0;font-size:14px;line-height:1.7;color:#6b7280;">Ju keni marrë pjesë në sesionin e mëposhtëm. Ju lutem plotësoni formularin e vlerësimit — mendimet tuaja na ndihmojnë të përmirësojmë cilësinë e trajnimit.</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Session details card -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:24px 36px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;">
+
+                      <!-- Module name -->
+                      <tr>
+                        <td style="padding:16px 20px 0;" colspan="2">
+                          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Moduli</div>
+                          <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.4;margin-top:2px;">{{MODULE_TITLE}}</div>
+                        </td>
+                      </tr>
+
+                      <!-- Topic name -->
+                      <tr>
+                        <td style="padding:14px 20px 0;" colspan="2">
+                          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Tema</div>
+                          <div style="font-size:13px;font-weight:600;color:#374151;line-height:1.5;margin-top:2px;">{{TOPIC_NAME}}</div>
+                        </td>
+                      </tr>
+
+                      <!-- Divider -->
+                      <tr>
+                        <td style="padding:14px 20px 0;" colspan="2">
+                          <div style="height:1px;background-color:#e5e7eb;"></div>
+                        </td>
+                      </tr>
+
+                      <!-- Grid: Date / Time -->
+                      <tr>
+                        <td style="width:50%;vertical-align:top;padding:14px 10px 0 20px;">
+                          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Data</div>
+                          <div style="font-size:13px;font-weight:600;color:#374151;margin-top:2px;">{{SESSION_DATE}}</div>
+                        </td>
+                        <td style="width:50%;vertical-align:top;padding:14px 20px 0 10px;">
+                          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Ora</div>
+                          <div style="font-size:13px;font-weight:600;color:#374151;margin-top:2px;">{{SESSION_TIME}}</div>
+                        </td>
+                      </tr>
+
+                      <!-- Grid: Lecturer / Location -->
+                      <tr>
+                        <td style="width:50%;vertical-align:top;padding:14px 10px 18px 20px;">
+                          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Lektori</div>
+                          <div style="font-size:13px;font-weight:600;color:#374151;margin-top:2px;">{{LECTURER_NAME}}</div>
+                        </td>
+                        <td style="width:50%;vertical-align:top;padding:14px 20px 18px 10px;">
+                          <div style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.08em;">Vendndodhja</div>
+                          <div style="font-size:13px;font-weight:600;color:#374151;margin-top:2px;">{{LOCATION}}</div>
+                        </td>
+                      </tr>
+
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- 3-Step evaluation description -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:0 36px 24px;">
+                    <div style="font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">
+                      Formulari përmban 3 hapa:
+                    </div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding:10px 14px;background-color:#f0fdf4;border-radius:8px;margin-bottom:6px;">
+                          <div style="font-size:13px;line-height:1.5;color:#166534;">
+                            <strong style="color:#0f2138;">1.</strong>&ensp;VLERËSIMI I PËRGJITHSHËM I ORGANIZIMIT
+                          </div>
+                        </td>
+                      </tr>
+                      <tr><td style="height:6px;"></td></tr>
+                      <tr>
+                        <td style="padding:10px 14px;background-color:#eff6ff;border-radius:8px;">
+                          <div style="font-size:13px;line-height:1.5;color:#1e40af;">
+                            <strong style="color:#0f2138;">2.</strong>&ensp;VLERËSIMI I LEKTORIT — {{LECTURER_NAME}}
+                          </div>
+                        </td>
+                      </tr>
+                      <tr><td style="height:6px;"></td></tr>
+                      <tr>
+                        <td style="padding:10px 14px;background-color:#faf5ff;border-radius:8px;">
+                          <div style="font-size:13px;line-height:1.5;color:#6b21a8;">
+                            <strong style="color:#0f2138;">3.</strong>&ensp;VLERËSIMI FINAL
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Privacy note -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:0 36px 24px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#eff6ff;border-radius:8px;">
+                      <tr>
+                        <td style="padding:12px 16px;">
+                          <p style="margin:0;font-size:12px;line-height:1.6;color:#1e40af;">
+                            &#128274;&nbsp;<strong>Privatësia:</strong> Mund të zgjidhni të dërgoni feedback-un tuaj anonim — emri juaj nuk do të shfaqet.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:0 36px 32px;text-align:center;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#0f2138 0%,#1e3a5f 100%);border-radius:10px;box-shadow:0 2px 8px rgba(15,33,56,0.20);">
+                          <a href="{{ACTION_LINK}}" style="display:inline-block;padding:14px 44px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.02em;">
+                            &#128203;&nbsp;&nbsp;Plotëso Formularin e Vlerësimit
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Raw link fallback -->
+          <tr>
+            <td style="padding:16px 36px 4px;">
+              <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;">Nëse butoni nuk hapet, kopjoni linkun:</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:4px 36px 20px;">
+              <p style="margin:0;font-size:11px;color:#6b7280;word-break:break-all;text-align:center;">{{RAW_ACTION_LINK}}</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:0 36px 8px;text-align:center;">
+              <p style="margin:0;font-size:11px;line-height:1.6;color:#9ca3af;">
+                Email zyrtar nga <strong style="color:#6b7280;">{{APP_NAME}}</strong> &middot; Linku është personal dhe i vlefshëm vetëm për ju.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

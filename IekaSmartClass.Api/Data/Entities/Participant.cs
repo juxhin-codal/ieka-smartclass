@@ -14,6 +14,8 @@ public class Participant
     public string Status { get; private set; }
     public string Attendance { get; private set; }
     public string? FeedbackToken { get; private set; }
+    public bool QuestionnaireEmailSent { get; private set; }
+    public bool ReservationWarningEmailSent { get; private set; }
 
     [NotMapped]
     public string FirstName => User?.FirstName ?? string.Empty;
@@ -67,6 +69,16 @@ public class Participant
     public void SetFeedbackToken(string token)
     {
         FeedbackToken = token;
+    }
+
+    public void MarkQuestionnaireEmailSent()
+    {
+        QuestionnaireEmailSent = true;
+    }
+
+    public void MarkReservationWarningEmailSent()
+    {
+        ReservationWarningEmailSent = true;
     }
 
     private Participant() { }

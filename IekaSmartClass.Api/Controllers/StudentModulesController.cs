@@ -885,17 +885,16 @@ public class StudentModulesController(
         {
             try
             {
-                await emailService.SendLecturerFeedbackRequestAsync(
+                await emailService.SendModuleFeedbackRequestAsync(
                     att.Student,
-                    new LecturerFeedbackEmailItem(
+                    new ModuleFeedbackEmailItem(
                         topic.StudentModule.Title,
                         topic.Name,
+                        topic.Lecturer,
                         sessionDateLabel,
                         sessionTimeLabel,
-                        topic.Lecturer,
                         string.IsNullOrWhiteSpace(topic.Location) ? "IEKA" : topic.Location,
-                        att.FeedbackToken!,
-                        "topic"),
+                        $"/module-feedback/{topic.StudentModule.Id}"),
                     cancellationToken);
                 sent++;
             }

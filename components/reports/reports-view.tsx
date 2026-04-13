@@ -27,8 +27,11 @@ export function ReportsView() {
   const [attSortDir, setAttSortDir] = useState<"asc" | "desc">("desc")
   const [bookPage, setBookPage] = useState(1)
   const [bookPageSize, setBookPageSize] = useState<PageSize>(25)
+  const [bookSearch, setBookSearch] = useState("")
   const [memberPage, setMemberPage] = useState(1)
   const [memberPageSize, setMemberPageSize] = useState<PageSize>(25)
+  const [fbPage, setFbPage] = useState(1)
+  const [fbPageSize, setFbPageSize] = useState<PageSize>(25)
 
   // ── Attendance analytics ──────────────────────────────────────────────
   const attendanceStats = useMemo(() => {
@@ -117,6 +120,12 @@ export function ReportsView() {
     })
   }, [events])
 
+  const filteredBooking = useMemo(() => {
+    if (!bookSearch.trim()) return bookingAnalytics
+    const q = bookSearch.toLowerCase()
+    return bookingAnalytics.filter((r) => r.event.name.toLowerCase().includes(q))
+  }, [bookingAnalytics, bookSearch])
+
   // ── Feedback (past events only) ───────────────────────────────────────
   const eventsWithAnswers = useMemo(() =>
     events
@@ -161,6 +170,17 @@ export function ReportsView() {
     URL.revokeObjectURL(url)
   }
 
+  function handleExportBooking() {
+    const rows = ["Moduli,Total Vende,Prezenca %,Pranishëm,Blerë,Listë Pritjeje,No-Show,Shkalla No-Show"]
+    bookingAnalytics.forEach(({ event: e, totalSeats, attendanceRate, attended, booked, waitlisted, noShows, noShowRate }) => {
+      rows.push(`"${e.name}",${totalSeats},${attendanceRate}%,${attended},${booked},${waitlisted},${noShows ?? "—"},${noShowRate !== null ? noShowRate + "%" : "—"}`)
+    })
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a"); a.href = url; a.download = "raporti-rezervime.csv"; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function handleExportMemberCPD() {
     const rows = ["Regjistri,Emri,Mbiemri,Module,Prezenca,Orë CPD,Pajtueshmëria"]
     memberReport.forEach(({ user: u, attended, total, cpdEarned }) => {
@@ -170,6 +190,24 @@ export function ReportsView() {
     const blob = new Blob([rows.join("\n")], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a"); a.href = url; a.download = "raporti-cpd-anetaret.csv"; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleExportFeedback() {
+    const rows = ["Moduli,Data,Pyetja,Lloji,Përgjigja,Anëtari"]
+    eventsWithAnswers.forEach((e) => {
+      const date = e.dates[0]?.date ? format(parseISO(e.dates[0].date), "d MMM yyyy") : ""
+      const pts = e.participants.filter((p) => p.answers && p.answers.length > 0)
+      e.feedbackQuestions.forEach((q) => {
+        pts.forEach((p) => {
+          const a = p.answers?.find((a) => a.questionId === q.id)
+          if (a) rows.push(`"${e.name}","${date}","${q.question}",${q.type},"${a.answer}","${p.firstName} ${p.lastName}"`)
+        })
+      })
+    })
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a"); a.href = url; a.download = "raporti-vleresime.csv"; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -226,21 +264,12 @@ export function ReportsView() {
       {/* ATTENDANCE TAB */}
       {activeTab === "attendance" && (
         <div className="flex flex-col gap-4">
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" className="gap-2" onClick={handleExportAttendance}>
-              <Download className="h-4 w-4" /> Eksporto Modulet
-            </Button>
-            <Button variant="outline" size="sm" className="gap-2" onClick={handleExportMemberCPD}>
-              <Download className="h-4 w-4" /> Eksporto Anëtarët
-            </Button>
-          </div>
-
           {/* Per Module */}
           <div>
             <h2 className="text-sm font-semibold text-foreground mb-3">Prezenca sipas Modulit</h2>
 
             {/* Attendance search + sort controls */}
-            <div className="flex flex-wrap items-center gap-3 mb-3">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -250,9 +279,14 @@ export function ReportsView() {
                   className="pl-9 h-9"
                 />
               </div>
-              <span className="text-xs text-muted-foreground ml-auto">
+              <span className="text-xs text-muted-foreground">
                 {filteredAttStats.length} nga {attendanceStats.length} module
               </span>
+              <div className="flex gap-2 sm:ml-auto">
+                <Button variant="outline" size="sm" className="gap-2" onClick={handleExportAttendance}>
+                  <Download className="h-4 w-4" /> Eksporto Modulet
+                </Button>
+              </div>
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-border bg-card">
@@ -324,7 +358,12 @@ export function ReportsView() {
           {/* Per Member CPD */}
           {memberReport.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-foreground mb-3">CPD sipas Anëtarit</h2>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="text-sm font-semibold text-foreground">CPD sipas Anëtarit</h2>
+                <Button variant="outline" size="sm" className="gap-2" onClick={handleExportMemberCPD}>
+                  <Download className="h-4 w-4" /> Eksporto Anëtarët
+                </Button>
+              </div>
               <div className="overflow-x-auto rounded-xl border border-border bg-card">
                 <table className="w-full text-sm text-left">
                   <thead>
@@ -371,75 +410,110 @@ export function ReportsView() {
 
       {/* BOOKING ANALYTICS TAB */}
       {activeTab === "booking" && (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-sm text-left">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Moduli</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Total Vende</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Prezenca</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Listë Pritjeje</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">No-Show</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Shkalla No-Show</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usePagination(bookingAnalytics, bookPageSize, bookPage).map(({ event: e, booked, attended, waitlisted, attendanceRate, noShows, noShowRate, totalSeats }) => (
-                <tr key={e.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 font-medium text-foreground max-w-[200px]">
-                    <p className="truncate">{e.name}</p>
-                    <p className="text-xs text-muted-foreground">{e.sessionCapacity} vende × {e.totalSessions} sesione</p>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">{totalSeats}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-border">
-                        <div
-                          className={`h-full rounded-full ${attendanceRate >= 85 ? "bg-green-500" : attendanceRate >= 60 ? "bg-amber-500" : "bg-red-500"}`}
-                          style={{ width: `${Math.min(100, attendanceRate)}%` }}
-                        />
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold">{attendanceRate}%</span>
-                        <span className="text-[11px] text-muted-foreground">{attended}/{booked || 0}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={waitlisted > 0 ? "text-amber-500 font-medium" : "text-muted-foreground"}>{waitlisted}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {noShows === null ? (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    ) : (
-                      <span className={noShows > 0 ? "font-medium text-red-500" : "text-muted-foreground"}>{noShows}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {noShowRate === null ? (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    ) : (
-                      <span className={`text-xs font-semibold ${noShowRate > 15 ? "text-red-500" : "text-muted-foreground"}`}>
-                        {noShowRate}%
-                      </span>
-                    )}
-                  </td>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Kërko aktivitet..."
+                value={bookSearch}
+                onChange={(e) => { setBookSearch(e.target.value); setBookPage(1) }}
+                className="pl-9 h-9"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">{filteredBooking.length} nga {bookingAnalytics.length} module</span>
+            <div className="ml-auto">
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleExportBooking}>
+                <Download className="h-4 w-4" /> Eksporto të dhënat
+              </Button>
+            </div>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Moduli</th>
+                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Total Vende</th>
+                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Prezenca</th>
+                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Listë Pritjeje</th>
+                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">No-Show</th>
+                  <th className="px-4 py-3 text-xs font-medium text-muted-foreground">Shkalla No-Show</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <PaginationBar totalItems={bookingAnalytics.length} pageSize={bookPageSize} currentPage={bookPage}
-            onPageChange={setBookPage} onPageSizeChange={(s) => { setBookPageSize(s); setBookPage(1) }}
-            className="px-4 border-t border-border" />
+              </thead>
+              <tbody>
+                {usePagination(filteredBooking, bookPageSize, bookPage).map(({ event: e, booked, attended, waitlisted, attendanceRate, noShows, noShowRate, totalSeats }) => (
+                  <tr key={e.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3 font-medium text-foreground max-w-[200px]">
+                      <p className="truncate">{e.name}</p>
+                      <p className="text-xs text-muted-foreground">{e.sessionCapacity} vende × {e.totalSessions} sesione</p>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{totalSeats}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-border">
+                          <div
+                            className={`h-full rounded-full ${attendanceRate >= 85 ? "bg-green-500" : attendanceRate >= 60 ? "bg-amber-500" : "bg-red-500"}`}
+                            style={{ width: `${Math.min(100, attendanceRate)}%` }}
+                          />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold">{attendanceRate}%</span>
+                          <span className="text-[11px] text-muted-foreground">{attended}/{booked || 0}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={waitlisted > 0 ? "text-amber-500 font-medium" : "text-muted-foreground"}>{waitlisted}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {noShows === null ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <span className={noShows > 0 ? "font-medium text-red-500" : "text-muted-foreground"}>{noShows}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {noShowRate === null ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <span className={`text-xs font-semibold ${noShowRate > 15 ? "text-red-500" : "text-muted-foreground"}`}>
+                          {noShowRate}%
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <PaginationBar totalItems={filteredBooking.length} pageSize={bookPageSize} currentPage={bookPage}
+              onPageChange={setBookPage} onPageSizeChange={(s) => { setBookPageSize(s); setBookPage(1) }}
+              className="px-4 border-t border-border" />
+          </div>
         </div>
       )}
 
       {/* FEEDBACK TAB */}
       {activeTab === "feedback" && (
         <div className="flex flex-col gap-4">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Kërko module..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 h-9" />
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Kërko module..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setFbPage(1) }}
+                className="pl-9 h-9"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {eventsWithAnswers.length} nga {events.filter(e => e.status === "past" && (e.feedbackQuestions ?? []).length > 0).length} module
+            </span>
+            <div className="ml-auto">
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleExportFeedback} disabled={eventsWithAnswers.length === 0}>
+                <Download className="h-4 w-4" /> Eksporto të dhënat
+              </Button>
+            </div>
           </div>
 
           {eventsWithAnswers.length === 0 ? (
@@ -450,112 +524,125 @@ export function ReportsView() {
               </p>
             </div>
           ) : (
-            eventsWithAnswers.map((event) => {
-              const isExpanded = expandedEvent === event.id
-              const participantsWithAnswers = event.participants.filter((p) => p.answers && p.answers.length > 0)
-              const responseRate = event.participants.length > 0
-                ? Math.round((participantsWithAnswers.length / event.participants.length) * 100)
-                : 0
+            <>
+              {usePagination(eventsWithAnswers, fbPageSize, fbPage).map((event) => {
+                const isExpanded = expandedEvent === event.id
+                const participantsWithAnswers = event.participants.filter((p) => p.answers && p.answers.length > 0)
+                const responseRate = event.participants.length > 0
+                  ? Math.round((participantsWithAnswers.length / event.participants.length) * 100)
+                  : 0
 
-              return (
-                <div key={event.id} className="rounded-lg border border-border bg-card overflow-hidden">
-                  <button
-                    onClick={() => setExpandedEvent(isExpanded ? null : event.id)}
-                    className="flex w-full items-center justify-between p-4 hover:bg-muted/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                        <BarChart3 className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="text-left">
-                        <h3 className="text-sm font-semibold text-foreground">{event.name}</h3>
-                        <div className="flex items-center gap-3 mt-0.5">
-                          <span className="text-xs text-muted-foreground">
-                            {event.dates[0]?.date && format(parseISO(event.dates[0].date), "MMM d, yyyy")}
-                          </span>
-                          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary font-medium">
-                            {responseRate}% përgjigje
-                          </span>
+                return (
+                  <div key={event.id} className="rounded-lg border border-border bg-card overflow-hidden">
+                    <button
+                      onClick={() => setExpandedEvent(isExpanded ? null : event.id)}
+                      className="flex w-full items-center justify-between p-4 hover:bg-muted/20 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                          <BarChart3 className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-sm font-semibold text-foreground">{event.name}</h3>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-xs text-muted-foreground">
+                              {event.dates[0]?.date && format(parseISO(event.dates[0].date), "MMM d, yyyy")}
+                            </span>
+                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary font-medium">
+                              {responseRate}% përgjigje
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="hidden sm:block text-xs text-muted-foreground">{participantsWithAnswers.length} përgjigje</span>
-                      {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                  </button>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="hidden sm:block text-xs text-muted-foreground">{participantsWithAnswers.length} përgjigje</span>
+                        {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                    </button>
 
-                  {isExpanded && (
-                    <div className="border-t border-border">
-                      {event.feedbackQuestions.map((question) => {
-                        const qKey = `${event.id}-${question.id}`
-                        const isQExpanded = expandedQuestion === qKey
-                        const answers = participantsWithAnswers
-                          .map((p) => {
-                            const a = p.answers?.find((a) => a.questionId === question.id)
-                            return a ? { participant: p, answer: a.answer } : null
-                          })
-                          .filter(Boolean) as { participant: typeof participantsWithAnswers[0]; answer: string }[]
+                    {isExpanded && (
+                      <div className="border-t border-border">
+                        {event.feedbackQuestions.map((question) => {
+                          const qKey = `${event.id}-${question.id}`
+                          const isQExpanded = expandedQuestion === qKey
+                          const answers = participantsWithAnswers
+                            .map((p) => {
+                              const a = p.answers?.find((a) => a.questionId === question.id)
+                              return a ? { participant: p, answer: a.answer } : null
+                            })
+                            .filter(Boolean) as { participant: typeof participantsWithAnswers[0]; answer: string }[]
 
-                        return (
-                          <div key={question.id} className="border-b border-border last:border-0">
-                            <button
-                              onClick={() => setExpandedQuestion(isQExpanded ? null : qKey)}
-                              className="flex w-full items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors"
-                            >
-                              <div className="flex items-start gap-2.5 text-left">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10 mt-0.5">
-                                  {question.type === "rating" ? <Star className="h-3 w-3 text-primary" /> :
-                                    question.type === "multiple-choice" ? <CheckCircle2 className="h-3 w-3 text-primary" /> :
-                                      <MessageSquare className="h-3 w-3 text-primary" />}
+                          return (
+                            <div key={question.id} className="border-b border-border last:border-0">
+                              <button
+                                onClick={() => setExpandedQuestion(isQExpanded ? null : qKey)}
+                                className="flex w-full items-center justify-between px-4 py-3 hover:bg-muted/10 transition-colors"
+                              >
+                                <div className="flex items-start gap-2.5 text-left">
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10 mt-0.5">
+                                    {question.type === "rating" ? <Star className="h-3 w-3 text-primary" /> :
+                                      question.type === "multiple-choice" ? <CheckCircle2 className="h-3 w-3 text-primary" /> :
+                                        <MessageSquare className="h-3 w-3 text-primary" />}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-foreground">{question.question}</p>
+                                    <div className="mt-1"><QuestionSummary question={question} answers={answers} /></div>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="text-sm font-medium text-foreground">{question.question}</p>
-                                  <div className="mt-1"><QuestionSummary question={question} answers={answers} /></div>
+                                <div className="flex items-center gap-2 shrink-0 ml-3">
+                                  <span className="text-xs text-muted-foreground">{answers.length}</span>
+                                  {isQExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0 ml-3">
-                                <span className="text-xs text-muted-foreground">{answers.length}</span>
-                                {isQExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                              </div>
-                            </button>
+                              </button>
 
-                            {isQExpanded && (
-                              <div className="px-4 pb-4">
-                                <div className="max-h-60 overflow-y-auto rounded-md border border-border bg-muted/20 divide-y divide-border">
-                                  {answers.map((a, idx) => (
-                                    <div key={idx} className="flex items-start gap-2.5 p-3">
-                                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary/10 text-xs font-semibold text-primary">
-                                        {a.participant.firstName[0]}{a.participant.lastName[0]}
+                              {isQExpanded && (
+                                <div className="px-4 pb-4">
+                                  <div className="max-h-60 overflow-y-auto rounded-md border border-border bg-muted/20 divide-y divide-border">
+                                    {answers.map((a, idx) => (
+                                      <div key={idx} className="flex items-start gap-2.5 p-3">
+                                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-primary/10 text-xs font-semibold text-primary">
+                                          {a.participant.firstName[0]}{a.participant.lastName[0]}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-xs font-medium text-foreground truncate">
+                                            {a.participant.firstName} {a.participant.lastName}
+                                          </p>
+                                          {question.type === "rating" ? (
+                                            <div className="flex items-center gap-0.5 mt-0.5">
+                                              {[1, 2, 3, 4, 5].map((s) => (
+                                                <Star key={s} className={`h-3 w-3 ${s <= Number(a.answer) ? "fill-amber-400 text-amber-400" : "text-border"}`} />
+                                              ))}
+                                              <span className="ml-1 text-xs text-muted-foreground">{a.answer}/5</span>
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm text-muted-foreground mt-0.5">{a.answer}</p>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium text-foreground truncate">
-                                          {a.participant.firstName} {a.participant.lastName}
-                                        </p>
-                                        {question.type === "rating" ? (
-                                          <div className="flex items-center gap-0.5 mt-0.5">
-                                            {[1, 2, 3, 4, 5].map((s) => (
-                                              <Star key={s} className={`h-3 w-3 ${s <= Number(a.answer) ? "fill-amber-400 text-amber-400" : "text-border"}`} />
-                                            ))}
-                                            <span className="ml-1 text-xs text-muted-foreground">{a.answer}/5</span>
-                                          </div>
-                                        ) : (
-                                          <p className="text-sm text-muted-foreground mt-0.5">{a.answer}</p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              <div className="rounded-xl border border-border bg-card">
+                <PaginationBar
+                  totalItems={eventsWithAnswers.length}
+                  pageSize={fbPageSize}
+                  currentPage={fbPage}
+                  onPageChange={setFbPage}
+                  onPageSizeChange={(s) => { setFbPageSize(s); setFbPage(1) }}
+                  className="px-4"
+                />
+              </div>
+            </>
           )}
         </div>
       )}

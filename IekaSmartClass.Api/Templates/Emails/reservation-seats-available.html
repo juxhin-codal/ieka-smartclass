@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vende të lira — {{APP_NAME}}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:'Segoe UI',Tahoma,Arial,sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f4f6f9;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;">
+
+          <!-- ── Logo / Brand ── -->
+          <tr>
+            <td style="padding:0 0 20px;text-align:center;">
+              <span style="font-size:13px;font-weight:700;color:#0f2138;letter-spacing:0.12em;text-transform:uppercase;">{{APP_NAME}}</span>
+            </td>
+          </tr>
+
+          <!-- ── Card ── -->
+          <tr>
+            <td style="background-color:#ffffff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);overflow:hidden;">
+
+              <!-- Hero banner -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="background:linear-gradient(135deg,#065f46 0%,#059669 100%);padding:32px 36px;text-align:center;">
+                    <div style="font-size:28px;margin-bottom:8px;">&#127881;</div>
+                    <div style="font-size:20px;font-weight:700;color:#ffffff;line-height:1.3;">VENDE TË LIRA</div>
+                    <div style="font-size:14px;color:rgba(255,255,255,0.8);margin-top:6px;line-height:1.5;font-weight:600;">REZERVONI SA MË PARË</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Greeting -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:28px 36px 0;">
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#111827;">Përshëndetje <strong>{{RECIPIENT_NAME}}</strong>,</p>
+                    <p style="margin:10px 0 0;font-size:14px;line-height:1.7;color:#6b7280;">Ka vende të lira për modulin <strong>{{MODULE_NAME}}</strong>. Rezervoni vendin tuaj sa më parë!</p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Available seats -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:24px 36px;">
+                    <div style="font-size:12px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">
+                      Vendet e lira sipas datës:
+                    </div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+                      <tr>
+                        <td style="padding:16px 20px;">
+                          {{AVAILABLE_SEATS_HTML}}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:0 36px 32px;text-align:center;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#065f46 0%,#059669 100%);border-radius:10px;box-shadow:0 2px 8px rgba(6,95,70,0.20);">
+                          <a href="{{ACTION_LINK}}" style="display:inline-block;padding:14px 44px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.02em;">
+                            &#128197;&nbsp;&nbsp;Rezervo Tani
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Raw link fallback -->
+          <tr>
+            <td style="padding:16px 36px 4px;">
+              <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;">Nëse butoni nuk hapet, kopjoni linkun:</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:4px 36px 20px;">
+              <p style="margin:0;font-size:11px;color:#6b7280;word-break:break-all;text-align:center;">{{RAW_ACTION_LINK}}</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:0 36px 8px;text-align:center;">
+              <p style="margin:0;font-size:11px;line-height:1.6;color:#9ca3af;">
+                Email zyrtar nga <strong style="color:#6b7280;">{{APP_NAME}}</strong> &middot; Linku është personal dhe i vlefshëm vetëm për ju.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

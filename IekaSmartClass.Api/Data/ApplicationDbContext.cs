@@ -43,6 +43,13 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
     public DbSet<EventQuestionnaireQuestion> EventQuestionnaireQuestions => Set<EventQuestionnaireQuestion>();
     public DbSet<EventQuestionnaireResponse> EventQuestionnaireResponses => Set<EventQuestionnaireResponse>();
     public DbSet<EventQuestionnaireAnswer> EventQuestionnaireAnswers => Set<EventQuestionnaireAnswer>();
+    public DbSet<ModuleFeedbackTemplate> ModuleFeedbackTemplates => Set<ModuleFeedbackTemplate>();
+    public DbSet<ModuleFeedbackSection> ModuleFeedbackSections => Set<ModuleFeedbackSection>();
+    public DbSet<ModuleFeedbackQuestion> ModuleFeedbackQuestions => Set<ModuleFeedbackQuestion>();
+    public DbSet<ModuleFeedbackResponse> ModuleFeedbackResponses => Set<ModuleFeedbackResponse>();
+    public DbSet<ModuleFeedbackAnswer> ModuleFeedbackAnswers => Set<ModuleFeedbackAnswer>();
+    public DbSet<ModuleFeedbackSendLog> ModuleFeedbackSendLogs => Set<ModuleFeedbackSendLog>();
+    public DbSet<ModuleFeedbackStudentEmailLog> ModuleFeedbackStudentEmailLogs => Set<ModuleFeedbackStudentEmailLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -123,6 +130,10 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             .HasIndex(p => p.FeedbackToken)
             .IsUnique()
             .HasFilter("[FeedbackToken] IS NOT NULL");
+
+        builder.Entity<Participant>()
+            .Property(p => p.QuestionnaireEmailSent)
+            .HasDefaultValue(false);
 
         builder.Entity<StudentTrainingSession>(entity =>
         {
@@ -512,6 +523,167 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
                 .HasForeignKey(x => x.QuestionId)
                 .OnDelete(DeleteBehavior.NoAction);
         });
+
+        // Module Feedback Template entities
+        builder.Entity<ModuleFeedbackTemplate>(entity =>
+        {
+            entity.Property(x => x.Title).HasMaxLength(500);
+            entity.HasIndex(x => x.CreatedAt);
+        });
+
+        builder.Entity<ModuleFeedbackSection>(entity =>
+        {
+            entity.Property(x => x.Title).HasMaxLength(500);
+            entity.Property(x => x.RatingLabelLow).HasMaxLength(100);
+            entity.Property(x => x.RatingLabelHigh).HasMaxLength(100);
+            entity.HasIndex(x => x.TemplateId);
+
+            entity.HasOne(x => x.Template)
+                .WithMany(t => t.Sections)
+                .HasForeignKey(x => x.TemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ModuleFeedbackQuestion>(entity =>
+        {
+            entity.Property(x => x.Text).HasMaxLength(1000);
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(x => x.SectionId);
+
+            entity.HasOne(x => x.Section)
+                .WithMany(s => s.Questions)
+                .HasForeignKey(x => x.SectionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ModuleFeedbackResponse>(entity =>
+        {
+            entity.HasIndex(x => new { x.StudentModuleId, x.StudentId }).IsUnique();
+            entity.HasIndex(x => x.StudentId);
+
+            entity.HasOne(x => x.Template)
+                .WithMany()
+                .HasForeignKey(x => x.TemplateId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.StudentModule)
+                .WithMany()
+                .HasForeignKey(x => x.StudentModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<ModuleFeedbackAnswer>(entity =>
+        {
+            entity.Property(x => x.AnswerText).HasMaxLength(4000);
+            entity.HasIndex(x => new { x.ResponseId, x.QuestionId, x.TopicId }).IsUnique();
+
+            entity.HasOne(x => x.Response)
+                .WithMany(r => r.Answers)
+                .HasForeignKey(x => x.ResponseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Question)
+                .WithMany()
+                .HasForeignKey(x => x.QuestionId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.Topic)
+                .WithMany()
+                .HasForeignKey(x => x.TopicId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<ModuleFeedbackSendLog>(entity =>
+        {
+            entity.HasIndex(x => x.StudentModuleId);
+
+            entity.HasOne(x => x.Template)
+                .WithMany()
+                .HasForeignKey(x => x.TemplateId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(x => x.StudentModule)
+                .WithMany()
+                .HasForeignKey(x => x.StudentModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Seed Module Feedback Template
+        var templateId = Guid.Parse("a0000001-0000-0000-0000-000000000001");
+        var section1Id = Guid.Parse("a0000002-0000-0000-0000-000000000001");
+        var section2Id = Guid.Parse("a0000002-0000-0000-0000-000000000002");
+        var section3Id = Guid.Parse("a0000002-0000-0000-0000-000000000003");
+
+        builder.Entity<ModuleFeedbackTemplate>().HasData(new
+        {
+            Id = templateId,
+            Title = "FORMULAR VLERËSIMI – MODUL TRAJNIMI",
+            CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+        });
+
+        builder.Entity<ModuleFeedbackSection>().HasData(
+            new
+            {
+                Id = section1Id,
+                TemplateId = templateId,
+                Title = "VLERËSIMI I PËRGJITHSHËM I ORGANIZIMIT",
+                Order = 0,
+                RepeatsPerTopic = false,
+                RatingLabelLow = "Shumë keq",
+                RatingLabelHigh = "Shumë mirë"
+            },
+            new
+            {
+                Id = section2Id,
+                TemplateId = templateId,
+                Title = "VLERËSIMI I LEKTORËVE",
+                Order = 1,
+                RepeatsPerTopic = true,
+                RatingLabelLow = "Dobët",
+                RatingLabelHigh = "Shumë mirë"
+            },
+            new
+            {
+                Id = section3Id,
+                TemplateId = templateId,
+                Title = "VLERËSIMI FINAL",
+                Order = 2,
+                RepeatsPerTopic = false,
+                RatingLabelLow = "Shumë keq",
+                RatingLabelHigh = "Shumë mirë"
+            }
+        );
+
+        builder.Entity<ModuleFeedbackQuestion>().HasData(
+            // Section 1: Organization (6 questions)
+            new { Id = Guid.Parse("a0000003-0000-0000-0001-000000000001"), SectionId = section1Id, Text = "Organizimi i modulit në përgjithësi", Type = QuestionType.Stars, Order = 0 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0001-000000000002"), SectionId = section1Id, Text = "Kushtet e sallës / mjedisit të trajnimit", Type = QuestionType.Stars, Order = 1 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0001-000000000003"), SectionId = section1Id, Text = "Materialet e trajnimit të ofruara", Type = QuestionType.Stars, Order = 2 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0001-000000000004"), SectionId = section1Id, Text = "Respektimi i orareve të përcaktuara", Type = QuestionType.Stars, Order = 3 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0001-000000000005"), SectionId = section1Id, Text = "Mbështetja nga stafi organizativ", Type = QuestionType.Stars, Order = 4 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0001-000000000006"), SectionId = section1Id, Text = "Komente shtesë për organizimin (opsionale)", Type = QuestionType.FreeText, Order = 5 },
+
+            // Section 2: Lecturers (8 questions, repeats per topic)
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000001"), SectionId = section2Id, Text = "Qartësia e shpjegimeve", Type = QuestionType.Stars, Order = 0 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000002"), SectionId = section2Id, Text = "Njohuritë e lektorit mbi temën", Type = QuestionType.Stars, Order = 1 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000003"), SectionId = section2Id, Text = "Lidhja e temës me praktikën profesionale", Type = QuestionType.Stars, Order = 2 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000004"), SectionId = section2Id, Text = "Komunikimi dhe ndërveprimi me pjesëmarrësit", Type = QuestionType.Stars, Order = 3 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000005"), SectionId = section2Id, Text = "Përgjigjet ndaj pyetjeve dhe diskutimeve", Type = QuestionType.Stars, Order = 4 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000006"), SectionId = section2Id, Text = "Menaxhimi i kohës gjatë sesionit", Type = QuestionType.Stars, Order = 5 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000007"), SectionId = section2Id, Text = "Dobishmëria e përgjithshme e sesionit", Type = QuestionType.Stars, Order = 6 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0002-000000000008"), SectionId = section2Id, Text = "Komente shtesë për lektorin (opsionale)", Type = QuestionType.FreeText, Order = 7 },
+
+            // Section 3: Final (3 questions)
+            new { Id = Guid.Parse("a0000003-0000-0000-0003-000000000001"), SectionId = section3Id, Text = "Moduli përmbushi pritshmëritë e mia", Type = QuestionType.Stars, Order = 0 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0003-000000000002"), SectionId = section3Id, Text = "Çfarë ju pëlqeu më shumë në këtë modul?", Type = QuestionType.FreeText, Order = 1 },
+            new { Id = Guid.Parse("a0000003-0000-0000-0003-000000000003"), SectionId = section3Id, Text = "Çfarë do të sugjeronil të përmirësohet?", Type = QuestionType.FreeText, Order = 2 }
+        );
 
         // Seed users
         var sharedHash = "AQAAAAIAAYagAAAAED6a5t1RPIxnU0U+Jv7wZVV4GLlHAOtc+p0g0I75+Lfym7OOEZijLRgrubjefapC7g==";

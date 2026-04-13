@@ -38,6 +38,13 @@ public interface IApplicationDbContext
     DbSet<EventQuestionnaireQuestion> EventQuestionnaireQuestions { get; }
     DbSet<EventQuestionnaireResponse> EventQuestionnaireResponses { get; }
     DbSet<EventQuestionnaireAnswer> EventQuestionnaireAnswers { get; }
+    DbSet<ModuleFeedbackTemplate> ModuleFeedbackTemplates { get; }
+    DbSet<ModuleFeedbackSection> ModuleFeedbackSections { get; }
+    DbSet<ModuleFeedbackQuestion> ModuleFeedbackQuestions { get; }
+    DbSet<ModuleFeedbackResponse> ModuleFeedbackResponses { get; }
+    DbSet<ModuleFeedbackAnswer> ModuleFeedbackAnswers { get; }
+    DbSet<ModuleFeedbackSendLog> ModuleFeedbackSendLogs { get; }
+    DbSet<ModuleFeedbackStudentEmailLog> ModuleFeedbackStudentEmailLogs { get; }
     DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

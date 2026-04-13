@@ -4,6 +4,7 @@ using IekaSmartClass.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace IekaSmartClass.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260412214436_AddParticipantQuestionnaireEmailSent")]
+    partial class AddParticipantQuestionnaireEmailSent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -983,13 +986,6 @@ namespace IekaSmartClass.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<bool>("IsAnonymous")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("SectionScope")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1108,34 +1104,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.ToTable("ModuleFeedbackSendLogs");
                 });
 
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.ModuleFeedbackStudentEmailLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("SectionKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("SentAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("StudentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("StudentModuleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudentId");
-
-                    b.HasIndex("StudentModuleId");
-
-                    b.ToTable("ModuleFeedbackStudentEmailLogs");
-                });
-
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.ModuleFeedbackTemplate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1195,9 +1163,6 @@ namespace IekaSmartClass.Api.Migrations
 
                     b.Property<DateTime>("RegisteredAt")
                         .HasColumnType("datetime2");
-
-                    b.Property<bool>("ReservationWarningEmailSent")
-                        .HasColumnType("bit");
 
                     b.Property<int>("SeatNumber")
                         .HasColumnType("int");
@@ -1487,14 +1452,8 @@ namespace IekaSmartClass.Api.Migrations
                     b.Property<DateTime>("AttendedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("FeedbackEmailSentAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("FeedbackToken")
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime?>("ReminderSentAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<Guid>("StudentId")
                         .HasColumnType("uniqueidentifier");
@@ -2205,25 +2164,6 @@ namespace IekaSmartClass.Api.Migrations
                     b.Navigation("StudentModule");
 
                     b.Navigation("Template");
-                });
-
-            modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.ModuleFeedbackStudentEmailLog", b =>
-                {
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.AppUser", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("IekaSmartClass.Api.Data.Entities.StudentModule", "StudentModule")
-                        .WithMany()
-                        .HasForeignKey("StudentModuleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Student");
-
-                    b.Navigation("StudentModule");
                 });
 
             modelBuilder.Entity("IekaSmartClass.Api.Data.Entities.Participant", b =>
