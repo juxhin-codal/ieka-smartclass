@@ -578,7 +578,7 @@ public class EmailService(
                 ["SESSION_DATE"] = item.SessionDate,
                 ["SESSION_TIME"] = item.SessionTime,
                 ["LOCATION"] = item.Location,
-                ["STEPS_BLOCK"] = stepsBlock,
+                ["RAW_STEPS_BLOCK"] = stepsBlock,
                 ["ACTION_LINK"] = actionLink,
                 ["RAW_ACTION_LINK"] = actionLink
             });
