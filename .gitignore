@@ -10,6 +10,7 @@ node_modules/
 *.tsbuildinfo
 .env*.local
 .env
+docker-compose.local.yml
 .DS_Store
 storage/
 backups/

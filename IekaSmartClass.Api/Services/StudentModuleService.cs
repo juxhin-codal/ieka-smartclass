@@ -1103,10 +1103,6 @@ public class StudentModuleService(
             // Skip if already assigned
             if (module.Assignments.Any(a => a.StudentId == studentId)) continue;
 
-            // Only auto-assign to modules that have at least one upcoming topic
-            var hasUpcoming = module.Topics.Any(t => t.ScheduledDate.HasValue && t.ScheduledDate.Value > now);
-            if (!hasUpcoming) continue;
-
             _db.StudentModuleAssignments.Add(new StudentModuleAssignment(module.Id, studentId));
             assigned.Add(module);
         }

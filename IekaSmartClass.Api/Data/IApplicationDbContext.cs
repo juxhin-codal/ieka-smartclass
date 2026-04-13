@@ -33,6 +33,11 @@ public interface IApplicationDbContext
     DbSet<EvaluationResponse> EvaluationResponses { get; }
     DbSet<EvaluationAnswer> EvaluationAnswers { get; }
     DbSet<EvaluationSendLog> EvaluationSendLogs { get; }
+    DbSet<EventDateDocument> EventDateDocuments { get; }
+    DbSet<EventQuestionnaire> EventQuestionnaires { get; }
+    DbSet<EventQuestionnaireQuestion> EventQuestionnaireQuestions { get; }
+    DbSet<EventQuestionnaireResponse> EventQuestionnaireResponses { get; }
+    DbSet<EventQuestionnaireAnswer> EventQuestionnaireAnswers { get; }
     DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

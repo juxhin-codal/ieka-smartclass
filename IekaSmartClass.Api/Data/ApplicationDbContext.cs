@@ -38,6 +38,11 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
     public DbSet<EvaluationResponse> EvaluationResponses => Set<EvaluationResponse>();
     public DbSet<EvaluationAnswer> EvaluationAnswers => Set<EvaluationAnswer>();
     public DbSet<EvaluationSendLog> EvaluationSendLogs => Set<EvaluationSendLog>();
+    public DbSet<EventDateDocument> EventDateDocuments => Set<EventDateDocument>();
+    public DbSet<EventQuestionnaire> EventQuestionnaires => Set<EventQuestionnaire>();
+    public DbSet<EventQuestionnaireQuestion> EventQuestionnaireQuestions => Set<EventQuestionnaireQuestion>();
+    public DbSet<EventQuestionnaireResponse> EventQuestionnaireResponses => Set<EventQuestionnaireResponse>();
+    public DbSet<EventQuestionnaireAnswer> EventQuestionnaireAnswers => Set<EventQuestionnaireAnswer>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -428,6 +433,85 @@ public class ApplicationDbContext : IdentityUserContext<AppUser, Guid>, IApplica
             .WithOne(f => f.EventItem)
             .HasForeignKey(f => f.EventItemId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<EventItem>()
+            .HasMany(e => e.EventQuestionnaires)
+            .WithOne(q => q.EventItem)
+            .HasForeignKey(q => q.EventItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // EventDate location fields
+        builder.Entity<EventDate>(entity =>
+        {
+            entity.Property(x => x.RequireLocation).HasDefaultValue(false);
+        });
+
+        // EventDateDocument
+        builder.Entity<EventDateDocument>(entity =>
+        {
+            entity.Property(x => x.FileName).HasMaxLength(300);
+            entity.Property(x => x.FileUrl).HasMaxLength(1000);
+            entity.Property(x => x.RelativePath).HasMaxLength(1000);
+            entity.HasIndex(x => x.EventDateId);
+
+            entity.HasOne(x => x.EventDate)
+                .WithMany(d => d.Documents)
+                .HasForeignKey(x => x.EventDateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // EventQuestionnaire
+        builder.Entity<EventQuestionnaire>(entity =>
+        {
+            entity.Property(x => x.Title).HasMaxLength(500);
+            entity.HasIndex(x => x.EventItemId);
+        });
+
+        builder.Entity<EventQuestionnaireQuestion>(entity =>
+        {
+            entity.Property(x => x.Text).HasMaxLength(1000);
+            entity.Property(x => x.OptionsJson).HasMaxLength(4000);
+            entity.Property(x => x.CorrectAnswer).HasMaxLength(1000);
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(x => x.QuestionnaireId);
+
+            entity.HasOne(x => x.Questionnaire)
+                .WithMany(q => q.Questions)
+                .HasForeignKey(x => x.QuestionnaireId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EventQuestionnaireResponse>(entity =>
+        {
+            entity.HasIndex(x => new { x.QuestionnaireId, x.UserId }).IsUnique();
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasOne(x => x.Questionnaire)
+                .WithMany(q => q.Responses)
+                .HasForeignKey(x => x.QuestionnaireId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        builder.Entity<EventQuestionnaireAnswer>(entity =>
+        {
+            entity.Property(x => x.AnswerText).HasMaxLength(4000);
+            entity.HasIndex(x => new { x.ResponseId, x.QuestionId }).IsUnique();
+
+            entity.HasOne(x => x.Response)
+                .WithMany(r => r.Answers)
+                .HasForeignKey(x => x.ResponseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Question)
+                .WithMany(q => q.Answers)
+                .HasForeignKey(x => x.QuestionId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
 
         // Seed users
         var sharedHash = "AQAAAAIAAYagAAAAED6a5t1RPIxnU0U+Jv7wZVV4GLlHAOtc+p0g0I75+Lfym7OOEZijLRgrubjefapC7g==";

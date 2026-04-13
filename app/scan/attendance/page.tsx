@@ -16,6 +16,7 @@ function ScanAttendanceContent() {
   const [status, setStatus] = useState<"loading" | "locating" | "success" | "error">("loading")
   const [message, setMessage] = useState("")
   const [mounted, setMounted] = useState(false)
+  const redirectPath = user?.role === "Member" ? "/" : "/students"
   const submittedRef = useRef(false)
 
   useEffect(() => { setMounted(true) }, [])
@@ -35,14 +36,20 @@ function ScanAttendanceContent() {
       return
     }
 
-    if (user?.role !== "Student") {
+    if (user?.role !== "Student" && user?.role !== "Member") {
       setStatus("error")
-      setMessage("Vetëm studentët mund të regjistrojnë prezencën.")
+      setMessage("Vetëm studentët ose anëtarët mund të regjistrojnë prezencën.")
       return
     }
 
     if (submittedRef.current) return
     submittedRef.current = true
+
+    const isEventToken = token.startsWith("IEKA-EV:") || token.startsWith("IEKA-EV%3A")
+    const endpoint = isEventToken ? "/Events/attendance/scan" : "/StudentModules/scan"
+    const body = isEventToken
+      ? { qrToken: token }
+      : { qrToken: token, latitude: null as number | null, longitude: null as number | null }
 
     async function markAttendance() {
       try {
@@ -66,10 +73,17 @@ function ScanAttendanceContent() {
         }
 
         setStatus("loading")
-        await fetchApi("/StudentModules/scan", {
-          method: "POST",
-          body: JSON.stringify({ qrToken: token, latitude: lat, longitude: lng }),
-        })
+        if (isEventToken) {
+          await fetchApi(endpoint, {
+            method: "POST",
+            body: JSON.stringify({ qrToken: token, latitude: lat, longitude: lng }),
+          })
+        } else {
+          await fetchApi(endpoint, {
+            method: "POST",
+            body: JSON.stringify({ qrToken: token, latitude: lat, longitude: lng }),
+          })
+        }
         setStatus("success")
         setMessage("Prezenca u regjistrua me sukses!")
       } catch (e: any) {
@@ -122,7 +136,7 @@ function ScanAttendanceContent() {
           <p className="mt-2 text-sm text-muted-foreground">{message}</p>
           <Button
             className="mt-6 gap-2"
-            onClick={() => router.push("/students")}
+            onClick={() => router.push(redirectPath)}
           >
             <ArrowLeft className="h-4 w-4" />
             Kthehu në panel
@@ -143,7 +157,7 @@ function ScanAttendanceContent() {
         <Button
           className="mt-6 gap-2"
           variant="outline"
-          onClick={() => router.push("/students")}
+          onClick={() => router.push(redirectPath)}
         >
           <ArrowLeft className="h-4 w-4" />
           Kthehu në panel

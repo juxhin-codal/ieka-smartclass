@@ -434,6 +434,21 @@ public class EmailService(
         return SendUserEmailAsync(user, $"Vlerësoni lektorin: {item.TopicName}", body, cancellationToken);
     }
 
+    public Task SendSessionDocumentsAsync(AppUser user, SessionDocumentsEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var body = RenderTemplate(
+            "session-documents.html",
+            new Dictionary<string, string>
+            {
+                ["RECIPIENT_NAME"] = $"{user.FirstName} {user.LastName}".Trim(),
+                ["MODULE_NAME"] = item.ModuleName,
+                ["SESSION_DATE"] = item.SessionDate,
+                ["RAW_DOCUMENTS_LIST"] = item.DocumentsListHtml
+            });
+
+        return SendUserEmailAsync(user, $"Dokumentet e sesionit: {item.ModuleName}", body, cancellationToken);
+    }
+
     private Task SendUserEmailAsync(AppUser user, string subject, string body, CancellationToken cancellationToken)
     {
         var recipientName = $"{user.FirstName} {user.LastName}".Trim();

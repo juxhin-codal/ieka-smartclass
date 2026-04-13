@@ -51,7 +51,7 @@ public class EventsController(IEventsService eventsService) : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateEvent(Guid id, [FromBody] UpdateEventRequest request)
     {
-        var dates = request.Dates?.Select(d => (d.Id, d.Date, d.Time, d.Location)).ToList();
+        var dates = request.Dates?.Select(d => (d.Id, d.Date, d.Time, d.Location, d.RequireLocation, d.Latitude, d.Longitude)).ToList();
         var feedbackJson = BuildFeedbackQuestionsJson(request.FeedbackQuestions, request.FeedbackQuestionnaires);
         await _eventsService.UpdateEventAsync(
             id, request.Name, request.Place, request.SessionCapacity, request.TotalSessions, request.CpdHours,
@@ -395,6 +395,243 @@ public class EventsController(IEventsService eventsService) : ControllerBase
 
         return null;
     }
+
+    // ── Session QR Attendance ────────────────────────────────────────────
+
+    [HttpGet("{eventId:guid}/dates/{dateId:guid}/qr")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> GenerateSessionQr(Guid eventId, Guid dateId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var token = await _eventsService.GenerateSessionQrTokenAsync(eventId, dateId, cancellationToken);
+            return Ok(new { token });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("attendance/scan")]
+    [Authorize]
+    public async Task<IActionResult> ScanSessionAttendance(
+        [FromBody] ScanEventAttendanceRequest request,
+        [FromServices] IekaSmartClass.Api.Utilities.Context.IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        if (context.UserId == null) return Unauthorized();
+
+        try
+        {
+            var participant = await _eventsService.ScanSessionAttendanceAsync(
+                request.QrToken, context.UserId.Value, request.Latitude, request.Longitude, cancellationToken);
+            return Ok(new { participantId = participant.Id, attendance = participant.Attendance });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ── Session Documents ──────────────────────────────────────────────
+
+    [HttpPost("{eventId:guid}/dates/{dateId:guid}/documents/upload")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> UploadSessionDocument(
+        Guid eventId, Guid dateId,
+        [FromForm] UploadEventDocumentRequest request,
+        [FromServices] IekaSmartClass.Api.Utilities.Context.IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        if (context.UserId is null) return Unauthorized();
+        if (request.File is null || request.File.Length == 0)
+            return BadRequest(new { message = "File is required." });
+
+        try
+        {
+            var document = await _eventsService.UploadSessionDocumentAsync(
+                eventId, dateId, request.File, context.UserId.Value, request.FileName, cancellationToken);
+            return Ok(document);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{eventId:guid}/dates/{dateId:guid}/documents/{documentId:guid}")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> DeleteSessionDocument(Guid eventId, Guid dateId, Guid documentId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _eventsService.DeleteSessionDocumentAsync(eventId, dateId, documentId, cancellationToken);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    // ── Event Questionnaires (module-level) ─────────────────────────────
+
+    [HttpPost("{eventId:guid}/questionnaires")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> CreateEventQuestionnaire(
+        Guid eventId, [FromBody] CreateEventQuestionnaireRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var questionnaire = await _eventsService.CreateEventQuestionnaireAsync(
+                eventId, request.Title, request.Questions, cancellationToken);
+            return Ok(questionnaire);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("questionnaires/{questionnaireId:guid}")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> GetEventQuestionnaire(Guid questionnaireId, CancellationToken cancellationToken)
+    {
+        var questionnaire = await _eventsService.GetEventQuestionnaireDetailAsync(questionnaireId, cancellationToken);
+        return questionnaire is null ? NotFound() : Ok(questionnaire);
+    }
+
+    [HttpPut("questionnaires/{questionnaireId:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateEventQuestionnaire(
+        Guid questionnaireId, [FromBody] UpdateEventQuestionnaireRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var questionnaire = await _eventsService.UpdateEventQuestionnaireAsync(
+                questionnaireId, request.Title, request.Questions, cancellationToken);
+            return Ok(questionnaire);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("questionnaires/{questionnaireId:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DeleteEventQuestionnaire(Guid questionnaireId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _eventsService.DeleteEventQuestionnaireAsync(questionnaireId, cancellationToken);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("questionnaires/{questionnaireId:guid}/qr")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> GenerateEventQuestionnaireQr(Guid questionnaireId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var token = await _eventsService.GenerateEventQuestionnaireQrTokenAsync(questionnaireId, cancellationToken);
+            return Ok(new { token });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("questionnaires/by-token")]
+    [Authorize]
+    public async Task<IActionResult> GetEventQuestionnaireByToken([FromQuery] string token, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var questionnaire = await _eventsService.GetEventQuestionnaireByTokenAsync(token, cancellationToken);
+            return questionnaire is null ? NotFound() : Ok(questionnaire);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("questionnaires/submit")]
+    [Authorize]
+    public async Task<IActionResult> SubmitEventQuestionnaire(
+        [FromBody] SubmitEventQuestionnaireRequest request,
+        [FromServices] IekaSmartClass.Api.Utilities.Context.IRequestContext context,
+        CancellationToken cancellationToken)
+    {
+        if (context.UserId == null) return Unauthorized();
+
+        try
+        {
+            var response = await _eventsService.SubmitEventQuestionnaireAsync(
+                request.QrToken, context.UserId.Value, request.Answers, cancellationToken);
+            return Ok(new { responseId = response.Id });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("questionnaires/{questionnaireId:guid}/responses")]
+    [Authorize(Roles = "Admin,Lecturer")]
+    public async Task<IActionResult> GetEventQuestionnaireResponses(Guid questionnaireId, CancellationToken cancellationToken)
+    {
+        var responses = await _eventsService.GetEventQuestionnaireResponsesAsync(questionnaireId, cancellationToken);
+        return Ok(responses);
+    }
+
+    // ── Send Emails per Session ─────────────────────────────────────────
+
+    [HttpPost("{eventId:guid}/dates/{dateId:guid}/send-questionnaire-emails")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SendSessionQuestionnaireEmails(Guid eventId, Guid dateId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var sent = await _eventsService.SendSessionQuestionnaireEmailsAsync(eventId, dateId, cancellationToken);
+            return Ok(new { sent });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{eventId:guid}/dates/{dateId:guid}/send-documents-email")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> SendSessionDocumentsEmail(Guid eventId, Guid dateId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var sent = await _eventsService.SendSessionDocumentsEmailAsync(eventId, dateId, cancellationToken);
+            return Ok(new { sent });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
 
 public record SubmitFeedbackRequest(
@@ -442,7 +679,7 @@ public record UpdateEventRequest(
     List<FeedbackQuestionRequest>? FeedbackQuestions,
     List<FeedbackQuestionnaireRequest>? FeedbackQuestionnaires
 );
-public record UpdateEventDateRequest(Guid? Id, string Date, string Time, string? Location = null);
+public record UpdateEventDateRequest(Guid? Id, string Date, string Time, string? Location = null, bool RequireLocation = false, double? Latitude = null, double? Longitude = null);
 public record FeedbackQuestionRequest(string Id, string Question, string Type, List<string>? Options);
 public record FeedbackQuestionnaireRequest(string Id, string Title, List<FeedbackQuestionRequest>? Questions);
 
@@ -451,3 +688,7 @@ public record MarkAttendanceRequest(string Status);
 public record AddEventDocumentRequest(string FileName, string FileUrl);
 public record UploadEventDocumentRequest(IFormFile File, string? FileName);
 public record SubmitLecturerFeedbackRequest(int Rating, string? Comment, bool IsAnonymous);
+public record ScanEventAttendanceRequest(string QrToken, double? Latitude, double? Longitude);
+public record CreateEventQuestionnaireRequest(string Title, List<EventQuestionnaireQuestionInput> Questions);
+public record UpdateEventQuestionnaireRequest(string Title, List<EventQuestionnaireQuestionInput> Questions);
+public record SubmitEventQuestionnaireRequest(string QrToken, List<EventQuestionnaireAnswerInput> Answers);

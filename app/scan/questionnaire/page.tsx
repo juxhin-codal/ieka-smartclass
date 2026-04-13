@@ -42,17 +42,20 @@ function ScanQuestionnaireContent() {
       return
     }
 
-    if (user?.role !== "Student") {
-      setError("Vetëm studentët mund të plotësojnë pyetësorin.")
+    if (user?.role !== "Student" && user?.role !== "Member") {
+      setError("Vetëm studentët ose anëtarët mund të plotësojnë pyetësorin.")
       setLoading(false)
       return
     }
 
+    const isEventToken = token.startsWith("IEKA-EQ:") || token.startsWith("IEKA-EQ%3A")
+    const fetchEndpoint = isEventToken
+      ? `/Events/questionnaires/by-token?token=${encodeURIComponent(token)}`
+      : `/StudentModules/questionnaires/by-token?token=${encodeURIComponent(token)}`
+
     async function loadQuestionnaire() {
       try {
-        const data = (await fetchApi(
-          `/StudentModules/questionnaires/by-token?token=${encodeURIComponent(token)}`
-        )) as QuestionnaireByTokenResponse
+        const data = (await fetchApi(fetchEndpoint)) as QuestionnaireByTokenResponse
         setQuestionnaire(data)
         setCurrentQuestionIndex(0)
       } catch (e: any) {
@@ -84,8 +87,10 @@ function ScanQuestionnaireContent() {
     if (!questionnaire || answeredCount === 0 || submitting) return
     setSubmitting(true)
     setError("")
+    const isEventToken = token.startsWith("IEKA-EQ:") || token.startsWith("IEKA-EQ%3A")
+    const submitEndpoint = isEventToken ? "/Events/questionnaires/submit" : "/StudentModules/questionnaires/submit"
     try {
-      const result = (await fetchApi("/StudentModules/questionnaires/submit", {
+      const result = (await fetchApi(submitEndpoint, {
         method: "POST",
         body: JSON.stringify({
           qrToken: token,

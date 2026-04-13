@@ -10,9 +10,13 @@ public class EventDate
     public int CurrentParticipants { get; private set; }
     public string? Location { get; private set; }
     public bool IsEnded { get; private set; } = false;
+    public bool RequireLocation { get; private set; } = false;
+    public double? Latitude { get; private set; }
+    public double? Longitude { get; private set; }
 
     [System.Text.Json.Serialization.JsonIgnore]
     public EventItem EventItem { get; private set; } = null!;
+    public ICollection<EventDateDocument> Documents { get; private set; } = new List<EventDateDocument>();
 
     public EventDate(DateTime date, string time, int maxParticipants, string? location = null)
     {
@@ -25,11 +29,22 @@ public class EventDate
 
     public void SetLocation(string? location) => Location = location;
 
-    public void UpdateDetails(DateTime date, string time, string? location)
+    public void UpdateDetails(DateTime date, string time, string? location,
+        bool requireLocation = false, double? latitude = null, double? longitude = null)
     {
         Date = date;
         Time = time;
         Location = location;
+        RequireLocation = requireLocation;
+        Latitude = latitude;
+        Longitude = longitude;
+    }
+
+    public void SetLocationCoordinates(bool requireLocation, double? latitude, double? longitude)
+    {
+        RequireLocation = requireLocation;
+        Latitude = latitude;
+        Longitude = longitude;
     }
 
     public void IncrementParticipant()

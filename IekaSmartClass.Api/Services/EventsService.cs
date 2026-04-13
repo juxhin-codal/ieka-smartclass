@@ -3,9 +3,13 @@ using IekaSmartClass.Api.Data.Entities;
 using IekaSmartClass.Api.Data.Repositories.Interface;
 using IekaSmartClass.Api.Services.Interface;
 using IekaSmartClass.Api.Utilities.Pagination;
+using IekaSmartClass.Api.Utilities.Settings;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace IekaSmartClass.Api.Services;
@@ -17,6 +21,8 @@ public class EventsService(
     IApplicationDbContext dbContext,
     IEmailService emailService,
     INotificationService notificationService,
+    IOptions<JwtSettings> jwtOptions,
+    IOptions<LocationSettings> locationOptions,
     ILogger<EventsService> logger) : IEventsService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -33,6 +39,11 @@ public class EventsService(
     private readonly IEmailService _emailService = emailService;
     private readonly INotificationService _notificationService = notificationService;
     private readonly ILogger<EventsService> _logger = logger;
+    private readonly LocationSettings _locationSettings = locationOptions.Value;
+    private readonly byte[] _qrSigningKey = Encoding.UTF8.GetBytes(
+        string.IsNullOrWhiteSpace(jwtOptions.Value.Secret)
+            ? "ieka-default-event-qr-signing-secret"
+            : jwtOptions.Value.Secret);
 
     private async Task SyncEventStatusesAsync(IEnumerable<EventItem> events)
     {
@@ -74,6 +85,7 @@ public class EventsService(
 
         var eventItem = await _eventRepository.Query()
             .Include(x => x.Dates)
+                .ThenInclude(d => d.Documents)
             .Include(e => e.Participants)
                 .ThenInclude(p => p.User)
             .Include(e => e.Documents)
@@ -355,7 +367,7 @@ public class EventsService(
         await _dbContext.SaveChangesAsync();
     }
 
-    public async Task UpdateEventAsync(Guid id, string name, string place, int sessionCapacity, int totalSessions, int cpdHours, decimal price, string? lecturerName, string? webinarLink, List<string> topics, List<(Guid? Id, string Date, string Time, string? Location)>? dates, List<string>? lecturerIds, string? feedbackQuestionsJson = null)
+    public async Task UpdateEventAsync(Guid id, string name, string place, int sessionCapacity, int totalSessions, int cpdHours, decimal price, string? lecturerName, string? webinarLink, List<string> topics, List<(Guid? Id, string Date, string Time, string? Location, bool RequireLocation, double? Latitude, double? Longitude)>? dates, List<string>? lecturerIds, string? feedbackQuestionsJson = null)
     {
         var eventItem = await _eventRepository.Query()
             .Include(e => e.Dates)
@@ -380,7 +392,7 @@ public class EventsService(
                     var existingDate = eventItem.Dates.FirstOrDefault(x => x.Id == dateRequest.Id.Value);
                     if (existingDate != null)
                     {
-                        existingDate.UpdateDetails(parsedDate, dateRequest.Time, dateRequest.Location);
+                        existingDate.UpdateDetails(parsedDate, dateRequest.Time, dateRequest.Location, dateRequest.RequireLocation, dateRequest.Latitude, dateRequest.Longitude);
                     }
                 }
                 else
@@ -389,7 +401,7 @@ public class EventsService(
                     var existingDate = eventItem.Dates.FirstOrDefault(x => x.Date.Date == parsedDate.Date);
                     if (existingDate != null)
                     {
-                        existingDate.UpdateDetails(parsedDate, dateRequest.Time, dateRequest.Location);
+                        existingDate.UpdateDetails(parsedDate, dateRequest.Time, dateRequest.Location, dateRequest.RequireLocation, dateRequest.Latitude, dateRequest.Longitude);
                     }
                     else
                     {
@@ -826,6 +838,491 @@ public class EventsService(
         }
 
         return suggestions[5..closing];
+    }
+
+    // ── Session QR-based Attendance ────────────────────────────────────────
+
+    private sealed record EventSessionQrPayload(Guid EventId, Guid DateId, long ExpiresAtUnix);
+    private sealed record EventQuestionnaireQrPayload(Guid QuestionnaireId, long ExpiresAtUnix);
+
+    public async Task<string> GenerateSessionQrTokenAsync(Guid eventId, Guid dateId, CancellationToken cancellationToken = default)
+    {
+        var eventItem = await _eventRepository.Query()
+            .Include(e => e.Dates)
+            .FirstOrDefaultAsync(e => e.Id == eventId, cancellationToken)
+            ?? throw new KeyNotFoundException("Moduli nuk u gjet.");
+
+        var sessionDate = eventItem.Dates.FirstOrDefault(d => d.Id == dateId)
+            ?? throw new KeyNotFoundException("Sesioni nuk u gjet.");
+
+        var expiresAt = DateTime.UtcNow.AddHours(8);
+        var payload = new EventSessionQrPayload(eventId, dateId, new DateTimeOffset(expiresAt).ToUnixTimeSeconds());
+        return CreateSignedToken(payload);
+    }
+
+    public async Task<Participant> ScanSessionAttendanceAsync(string qrToken, Guid userId, double? latitude, double? longitude, CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeQrInput(qrToken);
+        var payload = ParseSignedToken<EventSessionQrPayload>(normalized);
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(payload.ExpiresAtUnix);
+        if (expiresAt < DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("Kodi QR ka skaduar.");
+
+        var sessionDate = await _dbContext.EventDates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == payload.DateId && d.EventItemId == payload.EventId, cancellationToken)
+            ?? throw new InvalidOperationException("Sesioni nuk u gjet.");
+
+        // Only allow attendance on the same day (Europe/Tirane)
+        var cetZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Tirane");
+        var todayDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, cetZone).Date;
+        if (sessionDate.Date.Date != todayDate)
+            throw new InvalidOperationException("Prezenca mund të regjistrohet vetëm në ditën e sesionit.");
+
+        // Geolocation validation
+        if (sessionDate.RequireLocation && sessionDate.Latitude.HasValue && sessionDate.Longitude.HasValue)
+        {
+            if (latitude is null || longitude is null)
+                throw new InvalidOperationException("Vendndodhja juaj nuk mund të përcaktohet. Ju lutem aktivizoni GPS-in.");
+
+            var distance = HaversineDistanceMeters(latitude.Value, longitude.Value, sessionDate.Latitude.Value, sessionDate.Longitude.Value);
+            if (distance > _locationSettings.MaxDistanceMeters)
+                throw new InvalidOperationException("Ju ndodheni larg vendit të mësimit.");
+        }
+
+        // Find the participant for this event+date+user
+        var participant = await _dbContext.Participants
+            .FirstOrDefaultAsync(p => p.EventItemId == payload.EventId && p.DateId == payload.DateId && p.UserId == userId && p.Status == "registered", cancellationToken)
+            ?? throw new InvalidOperationException("Nuk jeni i/e regjistruar në këtë sesion.");
+
+        if (participant.Attendance == "attended")
+            throw new InvalidOperationException("Prezenca është regjistruar tashmë.");
+
+        participant.MarkAttended();
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return participant;
+    }
+
+    // ── Session Documents ──────────────────────────────────────────────────
+
+    public async Task<EventDateDocument> UploadSessionDocumentAsync(Guid eventId, Guid dateId, IFormFile file, Guid userId, string? displayName, CancellationToken cancellationToken = default)
+    {
+        var sessionDate = await _dbContext.EventDates
+            .FirstOrDefaultAsync(d => d.Id == dateId && d.EventItemId == eventId, cancellationToken)
+            ?? throw new KeyNotFoundException("Sesioni nuk u gjet.");
+
+        var fileResult = await _fileStorageService.SaveAsync(file, "event-sessions", userId, cancellationToken: cancellationToken);
+        var name = string.IsNullOrWhiteSpace(displayName) ? file.FileName : displayName;
+        var doc = new EventDateDocument(dateId, name, fileResult.PublicUrl, fileResult.RelativePath, file.Length, userId);
+        _dbContext.EventDateDocuments.Add(doc);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return doc;
+    }
+
+    public async Task DeleteSessionDocumentAsync(Guid eventId, Guid dateId, Guid documentId, CancellationToken cancellationToken = default)
+    {
+        var doc = await _dbContext.EventDateDocuments
+            .FirstOrDefaultAsync(d => d.Id == documentId && d.EventDateId == dateId, cancellationToken)
+            ?? throw new KeyNotFoundException("Dokumenti nuk u gjet.");
+
+        if (!string.IsNullOrWhiteSpace(doc.FileUrl))
+        {
+            try { await _fileStorageService.DeleteByPublicUrlAsync(doc.FileUrl, cancellationToken); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete file {Url}", doc.FileUrl); }
+        }
+
+        _dbContext.EventDateDocuments.Remove(doc);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    // ── Event Questionnaires (module-level) ────────────────────────────────
+
+    public async Task<EventQuestionnaire> CreateEventQuestionnaireAsync(Guid eventId, string title, List<EventQuestionnaireQuestionInput> questions, CancellationToken cancellationToken = default)
+    {
+        var eventItem = await _eventRepository.Query().FirstOrDefaultAsync(e => e.Id == eventId, cancellationToken)
+            ?? throw new KeyNotFoundException("Moduli nuk u gjet.");
+
+        var questionnaire = new EventQuestionnaire(eventId, title);
+        _dbContext.EventQuestionnaires.Add(questionnaire);
+
+        foreach (var q in questions)
+        {
+            var question = new EventQuestionnaireQuestion(questionnaire.Id, q.Text, q.Type, q.Order, q.OptionsJson, q.CorrectAnswer);
+            _dbContext.EventQuestionnaireQuestions.Add(question);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return await _dbContext.EventQuestionnaires
+            .AsNoTracking()
+            .Include(q => q.Questions)
+            .Include(q => q.Responses)
+            .FirstAsync(q => q.Id == questionnaire.Id, cancellationToken);
+    }
+
+    public async Task<EventQuestionnaire> UpdateEventQuestionnaireAsync(Guid questionnaireId, string title, List<EventQuestionnaireQuestionInput> questions, CancellationToken cancellationToken = default)
+    {
+        var questionnaire = await _dbContext.EventQuestionnaires
+            .Include(q => q.Questions)
+            .FirstOrDefaultAsync(q => q.Id == questionnaireId, cancellationToken)
+            ?? throw new KeyNotFoundException("Pyetësori nuk u gjet.");
+
+        questionnaire.UpdateTitle(title);
+
+        // Remove old questions and add new ones
+        foreach (var old in questionnaire.Questions.ToList())
+            _dbContext.EventQuestionnaireQuestions.Remove(old);
+
+        foreach (var q in questions)
+        {
+            var question = new EventQuestionnaireQuestion(questionnaireId, q.Text, q.Type, q.Order, q.OptionsJson, q.CorrectAnswer);
+            _dbContext.EventQuestionnaireQuestions.Add(question);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return await _dbContext.EventQuestionnaires
+            .AsNoTracking()
+            .Include(q => q.Questions)
+            .Include(q => q.Responses)
+            .FirstAsync(q => q.Id == questionnaireId, cancellationToken);
+    }
+
+    public async Task DeleteEventQuestionnaireAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        var questionnaire = await _dbContext.EventQuestionnaires
+            .FirstOrDefaultAsync(q => q.Id == questionnaireId, cancellationToken)
+            ?? throw new KeyNotFoundException("Pyetësori nuk u gjet.");
+
+        _dbContext.EventQuestionnaires.Remove(questionnaire);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<EventQuestionnaire?> GetEventQuestionnaireDetailAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.EventQuestionnaires
+            .AsNoTracking()
+            .Include(q => q.Questions.OrderBy(x => x.Order))
+            .Include(q => q.Responses).ThenInclude(r => r.Answers)
+            .Include(q => q.Responses).ThenInclude(r => r.User)
+            .FirstOrDefaultAsync(q => q.Id == questionnaireId, cancellationToken);
+    }
+
+    public async Task<string> GenerateEventQuestionnaireQrTokenAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        var questionnaire = await _dbContext.EventQuestionnaires
+            .FirstOrDefaultAsync(q => q.Id == questionnaireId, cancellationToken)
+            ?? throw new KeyNotFoundException("Pyetësori nuk u gjet.");
+
+        var expiresAt = DateTime.UtcNow.AddDays(30);
+        var payload = new EventQuestionnaireQrPayload(questionnaireId, new DateTimeOffset(expiresAt).ToUnixTimeSeconds());
+        return CreateSignedToken(payload);
+    }
+
+    public async Task<EventQuestionnaire?> GetEventQuestionnaireByTokenAsync(string token, CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeQrInput(token);
+        var payload = ParseSignedToken<EventQuestionnaireQrPayload>(normalized);
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(payload.ExpiresAtUnix);
+        if (expiresAt < DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("Kodi QR ka skaduar.");
+
+        return await _dbContext.EventQuestionnaires
+            .AsNoTracking()
+            .Include(q => q.Questions.OrderBy(x => x.Order))
+            .FirstOrDefaultAsync(q => q.Id == payload.QuestionnaireId, cancellationToken);
+    }
+
+    public async Task<EventQuestionnaireResponse> SubmitEventQuestionnaireAsync(string qrToken, Guid userId, List<EventQuestionnaireAnswerInput> answers, CancellationToken cancellationToken = default)
+    {
+        var normalized = NormalizeQrInput(qrToken);
+        var payload = ParseSignedToken<EventQuestionnaireQrPayload>(normalized);
+
+        var expiresAt = DateTimeOffset.FromUnixTimeSeconds(payload.ExpiresAtUnix);
+        if (expiresAt < DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("Kodi QR ka skaduar.");
+
+        var questionnaire = await _dbContext.EventQuestionnaires
+            .Include(q => q.Questions)
+            .FirstOrDefaultAsync(q => q.Id == payload.QuestionnaireId, cancellationToken)
+            ?? throw new InvalidOperationException("Pyetësori nuk u gjet.");
+
+        var alreadySubmitted = await _dbContext.EventQuestionnaireResponses
+            .AnyAsync(r => r.QuestionnaireId == payload.QuestionnaireId && r.UserId == userId, cancellationToken);
+        if (alreadySubmitted)
+            throw new InvalidOperationException("Pyetësori është plotësuar tashmë.");
+
+        var response = new EventQuestionnaireResponse(payload.QuestionnaireId, userId);
+        _dbContext.EventQuestionnaireResponses.Add(response);
+
+        var questionIds = questionnaire.Questions.Select(q => q.Id).ToHashSet();
+        foreach (var answer in answers)
+        {
+            if (!questionIds.Contains(answer.QuestionId)) continue;
+            var answerEntity = new EventQuestionnaireAnswer(response.Id, answer.QuestionId, answer.AnswerText);
+            _dbContext.EventQuestionnaireAnswers.Add(answerEntity);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return response;
+    }
+
+    public async Task<IReadOnlyList<EventQuestionnaireResponse>> GetEventQuestionnaireResponsesAsync(Guid questionnaireId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.EventQuestionnaireResponses
+            .AsNoTracking()
+            .Where(r => r.QuestionnaireId == questionnaireId)
+            .Include(r => r.Answers)
+            .Include(r => r.User)
+            .OrderByDescending(r => r.SubmittedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    // ── Send Questionnaire Emails per Session ──────────────────────────────
+
+    public async Task<int> SendSessionQuestionnaireEmailsAsync(Guid eventId, Guid dateId, CancellationToken cancellationToken = default)
+    {
+        var eventItem = await _eventRepository.Query()
+            .Include(e => e.Dates)
+            .FirstOrDefaultAsync(e => e.Id == eventId, cancellationToken)
+            ?? throw new KeyNotFoundException("Moduli nuk u gjet.");
+
+        var sessionDate = eventItem.Dates.FirstOrDefault(d => d.Id == dateId)
+            ?? throw new KeyNotFoundException("Sesioni nuk u gjet.");
+
+        // Find the "End module questionaire" evaluation questionnaire by title
+        var evalQuestionnaire = await _dbContext.EvaluationQuestionnaires
+            .FirstOrDefaultAsync(q => q.Title == "End module questionaire", cancellationToken)
+            ?? throw new InvalidOperationException("Pyetësori 'End module questionaire' nuk ekziston. Krijoni atë në faqen e konfigurimeve.");
+
+        // Get attended participants for this session
+        var participants = await _dbContext.Participants
+            .Include(p => p.User)
+            .Where(p => p.EventItemId == eventId && p.DateId == dateId && p.Attendance == "attended")
+            .ToListAsync(cancellationToken);
+
+        if (participants.Count == 0) return 0;
+
+        var actionLink = $"/evaluation/{evalQuestionnaire.Id}";
+        var emailItem = new EvaluationEmailItem(
+            evalQuestionnaire.Title,
+            evalQuestionnaire.EmailSubject,
+            evalQuestionnaire.EmailBody,
+            actionLink);
+
+        int sent = 0;
+        foreach (var p in participants)
+        {
+            try
+            {
+                await _emailService.SendEvaluationQuestionnaireAsync(p.User, emailItem, cancellationToken);
+                sent++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send questionnaire email to {Email}", p.User.Email);
+            }
+        }
+
+        return sent;
+    }
+
+    // ── Send Session Documents Email ───────────────────────────────────────
+
+    public async Task<int> SendSessionDocumentsEmailAsync(Guid eventId, Guid dateId, CancellationToken cancellationToken = default)
+    {
+        var eventItem = await _eventRepository.Query()
+            .Include(e => e.Dates).ThenInclude(d => d.Documents)
+            .Include(e => e.Documents)
+            .FirstOrDefaultAsync(e => e.Id == eventId, cancellationToken)
+            ?? throw new KeyNotFoundException("Moduli nuk u gjet.");
+
+        var sessionDate = eventItem.Dates.FirstOrDefault(d => d.Id == dateId)
+            ?? throw new KeyNotFoundException("Sesioni nuk u gjet.");
+
+        // Gather documents: module-level + session-level for this date and earlier dates
+        var allDocs = new List<(string Name, string Url)>();
+
+        // Module-level docs
+        foreach (var doc in eventItem.Documents)
+            allDocs.Add((doc.FileName, doc.FileUrl));
+
+        // Session-level docs for this date and past dates
+        var sessionDates = eventItem.Dates
+            .Where(d => d.Date.Date <= sessionDate.Date.Date)
+            .ToList();
+
+        foreach (var sd in sessionDates)
+        {
+            foreach (var doc in sd.Documents)
+                allDocs.Add((doc.FileName, doc.FileUrl));
+        }
+
+        if (allDocs.Count == 0)
+            throw new InvalidOperationException("Nuk ka dokumente për t'u dërguar.");
+
+        // Get attended participants
+        var participants = await _dbContext.Participants
+            .Include(p => p.User)
+            .Where(p => p.EventItemId == eventId && p.DateId == dateId && p.Attendance == "attended")
+            .ToListAsync(cancellationToken);
+
+        if (participants.Count == 0) return 0;
+
+        // Build HTML list of document links
+        var docLinksHtml = string.Join("",
+            allDocs.Select(d => $"<p style=\"margin:4px 0;\">📄 <strong>{System.Net.WebUtility.HtmlEncode(d.Name)}</strong></p>"));
+
+        var sessionDateLabel = sessionDate.Date.ToString("dd MMM yyyy");
+        var emailItem = new SessionDocumentsEmailItem(eventItem.Name, sessionDateLabel, docLinksHtml);
+
+        int sent = 0;
+        foreach (var p in participants)
+        {
+            try
+            {
+                await _emailService.SendSessionDocumentsAsync(p.User, emailItem, cancellationToken);
+                sent++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send documents email to {Email}", p.User.Email);
+            }
+        }
+
+        return sent;
+    }
+
+    // ── QR Signing Helpers ─────────────────────────────────────────────────
+
+    private string CreateSignedToken<T>(T payload)
+    {
+        var payloadJson = JsonSerializer.Serialize(payload);
+        var payloadSegment = Base64UrlEncode(Encoding.UTF8.GetBytes(payloadJson));
+
+        using var hmac = new HMACSHA256(_qrSigningKey);
+        var signatureBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(payloadSegment));
+        var signatureSegment = Base64UrlEncode(signatureBytes);
+
+        return $"{payloadSegment}.{signatureSegment}";
+    }
+
+    private T ParseSignedToken<T>(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+        try
+        {
+            var parts = token.Trim().Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2)
+                throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+            var payloadSegment = parts[0];
+            var signatureSegment = parts[1];
+
+            var providedSignature = Base64UrlDecode(signatureSegment);
+
+            using var hmac = new HMACSHA256(_qrSigningKey);
+            var expectedSignature = hmac.ComputeHash(Encoding.UTF8.GetBytes(payloadSegment));
+
+            if (providedSignature.Length != expectedSignature.Length ||
+                !CryptographicOperations.FixedTimeEquals(providedSignature, expectedSignature))
+                throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+            var payloadJson = Encoding.UTF8.GetString(Base64UrlDecode(payloadSegment));
+            return JsonSerializer.Deserialize<T>(payloadJson)
+                ?? throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+        }
+        catch (InvalidOperationException) { throw; }
+        catch { throw new InvalidOperationException("Kodi QR është i pavlefshëm."); }
+    }
+
+    private static string NormalizeQrInput(string rawInput)
+    {
+        var value = (rawInput ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+            throw new InvalidOperationException("Kodi QR është i pavlefshëm.");
+
+        foreach (var prefix in new[] { "IEKA-EV:", "IEKA-EQ:", "IEKA-SM:", "IEKA-ST:", "IEKA-MT:" })
+        {
+            if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                value = value[prefix.Length..].Trim();
+                break;
+            }
+        }
+
+        // Handle JSON payloads
+        if (value.Length >= 2 && value[0] == '{' && value[^1] == '}')
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(value);
+                if (document.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var propertyName in new[] { "qrToken", "token", "value", "data" })
+                    {
+                        if (document.RootElement.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String)
+                        {
+                            var candidate = property.GetString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(candidate))
+                                return candidate;
+                        }
+                    }
+                }
+            }
+            catch { /* not JSON */ }
+        }
+
+        // Handle URL payloads
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            var queryString = uri.Query.StartsWith('?') ? uri.Query[1..] : uri.Query;
+            var queryParts = queryString.Split('&', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in queryParts)
+            {
+                var kvp = part.Split('=', 2);
+                if (kvp.Length == 0) continue;
+                var name = Uri.UnescapeDataString(kvp[0]);
+                if (string.Equals(name, "token", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(name, "qrToken", StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Length > 1 ? Uri.UnescapeDataString(kvp[1]).Trim() : string.Empty;
+                }
+            }
+
+            var lastSegment = uri.Segments.LastOrDefault()?.Trim('/');
+            if (!string.IsNullOrWhiteSpace(lastSegment) && lastSegment.Contains('.'))
+                return lastSegment;
+        }
+
+        return value;
+    }
+
+    private static string Base64UrlEncode(byte[] bytes)
+        => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private static byte[] Base64UrlDecode(string input)
+    {
+        var normalized = input.Replace('-', '+').Replace('_', '/');
+        var padding = 4 - (normalized.Length % 4);
+        if (padding is > 0 and < 4)
+            normalized = normalized.PadRight(normalized.Length + padding, '=');
+        return Convert.FromBase64String(normalized);
+    }
+
+    private static double HaversineDistanceMeters(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double R = 6_371_000;
+        var dLat = (lat2 - lat1) * (Math.PI / 180);
+        var dLon = (lon2 - lon1) * (Math.PI / 180);
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(lat1 * (Math.PI / 180)) * Math.Cos(lat2 * (Math.PI / 180)) *
+                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
     }
 }
 

@@ -7,7 +7,7 @@ import { API_BASE_URL, fetchWithAuth } from "@/lib/api-client"
 import { EditEventForm } from "@/components/events/edit-event-form"
 import { QrScannerModal } from "@/components/events/qr-scanner-modal"
 import { FeedbackForm } from "@/components/events/feedback-form"
-import type { AppUser, EventItem, FeedbackQuestion, FeedbackQuestionnaire, Participant } from "@/lib/data"
+import type { AppUser, EventItem, EventDateDocument, FeedbackQuestion, FeedbackQuestionnaire, Participant, EventQuestionnaireInfo, QuestionnaireQuestion } from "@/lib/data"
 import { LiveQuizPanel } from "@/components/quiz/live-quiz-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -463,8 +463,34 @@ function UpcomingEventDetail({
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null)
   const [downloadingSessionExcelId, setDownloadingSessionExcelId] = useState<string | null>(null)
   const [sessionExportError, setSessionExportError] = useState("")
+  const [sessionQrDialogId, setSessionQrDialogId] = useState<string | null>(null)
+  const [sessionQrToken, setSessionQrToken] = useState<string | null>(null)
+  const [sessionQrLoading, setSessionQrLoading] = useState(false)
+  const [sendingQuestionnaireEmailDateId, setSendingQuestionnaireEmailDateId] = useState<string | null>(null)
+  const [questionnaireEmailResult, setQuestionnaireEmailResult] = useState<Record<string, { sent: number } | "error">>({})
+  const [sendingDocumentsEmailDateId, setSendingDocumentsEmailDateId] = useState<string | null>(null)
+  const [documentsEmailResult, setDocumentsEmailResult] = useState<Record<string, { sent: number } | "error">>({})
+  const [sessionDocFile, setSessionDocFile] = useState<Record<string, File | null>>({})
+  const [sessionDocName, setSessionDocName] = useState<Record<string, string>>({})
+  const [sessionDocUploading, setSessionDocUploading] = useState<string | null>(null)
+  const [sessionDocInputKey, setSessionDocInputKey] = useState(0)
+  const [deletingSessionDocId, setDeletingSessionDocId] = useState<string | null>(null)
+  // Event Questionnaires (module-level)
+  const [eventQuestionnaires, setEventQuestionnaires] = useState<EventQuestionnaireInfo[]>(event.eventQuestionnaires ?? [])
+  const [eqCreateTitle, setEqCreateTitle] = useState("")
+  const [eqCreating, setEqCreating] = useState(false)
+  const [eqDeletingId, setEqDeletingId] = useState<string | null>(null)
+  const [eqQrDialogId, setEqQrDialogId] = useState<string | null>(null)
+  const [eqQrToken, setEqQrToken] = useState<string | null>(null)
+  const [eqQrLoading, setEqQrLoading] = useState(false)
+  const [eqExpandedId, setEqExpandedId] = useState<string | null>(null)
+  const [eqDetail, setEqDetail] = useState<any>(null)
+  const [eqDetailLoading, setEqDetailLoading] = useState(false)
+  const [eqResponses, setEqResponses] = useState<any[]>([])
+  const [eqResponsesLoading, setEqResponsesLoading] = useState(false)
+  const [eqShowResponses, setEqShowResponses] = useState<string | null>(null)
   const { user } = useAuth()
-  const { markAttendance, users, cancelBooking } = useEvents()
+  const { markAttendance, users, cancelBooking, fetchEvents } = useEvents()
   const isAdmin = user?.role === "Admin"
   const canRunQuiz = user?.role === "Admin" || user?.role === "Lecturer"
   const canManageSessionParticipants = isAdmin || user?.role === "Lecturer"
@@ -573,6 +599,144 @@ function UpcomingEventDetail({
     }
   }
 
+  async function handleGenerateSessionQr(dateId: string) {
+    setSessionQrDialogId(dateId)
+    setSessionQrLoading(true)
+    setSessionQrToken(null)
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/Events/${event.id}/dates/${dateId}/qr`)
+      if (!res.ok) throw new Error("Gabim gjatë gjenerimit të QR kodit.")
+      const data = await res.json()
+      setSessionQrToken(data.qrToken ?? data.token ?? data)
+    } catch {
+      setSessionQrToken(null)
+    } finally {
+      setSessionQrLoading(false)
+    }
+  }
+
+  async function handleSendSessionQuestionnaireEmails(dateId: string) {
+    setSendingQuestionnaireEmailDateId(dateId)
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/Events/${event.id}/dates/${dateId}/send-questionnaire-emails`, { method: "POST" })
+      const data = await res.json()
+      setQuestionnaireEmailResult(prev => ({ ...prev, [dateId]: { sent: data.sent ?? 0 } }))
+    } catch {
+      setQuestionnaireEmailResult(prev => ({ ...prev, [dateId]: "error" }))
+    } finally {
+      setSendingQuestionnaireEmailDateId(null)
+    }
+  }
+
+  async function handleSendSessionDocumentsEmail(dateId: string) {
+    setSendingDocumentsEmailDateId(dateId)
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/Events/${event.id}/dates/${dateId}/send-documents-email`, { method: "POST" })
+      const data = await res.json()
+      setDocumentsEmailResult(prev => ({ ...prev, [dateId]: { sent: data.sent ?? 0 } }))
+    } catch {
+      setDocumentsEmailResult(prev => ({ ...prev, [dateId]: "error" }))
+    } finally {
+      setSendingDocumentsEmailDateId(null)
+    }
+  }
+
+  async function handleUploadSessionDocument(dateId: string) {
+    const file = sessionDocFile[dateId]
+    if (!file) return
+    setSessionDocUploading(dateId)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const displayName = sessionDocName[dateId]?.trim()
+      if (displayName) formData.append("displayName", displayName)
+      await fetchWithAuth(`${API_BASE_URL}/Events/${event.id}/dates/${dateId}/documents/upload`, { method: "POST", body: formData })
+      setSessionDocFile(prev => ({ ...prev, [dateId]: null }))
+      setSessionDocName(prev => ({ ...prev, [dateId]: "" }))
+      setSessionDocInputKey(k => k + 1)
+      // Refetch event to get updated documents
+      await fetchEvents()
+    } catch (error: any) {
+      setDocUploadError(error?.message ?? "Gabim gjatë ngarkimit të dokumentit të sesionit.")
+    } finally {
+      setSessionDocUploading(null)
+    }
+  }
+
+  async function handleDeleteSessionDocument(dateId: string, docId: string) {
+    setDeletingSessionDocId(docId)
+    try {
+      await fetchWithAuth(`${API_BASE_URL}/Events/${event.id}/dates/${dateId}/documents/${docId}`, { method: "DELETE" })
+      await fetchEvents()
+    } catch (error: any) {
+      setDocUploadError(error?.message ?? "Gabim gjatë fshirjes së dokumentit.")
+    } finally {
+      setDeletingSessionDocId(null)
+    }
+  }
+
+  async function handleCreateEventQuestionnaire() {
+    if (!eqCreateTitle.trim()) return
+    setEqCreating(true)
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/Events/${event.id}/questionnaires`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: eqCreateTitle.trim(), questions: [] }),
+      })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setEventQuestionnaires(prev => [...prev, { id: data.id, title: data.title, questionCount: 0, responseCount: 0 }])
+      setEqCreateTitle("")
+    } catch { /* ignore */ } finally {
+      setEqCreating(false)
+    }
+  }
+
+  async function handleDeleteEventQuestionnaire(qId: string) {
+    setEqDeletingId(qId)
+    try {
+      await fetchWithAuth(`${API_BASE_URL}/Events/questionnaires/${qId}`, { method: "DELETE" })
+      setEventQuestionnaires(prev => prev.filter(q => q.id !== qId))
+    } catch { /* ignore */ } finally {
+      setEqDeletingId(null)
+    }
+  }
+
+  async function handleEventQuestionnaireQr(qId: string) {
+    setEqQrDialogId(qId)
+    setEqQrLoading(true)
+    setEqQrToken(null)
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/Events/questionnaires/${qId}/qr`)
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setEqQrToken(data.qrToken ?? data.token ?? data)
+    } catch { setEqQrToken(null) } finally { setEqQrLoading(false) }
+  }
+
+  async function handleToggleEventQuestionnaireDetail(qId: string) {
+    if (eqExpandedId === qId) { setEqExpandedId(null); return }
+    setEqExpandedId(qId)
+    setEqDetailLoading(true)
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/Events/questionnaires/${qId}`)
+      if (!res.ok) throw new Error()
+      setEqDetail(await res.json())
+    } catch { setEqDetail(null) } finally { setEqDetailLoading(false) }
+  }
+
+  async function handleViewEventQuestionnaireResponses(qId: string) {
+    if (eqShowResponses === qId) { setEqShowResponses(null); return }
+    setEqShowResponses(qId)
+    setEqResponsesLoading(true)
+    try {
+      const res = await fetchWithAuth(`${API_BASE_URL}/Events/questionnaires/${qId}/responses`)
+      if (!res.ok) throw new Error()
+      setEqResponses(await res.json())
+    } catch { setEqResponses([]) } finally { setEqResponsesLoading(false) }
+  }
+
   // Group quiz rounds
   const quizRounds = useMemo(() => {
     if (!event.quizQuestions?.length) return []
@@ -598,6 +762,34 @@ function UpcomingEventDetail({
           open={!!feedbackDateId}
           onClose={() => setFeedbackDateId(null)}
         />
+      )}
+
+      {/* Session QR Dialog */}
+      {sessionQrDialogId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSessionQrDialogId(null)}>
+          <div className="rounded-lg border border-border bg-card p-6 shadow-lg max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground">QR Kod për Sesionin</h3>
+              <button onClick={() => setSessionQrDialogId(null)} className="rounded p-1 hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {sessionQrLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : sessionQrToken ? (
+              <div className="flex flex-col items-center gap-3">
+                <QRCodeCanvas value={sessionQrToken} size={200} includeMargin />
+                <p className="text-xs text-muted-foreground text-center">
+                  Skanoni këtë QR kod me telefonin për të konfirmuar praninë në sesion.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-destructive text-center py-4">Gabim gjatë gjenerimit të QR kodit.</p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Header Card */}
@@ -787,6 +979,56 @@ function UpcomingEventDetail({
                         Mbyll sesionin
                       </Button>
                     )}
+                    {isAdmin && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={(clickEvent) => {
+                          clickEvent.stopPropagation()
+                          void handleGenerateSessionQr(d.id)
+                        }}
+                      >
+                        <QrCode className="h-3 w-3" />
+                        QR
+                      </Button>
+                    )}
+                    {isAdmin && d.isEnded && (() => {
+                      const qeState = questionnaireEmailResult[d.id]
+                      return (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1"
+                          disabled={sendingQuestionnaireEmailDateId === d.id}
+                          onClick={(clickEvent) => {
+                            clickEvent.stopPropagation()
+                            void handleSendSessionQuestionnaireEmails(d.id)
+                          }}
+                        >
+                          {sendingQuestionnaireEmailDateId === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
+                          {typeof qeState === "object" ? `Dërguar ${qeState.sent}` : qeState === "error" ? "Gabim" : "Dërgo Pyetësorin"}
+                        </Button>
+                      )
+                    })()}
+                    {isAdmin && d.isEnded && (() => {
+                      const deState = documentsEmailResult[d.id]
+                      return (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1"
+                          disabled={sendingDocumentsEmailDateId === d.id}
+                          onClick={(clickEvent) => {
+                            clickEvent.stopPropagation()
+                            void handleSendSessionDocumentsEmail(d.id)
+                          }}
+                        >
+                          {sendingDocumentsEmailDateId === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                          {typeof deState === "object" ? `Dërguar ${deState.sent}` : deState === "error" ? "Gabim" : "Dërgo Dokumentet"}
+                        </Button>
+                      )
+                    })()}
                     {d.isEnded && !isAdmin && user?.role === "Member" && (
                       <Button
                         size="sm"
@@ -917,6 +1159,74 @@ function UpcomingEventDetail({
                         </table>
                       </div>
                     )}
+
+                    {/* Session Documents */}
+                    {canManageSessionParticipants && (
+                      <div className="mt-3 border-t border-border pt-3">
+                        <h4 className="text-xs font-semibold text-foreground mb-2">Dokumentet e sesionit</h4>
+                        {d.documents && d.documents.length > 0 ? (
+                          <div className="flex flex-col gap-1.5 mb-2">
+                            {d.documents.map(doc => (
+                              <div key={doc.id} className="flex items-center justify-between p-1.5 rounded border border-border">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-3.5 w-3.5 text-blue-500" />
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleOpenDocument(doc.id, doc.fileUrl, doc.fileName)}
+                                    className="text-xs hover:underline font-medium text-foreground text-left"
+                                  >
+                                    {doc.fileName}
+                                  </button>
+                                  <span className="text-[10px] text-muted-foreground">{doc.sizeBytes ? `${(doc.sizeBytes / 1024).toFixed(0)} KB` : ""}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-1.5 text-destructive"
+                                    disabled={deletingSessionDocId === doc.id}
+                                    onClick={() => void handleDeleteSessionDocument(d.id, doc.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground mb-2">Nuk ka dokumente për këtë sesion.</p>
+                        )}
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-[11px]">Emri</Label>
+                            <Input
+                              value={sessionDocName[d.id] ?? ""}
+                              onChange={e => setSessionDocName(prev => ({ ...prev, [d.id]: e.target.value }))}
+                              placeholder="Opsionale"
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-[11px]">Skedari</Label>
+                            <Input
+                              key={`${d.id}-${sessionDocInputKey}`}
+                              type="file"
+                              className="h-7 text-xs"
+                              onChange={e => setSessionDocFile(prev => ({ ...prev, [d.id]: e.target.files?.[0] ?? null }))}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            className="h-7 gap-1 text-xs"
+                            onClick={() => void handleUploadSessionDocument(d.id)}
+                            disabled={!sessionDocFile[d.id] || sessionDocUploading === d.id}
+                          >
+                            <Upload className="h-3 w-3" />
+                            {sessionDocUploading === d.id ? "..." : "Ngarko"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1008,6 +1318,137 @@ function UpcomingEventDetail({
         onUpdateOption={updateOption}
         onRemoveOption={removeOption}
       />
+
+      {/* Event Questionnaires (module-level, like student module questionnaires) */}
+      {isAdmin && (
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Pyetësorët e modulit</h3>
+          <p className="text-xs text-muted-foreground mb-3">Pyetësorë të strukturuar për të gjitha sesionet e modulit. Gjeneroni QR ose dërgoni me email.</p>
+
+          {eventQuestionnaires.length > 0 && (
+            <div className="flex flex-col gap-2 mb-3">
+              {eventQuestionnaires.map(eq => (
+                <div key={eq.id} className="rounded-md border border-border bg-muted/30">
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-3.5 w-3.5 text-primary" />
+                      <button type="button" onClick={() => void handleToggleEventQuestionnaireDetail(eq.id)} className="text-sm font-medium text-foreground hover:underline text-left">
+                        {eq.title}
+                      </button>
+                      <span className="text-[11px] text-muted-foreground">{eq.questionCount} pyetje • {eq.responseCount} përgjigje</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="outline" className="h-6 px-2 text-[11px] gap-1" onClick={() => void handleEventQuestionnaireQr(eq.id)}>
+                        <QrCode className="h-3 w-3" /> QR
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-6 px-2 text-[11px] gap-1" onClick={() => void handleViewEventQuestionnaireResponses(eq.id)}>
+                        <Users className="h-3 w-3" /> Përgjigjet
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-1.5 text-destructive"
+                        disabled={eqDeletingId === eq.id}
+                        onClick={() => void handleDeleteEventQuestionnaire(eq.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Detail view */}
+                  {eqExpandedId === eq.id && (
+                    <div className="border-t border-border px-3 py-2">
+                      {eqDetailLoading ? (
+                        <div className="flex items-center gap-2 py-2"><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-xs">Duke ngarkuar...</span></div>
+                      ) : eqDetail ? (
+                        <div className="flex flex-col gap-1.5">
+                          {(eqDetail.questions ?? []).map((q: any, i: number) => (
+                            <div key={q.id} className="flex items-center gap-2 rounded bg-card p-2 text-xs">
+                              <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-[10px] font-semibold text-primary">{i + 1}</span>
+                              <span className="text-foreground">{q.text}</span>
+                              <span className="text-muted-foreground ml-auto">{q.type === "Options" || q.type === 0 ? "Opsione" : q.type === "FreeText" || q.type === 1 ? "Tekst" : "Yje"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Nuk u gjetën detaje.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Responses view */}
+                  {eqShowResponses === eq.id && (
+                    <div className="border-t border-border px-3 py-2">
+                      {eqResponsesLoading ? (
+                        <div className="flex items-center gap-2 py-2"><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-xs">Duke ngarkuar...</span></div>
+                      ) : eqResponses.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-1">Nuk ka përgjigje ende.</p>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          {eqResponses.map((r: any) => (
+                            <div key={r.responseId ?? r.id} className="rounded bg-card/80 p-2 text-xs">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-foreground">{r.firstName} {r.lastName}</span>
+                                <span className="text-muted-foreground">{r.submittedAt ? format(parseISO(r.submittedAt), "dd/MM/yyyy HH:mm") : ""}</span>
+                              </div>
+                              <div className="flex flex-col gap-0.5 pl-2">
+                                {(r.answers ?? []).map((a: any) => (
+                                  <div key={a.questionId} className="flex gap-2">
+                                    <span className="text-muted-foreground">{a.questionText ?? "Pyetje"}:</span>
+                                    <span className="text-foreground">{a.answerText ?? a.answer}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <Input
+                value={eqCreateTitle}
+                onChange={e => setEqCreateTitle(e.target.value)}
+                placeholder="Titulli i pyetësorit të ri..."
+                className="h-8 text-sm"
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateEventQuestionnaire() } }}
+              />
+            </div>
+            <Button size="sm" className="h-8 gap-2" onClick={() => void handleCreateEventQuestionnaire()} disabled={eqCreating || !eqCreateTitle.trim()}>
+              <Plus className="h-4 w-4" /> Shto pyetësor
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Event Questionnaire QR Dialog */}
+      {eqQrDialogId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setEqQrDialogId(null)}>
+          <div className="rounded-lg border border-border bg-card p-6 shadow-lg max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground">QR Kod për Pyetësorin</h3>
+              <button onClick={() => setEqQrDialogId(null)} className="rounded p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+            </div>
+            {eqQrLoading ? (
+              <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+            ) : eqQrToken ? (
+              <div className="flex flex-col items-center gap-3">
+                <QRCodeCanvas value={eqQrToken} size={200} includeMargin />
+                <p className="text-xs text-muted-foreground text-center">Skanoni për të plotësuar pyetësorin.</p>
+              </div>
+            ) : (
+              <p className="text-xs text-destructive text-center py-4">Gabim gjatë gjenerimit të QR kodit.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Participants */}
       <div className="rounded-lg border border-border bg-card p-5">
@@ -1235,13 +1676,12 @@ function PastEventDetail({ event }: { event: EventItem }) {
                                       </td>
                                       <td className="px-3 py-2.5 text-xs">
                                         <span
-                                          className={`rounded px-2 py-0.5 font-medium ${
-                                            isAttended
+                                          className={`rounded px-2 py-0.5 font-medium ${isAttended
                                               ? "bg-green-500/10 text-green-600"
                                               : isAbsent
                                                 ? "bg-red-500/10 text-red-600"
                                                 : "bg-muted text-muted-foreground"
-                                          }`}
+                                            }`}
                                         >
                                           {isAttended ? "Konfirmuar" : isAbsent ? "Refuzuar" : "Në pritje"}
                                         </span>
@@ -1827,9 +2267,9 @@ function ParticipantsTable({
       </table>
       {participants.length > 50 && (
         <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-	          Duke shfaqur 50 nga {participants.length}
-	        </div>
-	      )}
+          Duke shfaqur 50 nga {participants.length}
+        </div>
+      )}
     </div>
   )
 }

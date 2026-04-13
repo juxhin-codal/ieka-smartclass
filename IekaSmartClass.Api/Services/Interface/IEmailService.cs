@@ -24,6 +24,7 @@ public interface IEmailService
     Task SendStudentModuleResultAsync(AppUser student, string moduleTitle, string result, string? resultNote, CancellationToken cancellationToken = default);
     Task SendEvaluationQuestionnaireAsync(AppUser user, EvaluationEmailItem item, CancellationToken cancellationToken = default);
     Task SendLecturerFeedbackRequestAsync(AppUser user, LecturerFeedbackEmailItem item, CancellationToken cancellationToken = default);
+    Task SendSessionDocumentsAsync(AppUser user, SessionDocumentsEmailItem item, CancellationToken cancellationToken = default);
 }
 
 public sealed record BookingOpenEmailItem(string ModuleName, string DateSummary, string Location, int CpdHours, string ActionLink);
@@ -36,3 +37,4 @@ public sealed record SessionClosedAdminEmailItem(string ModuleName, DateTime Ses
 public sealed record SessionParticipantEmailItem(string FullName, string RegistryNumber, string Email, string BookingStatus, string AttendanceStatus);
 public sealed record EvaluationEmailItem(string QuestionnaireTitle, string EmailSubject, string EmailBody, string ActionLink);
 public sealed record LecturerFeedbackEmailItem(string ModuleName, string TopicName, string SessionDate, string SessionTime, string LecturerName, string TopicLocation, string FeedbackToken, string? FeedbackType = null);
+public sealed record SessionDocumentsEmailItem(string ModuleName, string SessionDate, string DocumentsListHtml);

@@ -63,6 +63,9 @@ public class EventItem
     private readonly List<Participant> _participants = new();
     public IReadOnlyCollection<Participant> Participants => _participants.AsReadOnly();
 
+    private readonly List<EventQuestionnaire> _questionnaires = new();
+    public IReadOnlyCollection<EventQuestionnaire> EventQuestionnaires => _questionnaires.AsReadOnly();
+
     public EventItem(string name, string place, int sessionCapacity, int totalSessions, int cpdHours, decimal price = 0, string? lecturerName = null, string? webinarLink = null, IEnumerable<string>? lecturerIds = null)
     {
         Name = name;

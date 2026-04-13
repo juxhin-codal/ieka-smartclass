@@ -6,6 +6,21 @@ export interface EventDate {
   currentParticipants: number
   location?: string
   isEnded?: boolean
+  requireLocation?: boolean
+  latitude?: number | null
+  longitude?: number | null
+  documents?: EventDateDocument[]
+}
+
+export interface EventDateDocument {
+  id: string
+  eventDateId: string
+  fileName: string
+  fileUrl: string
+  relativePath?: string
+  sizeBytes: number
+  uploadedAt: string
+  uploadedById: string
 }
 
 export interface EventDocument {
@@ -193,6 +208,13 @@ export interface StudentTrainingStazh {
   studentFeedbackToken?: string | null
 }
 
+export interface EventQuestionnaireInfo {
+  id: string
+  title: string
+  questionCount: number
+  responseCount: number
+}
+
 export interface EventItem {
   id: string
   name: string
@@ -216,6 +238,7 @@ export interface EventItem {
   webinarLink?: string           // For Online webinar integration
   price?: number                 // For payment per module
   isNotified?: boolean
+  eventQuestionnaires?: EventQuestionnaireInfo[]
 }
 
 // ─── Stazh (Internship) types ──────────────────────────────────────────────
