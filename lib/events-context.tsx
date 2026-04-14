@@ -70,7 +70,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   const fetchEvents = useCallback(async () => {
     setIsLoading(true)
     try {
-      const response = await fetchApi("/Events?pageNumber=1&pageSize=100")
+      const response = await fetchApi("/Events?pageNumber=1&pageSize=1000")
       setEvents(response.items || response) // Handle PaginatedList or raw array
     } catch (e: any) {
       setEvents([])

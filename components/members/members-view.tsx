@@ -2,6 +2,7 @@
 
 // Members Listing with Subtabs & Compliance Stats
 import { useState, useMemo, useRef } from "react"
+import * as XLSX from "xlsx"
 import { useEvents } from "@/lib/events-context"
 import { EditMemberForm } from "@/components/members/edit-member-form"
 import { MemberReportModal } from "@/components/members/member-report-modal"
@@ -13,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import {
     Upload, Download, Search, X, Users, UserPlus, CheckCircle2, AlertCircle,
-    ChevronUp, ChevronDown, ChevronsUpDown, Pencil, FileText, Shield, BookOpen, Handshake
+    ChevronUp, ChevronDown, ChevronsUpDown, Pencil, FileText, Shield, BookOpen, Handshake, Loader2
 } from "lucide-react"
 import { PaginationBar, usePagination, type PageSize } from "@/components/ui/pagination-bar"
 
@@ -94,6 +95,7 @@ export function MembersView() {
     const [newRole, setNewRole] = useState<string>("Member")
     const [newIsActive, setNewIsActive] = useState(true)
     const [error, setError] = useState("")
+    const [isImporting, setIsImporting] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const currentYear = new Date().getFullYear()
     const subTabCounts = useMemo<Record<MemberSubTab, number>>(
@@ -311,29 +313,110 @@ export function MembersView() {
     function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
         if (!file) return
+
+        const isXlsx = file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")
+
         const reader = new FileReader()
         reader.onload = (ev) => {
-            const text = ev.target?.result as string
-            const lines = text.split("\n").filter(Boolean).slice(1)
             const newUsers: Omit<AppUser, "id">[] = []
-            for (const line of lines) {
-                const [reg, fn, ln, email, phone, cpdDone, cpdReq, role] = line.split(",").map((s) => s.trim())
-                if (reg && fn && ln && email) {
-                    newUsers.push({
-                        memberRegistryNumber: reg,
-                        firstName: fn,
-                        lastName: ln,
-                        email,
-                        phone: phone || undefined,
-                        role: (role as any) || "Member",
-                        cpdHoursCompleted: Number(cpdDone) || 0,
-                        cpdHoursRequired: Number(cpdReq) || 20,
-                    })
-                }
+
+            // Normalise a header cell to a simple key for matching
+            function normalise(s: string) {
+                return (s ?? "").toLowerCase().trim()
+                    .replace(/[^a-z0-9]/g, "") // strip accents / spaces / punctuation
             }
-            if (newUsers.length > 0) addUsers(newUsers).catch(console.error)
+
+            let rows: Record<string, string>[] = []
+
+            if (isXlsx) {
+                const data = new Uint8Array(ev.target?.result as ArrayBuffer)
+                const wb = XLSX.read(data, { type: "array" })
+                const ws = wb.Sheets[wb.SheetNames[0]]
+                rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" })
+            } else {
+                const text = ev.target?.result as string
+                const lines = text.split("\n").filter(Boolean)
+                if (lines.length < 2) return
+                const headers = lines[0].split(",").map((h) => h.trim())
+                rows = lines.slice(1).map((line) => {
+                    const cells = line.split(",").map((c) => c.trim())
+                    const row: Record<string, string> = {}
+                    headers.forEach((h, i) => { row[h] = cells[i] ?? "" })
+                    return row
+                })
+            }
+
+            // Column aliases (normalised → field)
+            const ALIASES: Record<string, string> = {
+                // registry number
+                numriregjistrimit: "reg",
+                numriregjistrit: "reg",
+                numriregjistrimittxt: "reg",
+                // first name
+                emer: "firstName",
+                emri: "firstName",
+                firstname: "firstName",
+                name: "firstName",
+                // last name
+                mbiemer: "lastName",
+                mbiemri: "lastName",
+                lastname: "lastName",
+                surname: "lastName",
+                // email
+                email: "email",
+                emailadresa: "email",
+                // phone
+                telefon: "phone",
+                phone: "phone",
+                // role
+                rol: "role",
+                role: "role",
+                // cpd
+                orcpdkryer: "cpdDone",
+                orcpdkerkuar: "cpdReq",
+            }
+
+            for (const row of rows) {
+                const mapped: Record<string, string> = {}
+                for (const [rawKey, val] of Object.entries(row)) {
+                    const field = ALIASES[normalise(rawKey)]
+                    if (field) mapped[field] = String(val).trim()
+                }
+
+                const { reg, firstName, lastName, email, phone, role, cpdDone, cpdReq } = mapped
+                if (!reg || !firstName || !lastName || !email) continue
+
+                newUsers.push({
+                    memberRegistryNumber: reg.toUpperCase(),
+                    firstName,
+                    lastName,
+                    email,
+                    email2: null,
+                    phone: phone || undefined,
+                    phonePrefix: "+355",
+                    phoneNumber: phone || undefined,
+                    role: (role as any) || "Member",
+                    cpdHoursCompleted: Number(cpdDone) || 0,
+                    cpdHoursRequired: Number(cpdReq) || 20,
+                    mentorId: null,
+                    validUntilMonth: null,
+                    isActive: true,
+                })
+            }
+
+            if (newUsers.length > 0) {
+                setIsImporting(true)
+                addUsers(newUsers)
+                    .catch(console.error)
+                    .finally(() => setIsImporting(false))
+            }
         }
-        reader.readAsText(file)
+
+        if (isXlsx) {
+            reader.readAsArrayBuffer(file)
+        } else {
+            reader.readAsText(file)
+        }
         if (fileInputRef.current) fileInputRef.current.value = ""
     }
 
@@ -351,9 +434,11 @@ export function MembersView() {
                     <div className="flex flex-wrap items-center gap-2">
                         {showCsvButtons && (
                             <>
-                                <input ref={fileInputRef} type="file" accept=".csv" onChange={handleUpload} className="hidden" aria-label="Ngarko CSV" />
-                                <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => fileInputRef.current?.click()}>
-                                    <Upload className="h-4 w-4" /> <span className="hidden sm:inline">Ngarko CSV</span>
+                                <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleUpload} className="hidden" aria-label="Ngarko Anëtarë" />
+                                <Button variant="outline" size="sm" className="gap-2 shrink-0" onClick={() => fileInputRef.current?.click()} disabled={isImporting}>
+                                    {isImporting
+                                        ? <><Loader2 className="h-4 w-4 animate-spin" /> <span className="hidden sm:inline">Duke ngarkuar...</span></>
+                                        : <><Upload className="h-4 w-4" /> <span className="hidden sm:inline">Ngarko</span></>}
                                 </Button>
                             </>
                         )}

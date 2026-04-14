@@ -139,17 +139,23 @@ export function ReportsView() {
 
   const summaryStats = useMemo(() => {
     const pastEvents = events.filter((e) => e.status === "past")
-    const pastRegisteredParticipants = pastEvents.flatMap((e) =>
+
+    // Participants and attendance across ALL events (past + ongoing/upcoming with marked attendance)
+    const allRegisteredParticipants = events.flatMap((e) =>
       (e.participants ?? []).filter((p) => p.status === "registered")
     )
-    const totalParticipants = pastRegisteredParticipants.length
-    const totalAttended = pastRegisteredParticipants.filter((p) => p.attendance === "attended").length
-    const totalAbsent = pastRegisteredParticipants.filter((p) => p.attendance === "absent").length
-    const attendanceRate = totalAttended + totalAbsent > 0
-      ? Math.round((totalAttended / (totalAttended + totalAbsent)) * 100)
+    const totalParticipants = allRegisteredParticipants.length
+    const totalAttended = allRegisteredParticipants.filter((p) => p.attendance === "attended").length
+    const totalMarked = allRegisteredParticipants.filter(
+      (p) => p.attendance === "attended" || p.attendance === "absent"
+    ).length
+    const attendanceRate = totalMarked > 0
+      ? Math.round((totalAttended / totalMarked) * 100)
       : null
+
+    // Ratings from all events that have feedback
     const allRatings: number[] = []
-    pastEvents.forEach((e) => (e.participants ?? []).forEach((p) =>
+    events.forEach((e) => (e.participants ?? []).forEach((p) =>
       (p.answers ?? []).forEach((a) => {
         const q = (e.feedbackQuestions ?? []).find((fq) => fq.id === a.questionId)
         if (q?.type === "rating") allRatings.push(Number(a.answer))
