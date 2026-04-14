@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { fetchApi } from "@/lib/api-client"
 import { Send, Check, Loader2, X, CheckSquare, Square, ChevronsUpDown, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,8 @@ interface FeedbackSection {
 interface ModuleOption {
     id: string
     title: string
+    displayTitle: string   // "Title - YEAR" shown in button/list
+    searchText: string     // title + year for filtering
     subtitle?: string
 }
 
@@ -27,6 +30,15 @@ export function ManualFeedbackSendSection() {
     const [moduleSearch, setModuleSearch] = useState("")
     const [moduleDropdownOpen, setModuleDropdownOpen] = useState(false)
     const moduleDropdownRef = useRef<HTMLDivElement>(null)
+    const moduleTriggerRef = useRef<HTMLButtonElement>(null)
+    const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null)
+
+    const openDropdown = useCallback(() => {
+        if (moduleTriggerRef.current) {
+            setDropdownRect(moduleTriggerRef.current.getBoundingClientRect())
+        }
+        setModuleDropdownOpen(true)
+    }, [])
 
     const [sections, setSections] = useState<FeedbackSection[]>([])
     const [selectedSectionIds, setSelectedSectionIds] = useState<Set<string>>(new Set())
@@ -66,11 +78,22 @@ export function ManualFeedbackSendSection() {
                     setModuleOptions(modules.map(m => ({
                         id: m.id,
                         title: m.title,
+                        displayTitle: `${m.title} - ${m.yearGrade}`,
+                        searchText: `${m.title} ${m.yearGrade}`.toLowerCase(),
                         subtitle: `Viti ${m.yearGrade}`,
                     })))
                 } else {
-                    const items = (data?.items ?? (Array.isArray(data) ? data : [])) as { id: string; name: string }[]
-                    setModuleOptions(items.map(e => ({ id: e.id, title: e.name })))
+                    const items = (data?.items ?? (Array.isArray(data) ? data : [])) as { id: string; name: string; createdAt?: string }[]
+                    setModuleOptions(items.map(e => {
+                        const year = e.createdAt ? new Date(e.createdAt).getFullYear() : null
+                        const displayTitle = year ? `${e.name} - ${year}` : e.name
+                        return {
+                            id: e.id,
+                            title: e.name,
+                            displayTitle,
+                            searchText: `${e.name} ${year ?? ""}`.toLowerCase(),
+                        }
+                    }))
                 }
             })
             .catch(() => { if (!cancelled) setModuleOptions([]) })
@@ -101,7 +124,7 @@ export function ManualFeedbackSendSection() {
 
     const selectedModule = moduleOptions.find(m => m.id === selectedModuleId) ?? null
     const filteredModules = moduleOptions.filter(m =>
-        m.title.toLowerCase().includes(moduleSearch.toLowerCase())
+        m.searchText.includes(moduleSearch.toLowerCase())
     )
 
     const canSend = selectedSectionIds.size > 0
@@ -181,8 +204,9 @@ export function ManualFeedbackSendSection() {
                         </label>
                         <div ref={moduleDropdownRef} className="relative">
                             <button
+                                ref={moduleTriggerRef}
                                 type="button"
-                                onClick={() => setModuleDropdownOpen(v => !v)}
+                                onClick={() => moduleDropdownOpen ? setModuleDropdownOpen(false) : openDropdown()}
                                 disabled={moduleOptionsLoading}
                                 className={cn(
                                     "flex h-9 w-full items-center justify-between gap-2 rounded-lg border px-3 text-xs transition-colors",
@@ -195,7 +219,7 @@ export function ManualFeedbackSendSection() {
                                     {moduleOptionsLoading
                                         ? "Duke ngarkuar..."
                                         : selectedModule
-                                            ? selectedModule.title
+                                            ? selectedModule.displayTitle
                                             : targetRole === "Student" ? "Të gjitha modulet..." : "Të gjitha aktivitetet..."
                                     }
                                 </span>
@@ -215,8 +239,17 @@ export function ManualFeedbackSendSection() {
                                 </div>
                             </button>
 
-                            {moduleDropdownOpen && !moduleOptionsLoading && (
-                                <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-border bg-card shadow-lg">
+                            {moduleDropdownOpen && !moduleOptionsLoading && typeof window !== "undefined" && dropdownRect && createPortal(
+                                <div
+                                    style={{
+                                        position: "fixed",
+                                        top: dropdownRect.bottom + 4,
+                                        left: dropdownRect.left,
+                                        width: dropdownRect.width,
+                                        zIndex: 9999,
+                                    }}
+                                    className="rounded-lg border border-border bg-card shadow-xl"
+                                >
                                     <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                                         <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                         <input
@@ -247,7 +280,7 @@ export function ManualFeedbackSendSection() {
                                                         selectedModuleId === opt.id && "bg-primary/5 text-primary"
                                                     )}
                                                 >
-                                                    <span className="truncate font-medium">{opt.title}</span>
+                                                    <span className="truncate font-medium">{opt.displayTitle}</span>
                                                     {opt.subtitle && (
                                                         <span className="shrink-0 text-[10px] text-muted-foreground">{opt.subtitle}</span>
                                                     )}
@@ -255,7 +288,8 @@ export function ManualFeedbackSendSection() {
                                             ))
                                         )}
                                     </div>
-                                </div>
+                                </div>,
+                                document.body
                             )}
                         </div>
                     </div>
