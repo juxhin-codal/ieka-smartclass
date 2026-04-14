@@ -40,6 +40,22 @@ export function ManualFeedbackSendSection() {
         setModuleDropdownOpen(true)
     }, [])
 
+    // Keep dropdown aligned with trigger on scroll/resize
+    useEffect(() => {
+        if (!moduleDropdownOpen) return
+        function updateRect() {
+            if (moduleTriggerRef.current) {
+                setDropdownRect(moduleTriggerRef.current.getBoundingClientRect())
+            }
+        }
+        window.addEventListener("scroll", updateRect, true)
+        window.addEventListener("resize", updateRect)
+        return () => {
+            window.removeEventListener("scroll", updateRect, true)
+            window.removeEventListener("resize", updateRect)
+        }
+    }, [moduleDropdownOpen])
+
     const [sections, setSections] = useState<FeedbackSection[]>([])
     const [selectedSectionIds, setSelectedSectionIds] = useState<Set<string>>(new Set())
     const [sectionsLoading, setSectionsLoading] = useState(true)
@@ -74,14 +90,18 @@ export function ManualFeedbackSendSection() {
             .then((data: any) => {
                 if (cancelled) return
                 if (targetRole === "Student") {
-                    const modules = (Array.isArray(data) ? data : []) as { id: string; title: string; yearGrade: number }[]
-                    setModuleOptions(modules.map(m => ({
-                        id: m.id,
-                        title: m.title,
-                        displayTitle: `${m.title} - ${m.yearGrade}`,
-                        searchText: `${m.title} ${m.yearGrade}`.toLowerCase(),
-                        subtitle: `Viti ${m.yearGrade}`,
-                    })))
+                    const modules = (Array.isArray(data) ? data : []) as { id: string; title: string; yearGrade: number; createdAt?: string }[]
+                    setModuleOptions(modules.map(m => {
+                        const year = m.createdAt ? new Date(m.createdAt).getFullYear() : null
+                        const displayTitle = year ? `${m.title} - ${year}` : m.title
+                        return {
+                            id: m.id,
+                            title: m.title,
+                            displayTitle,
+                            searchText: `${m.title} ${year ?? ""}`.toLowerCase(),
+                            subtitle: `Viti ${m.yearGrade}`,
+                        }
+                    }))
                 } else {
                     const items = (data?.items ?? (Array.isArray(data) ? data : [])) as { id: string; name: string; createdAt?: string }[]
                     setModuleOptions(items.map(e => {
