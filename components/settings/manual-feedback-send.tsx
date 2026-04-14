@@ -69,7 +69,12 @@ export function ManualFeedbackSendSection() {
         let cancelled = false
         setSectionsLoading(true)
         fetchApi("/ModuleFeedback/sections")
-            .then((data) => { if (!cancelled) setSections((data as FeedbackSection[]) ?? []) })
+            .then((data) => {
+                if (!cancelled) {
+                    const all = (data as FeedbackSection[]) ?? []
+                    setSections(all.filter(s => !s.title.toUpperCase().includes("LEKTOR")))
+                }
+            })
             .catch(() => { })
             .finally(() => { if (!cancelled) setSectionsLoading(false) })
         return () => { cancelled = true }

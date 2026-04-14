@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { fetchApi } from "@/lib/api-client"
 import type { ModuleFeedbackTemplateResponse } from "@/lib/data"
 import { ClipboardList, Pencil, Plus, Trash2, X, Loader2, Mail, Check, Bell } from "lucide-react"
@@ -29,6 +29,8 @@ export function ModuleFeedbackSection() {
     const [saving, setSaving] = useState(false)
     const [formError, setFormError] = useState("")
     const [togglingId, setTogglingId] = useState<string | null>(null)
+    const questionsListRef = useRef<HTMLDivElement>(null)
+    const [newlyAddedQIndex, setNewlyAddedQIndex] = useState<number | null>(null)
 
     // 48h reminder config
     const [reminderEnabled, setReminderEnabled] = useState(false)
@@ -171,11 +173,18 @@ export function ModuleFeedbackSection() {
 
     function addQuestion() {
         if (editingSectionIndex === null) return
-        setSections((prev) =>
-            prev.map((s, si) =>
+        setSections((prev) => {
+            const updated = prev.map((s, si) =>
                 si === editingSectionIndex ? { ...s, questions: [...s.questions, emptyQuestion(s.questions.length)] } : s
             )
-        )
+            const newIndex = updated[editingSectionIndex].questions.length - 1
+            setNewlyAddedQIndex(newIndex)
+            setTimeout(() => setNewlyAddedQIndex(null), 1500)
+            setTimeout(() => {
+                questionsListRef.current?.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+            }, 50)
+            return updated
+        })
     }
 
     async function toggleReminder(newValue: boolean) {
@@ -289,9 +298,17 @@ export function ModuleFeedbackSection() {
                                 <Plus className="h-3.5 w-3.5" /> Shto pyetje
                             </Button>
                         </div>
-                        <div className="space-y-2">
+                        <div ref={questionsListRef} className="space-y-2">
                             {editingSection.questions.map((q, qi) => (
-                                <div key={qi} className="flex items-start gap-2.5 rounded-lg border border-border bg-background p-2.5">
+                                <div
+                                    key={qi}
+                                    className={cn(
+                                        "flex items-start gap-2.5 rounded-lg border bg-background p-2.5 transition-all duration-300",
+                                        newlyAddedQIndex === qi
+                                            ? "border-primary/60 bg-primary/5 ring-2 ring-primary/20"
+                                            : "border-border"
+                                    )}
+                                >
                                     <span className="mt-2.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
                                         {qi + 1}
                                     </span>
