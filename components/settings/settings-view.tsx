@@ -289,6 +289,73 @@ export function SettingsView() {
                 </p>
             </div>
 
+            {/* Section: Module Feedback — Auto-Send Toggle + Template (Admin only) */}
+            {isAdmin && (
+                <div className="rounded-xl border border-border bg-card overflow-hidden mb-4">
+                    {/* Card header */}
+                    <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-5 py-3.5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/10">
+                            <Send className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-sm font-semibold text-foreground">
+                                {lang === "sq" ? "Vlerësimi i Moduleve të Trajnimit" : "Training Module Feedback"}
+                            </h2>
+                            <p className="text-xs text-muted-foreground">
+                                {lang === "sq" ? "Konfiguro formularin dhe dërgimin manual të vlerësimit" : "Configure feedback form and manual delivery"}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="divide-y divide-border">
+                        {/* Sub-section: Feedback form template */}
+                        <div className="px-5 py-4">
+                            <ModuleFeedbackSection />
+                        </div>
+
+                        {/* Sub-section: Manual send */}
+                        <div className="px-5 py-4">
+                            <ManualFeedbackSendSection />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Section: Automatic Reservation Cancellation (Admin only) */}
+            {isAdmin && (
+                <div className="rounded-xl border border-border bg-card p-5 mb-4">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Send className="h-4.5 w-4.5 text-primary" />
+                        <h2 className="text-sm font-semibold text-foreground">
+                            {lang === "sq" ? "Anulimi Automatik i Rezervimeve" : "Automatic Reservation Cancellation"}
+                        </h2>
+                    </div>
+                    <ToggleRow
+                        icon={Bell}
+                        label={lang === "sq" ? "Anulimi Automatik i Rezervimeve të Dyfishta" : "Auto-Cancel Duplicate Reservations"}
+                        description={lang === "sq"
+                            ? "7 ditë para sesionit: njoftim për të zgjedhur datën. 6 ditë para: anulim automatik i rezervimit të fundit"
+                            : "7 days before session: warning to choose date. 6 days before: auto-cancel last booked reservation"}
+                        value={reservationAutoCancelEnabled}
+                        onChange={(v) => void toggleReservationAutoCancel(v)}
+                        color="text-amber-500"
+                        disabled={reservationConfigLoading || reservationConfigSaving}
+                    />
+                    <p className="pt-3 text-xs text-muted-foreground">
+                        {reservationConfigLoading
+                            ? (lang === "sq" ? "Duke ngarkuar..." : "Loading...")
+                            : reservationConfigSaving
+                                ? (lang === "sq" ? "Duke ruajtur..." : "Saving...")
+                                : (lang === "sq" ? "Kur është aktiv, anëtarët me 2 rezervime marrin njoftim 7 ditë para dhe sistemi anulon automatikisht 6 ditë para sesionit të parë." : "When enabled, members with 2 reservations get warned 7 days before and the system auto-cancels 6 days before the first session.")}
+                    </p>
+                </div>
+            )}
+
+            {/* Section: Evaluation Questionnaires (Admin only) */}
+            {isAdmin && (
+                <EvaluationSection />
+            )}
+
             {/* Section: Communication Channels */}
             <div className="rounded-xl border border-border bg-card p-5 mb-4">
                 <div className="flex items-center gap-2 mb-4">
@@ -417,71 +484,6 @@ export function SettingsView() {
                     )}
                 </div>
             </div>
-
-            {/* Section: Module Feedback — Auto-Send Toggle + Template (Admin only) */}
-            {isAdmin && (
-                <div className="rounded-xl border border-border bg-card overflow-hidden mb-4">
-                    {/* Card header */}
-                    <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-5 py-3.5">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/10">
-                            <Send className="h-4 w-4 text-green-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h2 className="text-sm font-semibold text-foreground">
-                                {lang === "sq" ? "Vlerësimi i Moduleve të Trajnimit" : "Training Module Feedback"}
-                            </h2>
-                            <p className="text-xs text-muted-foreground">
-                                {lang === "sq" ? "Konfiguro formularin dhe dërgimin manual të vlerësimit" : "Configure feedback form and manual delivery"}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="divide-y divide-border">
-                        {/* Sub-section: Feedback form template */}
-                        <div className="px-5 py-4">
-                            <ModuleFeedbackSection />
-                        </div>
-
-                        {/* Sub-section: Manual send */}
-                        <div className="px-5 py-4">
-                            <ManualFeedbackSendSection />
-                        </div>
-                    </div>
-                </div>
-            )}
-            {isAdmin && (
-                <div className="rounded-xl border border-border bg-card p-5 mb-4">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Send className="h-4.5 w-4.5 text-primary" />
-                        <h2 className="text-sm font-semibold text-foreground">
-                            {lang === "sq" ? "Anulimi Automatik i Rezervimeve" : "Automatic Reservation Cancellation"}
-                        </h2>
-                    </div>
-                    <ToggleRow
-                        icon={Bell}
-                        label={lang === "sq" ? "Anulimi Automatik i Rezervimeve të Dyfishta" : "Auto-Cancel Duplicate Reservations"}
-                        description={lang === "sq"
-                            ? "7 ditë para sesionit: njoftim për të zgjedhur datën. 6 ditë para: anulim automatik i rezervimit të fundit"
-                            : "7 days before session: warning to choose date. 6 days before: auto-cancel last booked reservation"}
-                        value={reservationAutoCancelEnabled}
-                        onChange={(v) => void toggleReservationAutoCancel(v)}
-                        color="text-amber-500"
-                        disabled={reservationConfigLoading || reservationConfigSaving}
-                    />
-                    <p className="pt-3 text-xs text-muted-foreground">
-                        {reservationConfigLoading
-                            ? (lang === "sq" ? "Duke ngarkuar..." : "Loading...")
-                            : reservationConfigSaving
-                                ? (lang === "sq" ? "Duke ruajtur..." : "Saving...")
-                                : (lang === "sq" ? "Kur është aktiv, anëtarët me 2 rezervime marrin njoftim 7 ditë para dhe sistemi anulon automatikisht 6 ditë para sesionit të parë." : "When enabled, members with 2 reservations get warned 7 days before and the system auto-cancels 6 days before the first session.")}
-                    </p>
-                </div>
-            )}
-
-            {/* Section: Evaluation Questionnaires (Admin only) */}
-            {isAdmin && (
-                <EvaluationSection />
-            )}
 
             {/* Section: Future Expansions */}
             {isAdmin && (
