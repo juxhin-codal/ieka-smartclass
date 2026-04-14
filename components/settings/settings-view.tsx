@@ -6,7 +6,8 @@
  * and Section 12 (future expansion placeholders).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n"
 import { API_BASE_URL, fetchApi, fetchWithAuth } from "@/lib/api-client"
@@ -542,6 +543,8 @@ function EvaluationSection() {
     const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion(0)])
     const [saving, setSaving] = useState(false)
     const [formError, setFormError] = useState("")
+    const questionsListRef = useRef<HTMLDivElement>(null)
+    const [newlyAddedIndex, setNewlyAddedIndex] = useState<number | null>(null)
 
     // send state
     const [sendingId, setSendingId] = useState<string | null>(null)
@@ -769,15 +772,33 @@ function EvaluationSection() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 text-xs"
-                                onClick={() => setQuestions((prev) => [...prev, emptyQuestion(prev.length)])}
+                                onClick={() => {
+                                    setQuestions((prev) => {
+                                        const next = [...prev, emptyQuestion(prev.length)]
+                                        setNewlyAddedIndex(next.length - 1)
+                                        setTimeout(() => setNewlyAddedIndex(null), 1500)
+                                        return next
+                                    })
+                                    setTimeout(() => {
+                                        questionsListRef.current?.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+                                    }, 50)
+                                }}
                             >
                                 <Plus className="h-3.5 w-3.5 mr-1" /> Shto pyetje
                             </Button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div ref={questionsListRef} className="space-y-3">
                             {questions.map((q, qi) => (
-                                <div key={qi} className="rounded-lg border border-border bg-muted/20 p-3">
+                                <div
+                                    key={qi}
+                                    className={cn(
+                                        "rounded-lg border bg-muted/20 p-3 transition-all duration-300",
+                                        newlyAddedIndex === qi
+                                            ? "border-primary/60 bg-primary/5 ring-2 ring-primary/20"
+                                            : "border-border"
+                                    )}
+                                >
                                     <div className="flex items-start gap-2">
                                         <span className="mt-2 text-xs font-semibold text-muted-foreground">{qi + 1}.</span>
                                         <div className="flex-1 space-y-2">

@@ -30,6 +30,7 @@ export function ManualFeedbackSendSection() {
     const [moduleSearch, setModuleSearch] = useState("")
     const [moduleDropdownOpen, setModuleDropdownOpen] = useState(false)
     const moduleDropdownRef = useRef<HTMLDivElement>(null)
+    const modulePortalRef = useRef<HTMLDivElement>(null)
     const moduleTriggerRef = useRef<HTMLButtonElement>(null)
     const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null)
 
@@ -125,7 +126,10 @@ export function ManualFeedbackSendSection() {
     // Close dropdown on outside click
     useEffect(() => {
         function handleClick(e: MouseEvent) {
-            if (moduleDropdownRef.current && !moduleDropdownRef.current.contains(e.target as Node)) {
+            const target = e.target as Node
+            const inTrigger = moduleDropdownRef.current?.contains(target)
+            const inPortal = modulePortalRef.current?.contains(target)
+            if (!inTrigger && !inPortal) {
                 setModuleDropdownOpen(false)
             }
         }
@@ -261,6 +265,7 @@ export function ManualFeedbackSendSection() {
 
                             {moduleDropdownOpen && !moduleOptionsLoading && typeof window !== "undefined" && dropdownRect && createPortal(
                                 <div
+                                    ref={modulePortalRef}
                                     style={{
                                         position: "fixed",
                                         top: dropdownRect.bottom + 4,
