@@ -17,6 +17,7 @@ public interface IEmailService
     Task SendStudentTrainingAttendanceRejectedAsync(AppUser student, AppUser mentor, TrainingScheduleEmailItem session, string? reason, CancellationToken cancellationToken = default);
     Task SendStudentTrainingFeedbackRequestAsync(AppUser student, AppUser mentor, StudentTrainingStazhEmailItem stazh, string actionLink, CancellationToken cancellationToken = default);
     Task SendSessionClosedParticipantsSummaryAsync(AppUser admin, SessionClosedAdminEmailItem summary, IReadOnlyList<SessionParticipantEmailItem> participants, CancellationToken cancellationToken = default);
+    Task SendMemberSessionAssignmentAsync(AppUser user, MemberSessionAssignmentEmailItem item, CancellationToken cancellationToken = default);
     Task SendStudentModuleNotificationAsync(AppUser student, string moduleTitle, int yearGrade, CancellationToken cancellationToken = default);
     Task SendStudentModuleUpdateAsync(AppUser student, string moduleTitle, string changeDescription, CancellationToken cancellationToken = default);
     Task SendStudentAddedToModuleAsync(AppUser student, string moduleTitle, int yearGrade, string? location, IReadOnlyList<ModuleTopicEmailItem> topics, CancellationToken cancellationToken = default);
@@ -41,6 +42,17 @@ public sealed record TrainingScheduleEmailItem(DateTime Date, string StartTime, 
 public sealed record StudentTrainingStazhEmailItem(DateTime StartedAt, DateTime? EndedAt, int MentorRating, string? MentorComment);
 public sealed record SessionClosedAdminEmailItem(string ModuleName, DateTime SessionDate, string SessionTime, string? SessionLocation);
 public sealed record SessionParticipantEmailItem(string FullName, string RegistryNumber, string Email, string BookingStatus, string AttendanceStatus);
+public sealed record MemberSessionAssignmentEmailItem(
+    string ModuleName,
+    string ReservationStatus,
+    string SessionDate,
+    string SessionTime,
+    string SessionLocation,
+    int CpdHours,
+    string SessionDatesHtml,
+    string ModuleDocumentsHtml,
+    string SessionDocumentsHtml,
+    string ActionLink);
 public sealed record EvaluationEmailItem(string QuestionnaireTitle, string EmailSubject, string EmailBody, string ActionLink);
 public sealed record LecturerFeedbackEmailItem(string ModuleName, string TopicName, string SessionDate, string SessionTime, string LecturerName, string TopicLocation, string FeedbackToken, string? FeedbackType = null);
 public sealed record SessionDocumentsEmailItem(string ModuleName, string SessionDate, string DocumentsListHtml);

@@ -124,8 +124,92 @@ public class EventsService(
         return eventItem.Id;
     }
 
+    public Task<string> ReserveSeatAsync(Guid eventId, Guid userId, Guid dateId)
+        => ReserveSeatCoreAsync(eventId, userId, dateId);
+
+    public async Task<string> AssignMemberToSessionAsync(Guid eventId, Guid dateId, Guid memberId)
+    {
+        var existingEvent = await _eventRepository.Query()
+            .Include(x => x.Dates)
+                .ThenInclude(d => d.Documents)
+            .Include(x => x.Documents)
+            .FirstOrDefaultAsync(x => x.Id == eventId) ?? throw new KeyNotFoundException("Event not found.");
+
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == memberId)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        if (!string.Equals(user.Role, "Member", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Vetëm anëtarët mund të shtohen manualisht në një sesion CPD.");
+        }
+
+        await ApplyExtraReservationAutoCancellationAsync(memberId);
+
+        var existingDate = existingEvent.Dates.FirstOrDefault(x => x.Id == dateId)
+            ?? throw new KeyNotFoundException("Date not found.");
+
+        if (existingDate.IsEnded)
+        {
+            throw new InvalidOperationException("Ky sesion është mbyllur dhe nuk pranon regjistrime të reja.");
+        }
+
+        var alreadyThisDate = await _participantRepository.Query()
+            .AnyAsync(x => x.EventItemId == eventId && x.UserId == memberId && x.DateId == dateId);
+
+        if (alreadyThisDate)
+            throw new InvalidOperationException("Ky anëtar është tashmë i regjistruar në këtë sesion.");
+
+        var startsWithinRestrictionWindow = IsWithinReservationRestrictionWindow(existingEvent, DateTime.UtcNow);
+        var maxReservationsAllowed = startsWithinRestrictionWindow ? 1 : 2;
+
+        var existingReservations = await _participantRepository.Query()
+            .CountAsync(x => x.EventItemId == eventId && x.UserId == memberId);
+
+        if (existingReservations >= maxReservationsAllowed)
+        {
+            if (maxReservationsAllowed == 1)
+            {
+                throw new InvalidOperationException("Ky modul fillon brenda 7 ditëve. Anëtari mund të ketë vetëm 1 sesion.");
+            }
+
+            throw new InvalidOperationException("Anëtari ka arritur maksimumin prej 2 rezervimesh për këtë modul.");
+        }
+
+        string status;
+        if (existingDate.CurrentParticipants >= existingDate.MaxParticipants)
+        {
+            var waitlistParticipant = new Participant(eventId, memberId, dateId, seatNumber: 0, status: "waitlisted");
+            await _participantRepository.AddAsync(waitlistParticipant);
+            status = "waitlisted";
+        }
+        else
+        {
+            existingDate.IncrementParticipant();
+            existingEvent.IncrementParticipant();
+
+            var participant = new Participant(eventId, memberId, dateId, existingDate.CurrentParticipants);
+            await _participantRepository.AddAsync(participant);
+            status = "registered";
+        }
+
+        await _dbContext.SaveChangesAsync();
+
+        try
+        {
+            await SendMemberSessionAssignmentEmailAsync(existingEvent, existingDate, user, status);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send manual session assignment email for event {EventId} to user {UserId}", eventId, memberId);
+        }
+
+        return status;
+    }
+
     /// <returns>"registered" or "waitlisted"</returns>
-    public async Task<string> ReserveSeatAsync(Guid eventId, Guid userId, Guid dateId)
+    private async Task<string> ReserveSeatCoreAsync(Guid eventId, Guid userId, Guid dateId)
     {
         var existingEvent = await _eventRepository.Query()
             .Include(x => x.Dates)
@@ -360,8 +444,70 @@ public class EventsService(
     {
         var eventItem = await _eventRepository.Query()
             .Include(e => e.Dates)
+                .ThenInclude(d => d.Documents)
             .Include(e => e.Participants)
+            .Include(e => e.Documents)
+            .Include(e => e.Feedbacks)
+            .Include(e => e.EventQuestionnaires)
+                .ThenInclude(q => q.Responses)
+                    .ThenInclude(r => r.Answers)
             .FirstOrDefaultAsync(e => e.Id == id) ?? throw new KeyNotFoundException("Event not found.");
+
+        var eventDateDocuments = eventItem.Dates.SelectMany(d => d.Documents).ToList();
+        var questionnaireResponses = eventItem.EventQuestionnaires.SelectMany(q => q.Responses).ToList();
+        var questionnaireAnswers = questionnaireResponses.SelectMany(r => r.Answers).ToList();
+
+        foreach (var docUrl in eventItem.Documents.Select(d => d.FileUrl).Concat(eventDateDocuments.Select(d => d.FileUrl)))
+        {
+            try
+            {
+                await _fileStorageService.DeleteByPublicUrlAsync(docUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete stored event file for event {EventId}", id);
+            }
+        }
+
+        if (questionnaireAnswers.Count > 0)
+        {
+            _dbContext.EventQuestionnaireAnswers.RemoveRange(questionnaireAnswers);
+        }
+
+        if (questionnaireResponses.Count > 0)
+        {
+            _dbContext.EventQuestionnaireResponses.RemoveRange(questionnaireResponses);
+        }
+
+        if (eventItem.EventQuestionnaires.Count > 0)
+        {
+            _dbContext.EventQuestionnaires.RemoveRange(eventItem.EventQuestionnaires);
+        }
+
+        if (eventItem.Feedbacks.Count > 0)
+        {
+            _dbContext.EventFeedbacks.RemoveRange(eventItem.Feedbacks);
+        }
+
+        if (eventDateDocuments.Count > 0)
+        {
+            _dbContext.EventDateDocuments.RemoveRange(eventDateDocuments);
+        }
+
+        if (eventItem.Participants.Count > 0)
+        {
+            _dbContext.Participants.RemoveRange(eventItem.Participants);
+        }
+
+        if (eventItem.Documents.Count > 0)
+        {
+            _dbContext.EventDocuments.RemoveRange(eventItem.Documents);
+        }
+
+        if (eventItem.Dates.Count > 0)
+        {
+            _dbContext.EventDates.RemoveRange(eventItem.Dates);
+        }
 
         _eventRepository.Delete(eventItem);
         await _dbContext.SaveChangesAsync();
@@ -743,6 +889,69 @@ public class EventsService(
             existingDate.IncrementParticipant();
             nextInLine.Promote(existingDate.CurrentParticipants);
         }
+    }
+
+    private async Task SendMemberSessionAssignmentEmailAsync(EventItem eventItem, EventDate selectedDate, AppUser user, string status)
+    {
+        var emailItem = new MemberSessionAssignmentEmailItem(
+            eventItem.Name,
+            status,
+            selectedDate.Date.ToString("dd MMM yyyy"),
+            string.IsNullOrWhiteSpace(selectedDate.Time) ? "-" : selectedDate.Time,
+            string.IsNullOrWhiteSpace(selectedDate.Location) ? eventItem.Place : selectedDate.Location!.Trim(),
+            eventItem.CpdHours,
+            BuildSessionDatesHtml(eventItem, selectedDate.Id),
+            BuildDocumentListHtml(eventItem.Documents.Select(d => (d.FileName, d.FileUrl))),
+            BuildDocumentListHtml(selectedDate.Documents.Select(d => (d.FileName, d.FileUrl))),
+            $"/modules/{eventItem.Id}");
+
+        await _emailService.SendMemberSessionAssignmentAsync(user, emailItem);
+    }
+
+    private static string BuildSessionDatesHtml(EventItem eventItem, Guid selectedDateId)
+    {
+        if (eventItem.Dates.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join("", eventItem.Dates
+            .OrderBy(d => d.Date)
+            .Select(date =>
+            {
+                var isSelected = date.Id == selectedDateId;
+                var bgColor = isSelected ? "#eff6ff" : "#f8fafc";
+                var borderColor = isSelected ? "#60a5fa" : "#e2e8f0";
+                var location = string.IsNullOrWhiteSpace(date.Location) ? eventItem.Place : date.Location!.Trim();
+                var badge = isSelected
+                    ? "<span style='display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background-color:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;'>Sesioni juaj</span>"
+                    : string.Empty;
+
+                return $"""
+                <div style="margin-bottom:8px;padding:10px 12px;border:1px solid {borderColor};background-color:{bgColor};border-radius:8px;">
+                  <div style="font-size:13px;font-weight:600;color:#0f172a;">{System.Net.WebUtility.HtmlEncode(date.Date.ToString("dddd, dd MMM yyyy"))}{badge}</div>
+                  <div style="margin-top:4px;font-size:12px;color:#475569;">Ora: {System.Net.WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(date.Time) ? "-" : date.Time)}</div>
+                  <div style="margin-top:2px;font-size:12px;color:#475569;">Vendndodhja: {System.Net.WebUtility.HtmlEncode(location)}</div>
+                </div>
+                """;
+            }));
+    }
+
+    private static string BuildDocumentListHtml(IEnumerable<(string Name, string Url)> documents)
+    {
+        var items = documents
+            .Where(d => !string.IsNullOrWhiteSpace(d.Name))
+            .Select(d =>
+            {
+                var name = System.Net.WebUtility.HtmlEncode(d.Name.Trim());
+                var url = string.IsNullOrWhiteSpace(d.Url) ? null : System.Net.WebUtility.HtmlEncode(d.Url.Trim());
+                return url is null
+                    ? $"""<div style="margin-bottom:8px;font-size:13px;color:#0f172a;">• {name}</div>"""
+                    : $"""<div style="margin-bottom:8px;font-size:13px;"><a href="{url}" style="color:#1d4ed8;text-decoration:none;">• {name}</a></div>""";
+            })
+            .ToList();
+
+        return items.Count == 0 ? string.Empty : string.Join("", items);
     }
 
     private static bool IsWithinReservationRestrictionWindow(EventItem eventItem, DateTime now)

@@ -247,6 +247,97 @@ public class EmailService(
         return SendUserEmailAsync(admin, $"Sesioni u mbyll: {summary.ModuleName} ({summary.SessionDate:dd MMM yyyy})", body, cancellationToken);
     }
 
+    public Task SendMemberSessionAssignmentAsync(AppUser user, MemberSessionAssignmentEmailItem item, CancellationToken cancellationToken = default)
+    {
+        var recipientName = WebUtility.HtmlEncode($"{user.FirstName} {user.LastName}");
+        var reservationTone = string.Equals(item.ReservationStatus, "waitlisted", StringComparison.OrdinalIgnoreCase)
+            ? "#b45309"
+            : "#166534";
+        var reservationLabel = string.Equals(item.ReservationStatus, "waitlisted", StringComparison.OrdinalIgnoreCase)
+            ? "Në listën e pritjes"
+            : "I regjistruar";
+        var actionLink = BuildFrontendUri(item.ActionLink);
+        var moduleDocumentsHtml = string.IsNullOrWhiteSpace(item.ModuleDocumentsHtml)
+            ? "<p style='margin:0;font-size:13px;color:#64748b;'>Nuk ka dokumente të modulit aktualisht.</p>"
+            : item.ModuleDocumentsHtml;
+        var sessionDocumentsHtml = string.IsNullOrWhiteSpace(item.SessionDocumentsHtml)
+            ? "<p style='margin:0;font-size:13px;color:#64748b;'>Nuk ka dokumente të veçanta për këtë sesion.</p>"
+            : item.SessionDocumentsHtml;
+        var sessionDatesHtml = string.IsNullOrWhiteSpace(item.SessionDatesHtml)
+            ? "<p style='margin:0;font-size:13px;color:#64748b;'>Nuk ka data të planifikuara aktualisht.</p>"
+            : item.SessionDatesHtml;
+
+        var body = $@"<!DOCTYPE html>
+<html lang='sq'>
+<head><meta charset='UTF-8'/><meta name='viewport' content='width=device-width,initial-scale=1.0'/></head>
+<body style='margin:0;padding:0;background-color:#f1f4f8;font-family:""Segoe UI"",Tahoma,Arial,sans-serif;color:#1f2937;'>
+  <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='background-color:#f1f4f8;padding:24px 12px;'>
+    <tr><td align='center'>
+      <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='max-width:680px;background-color:#ffffff;border:1px solid #d0d7e2;'>
+        <tr>
+          <td style='padding:20px 28px;background-color:#0f2138;border-bottom:4px solid #24456d;'>
+            <div style='font-size:20px;font-weight:700;color:#ffffff;'>IEKA SmartClass</div>
+            <div style='margin-top:4px;font-size:12px;color:#c6d2e3;'>Caktim manual në sesion CPD</div>
+          </td>
+        </tr>
+        <tr>
+          <td style='padding:28px;'>
+            <h1 style='margin:0 0 14px;font-size:22px;color:#0f172a;'>Jeni shtuar në një sesion moduli</h1>
+            <p style='margin:0 0 18px;font-size:15px;line-height:1.7;color:#334155;'>
+              Përshëndetje <strong>{recipientName}</strong>,<br/>
+              administratori ju ka shtuar manualisht në modulin CPD më poshtë.
+            </p>
+
+            <div style='border:1px solid #dbe3f5;background-color:#f8fafc;padding:16px 20px;margin:0 0 24px;'>
+              <p style='margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a;'>{WebUtility.HtmlEncode(item.ModuleName)}</p>
+              <p style='margin:0 0 4px;font-size:13px;color:#475569;'>Statusi: <strong style='color:{reservationTone};'>{reservationLabel}</strong></p>
+              <p style='margin:0 0 4px;font-size:13px;color:#475569;'>Sesioni: <strong>{WebUtility.HtmlEncode(item.SessionDate)}</strong> • <strong>{WebUtility.HtmlEncode(item.SessionTime)}</strong></p>
+              <p style='margin:0 0 4px;font-size:13px;color:#475569;'>Vendndodhja: <strong>{WebUtility.HtmlEncode(item.SessionLocation)}</strong></p>
+              <p style='margin:0;font-size:13px;color:#475569;'>Orë CPD: <strong>{item.CpdHours}h</strong></p>
+            </div>
+
+            <div style='margin:0 0 20px;'>
+              <p style='margin:0 0 10px;font-size:14px;font-weight:600;color:#0f172a;'>Datat e modulit</p>
+              <div style='border:1px solid #e2e8f0;background-color:#ffffff;padding:14px 16px;'>
+                {sessionDatesHtml}
+              </div>
+            </div>
+
+            <div style='margin:0 0 20px;'>
+              <p style='margin:0 0 10px;font-size:14px;font-weight:600;color:#0f172a;'>Dokumentet e modulit</p>
+              <div style='border:1px solid #e2e8f0;background-color:#ffffff;padding:14px 16px;'>
+                {moduleDocumentsHtml}
+              </div>
+            </div>
+
+            <div style='margin:0 0 20px;'>
+              <p style='margin:0 0 10px;font-size:14px;font-weight:600;color:#0f172a;'>Dokumentet e sesionit të zgjedhur</p>
+              <div style='border:1px solid #e2e8f0;background-color:#ffffff;padding:14px 16px;'>
+                {sessionDocumentsHtml}
+              </div>
+            </div>
+
+            <table role='presentation' cellpadding='0' cellspacing='0' border='0' style='margin-top:20px;'>
+              <tr>
+                <td style='background-color:#0f2138;border-radius:6px;'>
+                  <a href='{actionLink}' style='display:inline-block;padding:12px 24px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;'>
+                    Shiko modulin
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style='margin:16px 0 0;font-size:12px;line-height:1.6;color:#475569;'>Linku: {WebUtility.HtmlEncode(actionLink)}</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>";
+
+        return SendUserEmailAsync(user, $"Jeni shtuar në sesionin: {item.ModuleName} - IEKA SmartClass", body, cancellationToken);
+    }
+
     public Task SendStudentModuleNotificationAsync(AppUser student, string moduleTitle, int yearGrade, CancellationToken cancellationToken = default)
     {
         var yearLabel = yearGrade switch

@@ -3,13 +3,21 @@
 import { Fragment, useState, useMemo, useEffect } from "react"
 import { useEvents } from "@/lib/events-context"
 import { useAuth } from "@/lib/auth-context"
-import { API_BASE_URL, fetchWithAuth } from "@/lib/api-client"
+import { API_BASE_URL, fetchApi, fetchWithAuth } from "@/lib/api-client"
 import { EditEventForm } from "@/components/events/edit-event-form"
 import { QrScannerModal } from "@/components/events/qr-scanner-modal"
 import { FeedbackForm } from "@/components/events/feedback-form"
 import type { AppUser, EventItem, EventDateDocument, FeedbackQuestion, FeedbackQuestionnaire, Participant, EventQuestionnaireInfo, QuestionnaireQuestion } from "@/lib/data"
 import { LiveQuizPanel } from "@/components/quiz/live-quiz-panel"
 import { Button } from "@/components/ui/button"
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { QRCodeCanvas } from "qrcode.react"
@@ -85,6 +93,34 @@ function resolveParticipantIdentity(participant: Participant, usersById: Map<str
   }
 }
 
+function getParticipantStatusMeta(participant: Participant) {
+  if (participant.status === "waitlisted") {
+    return {
+      label: "Në listë pritje",
+      className: "bg-amber-500/10 text-amber-600",
+    }
+  }
+
+  if (participant.attendance === "attended") {
+    return {
+      label: "I pranishëm",
+      className: "bg-green-500/10 text-green-600",
+    }
+  }
+
+  if (participant.attendance === "absent") {
+    return {
+      label: "Refuzuar",
+      className: "bg-red-500/10 text-red-600",
+    }
+  }
+
+  return {
+    label: "I regjistruar",
+    className: "bg-blue-500/10 text-blue-600",
+  }
+}
+
 function normalizeFeedbackQuestionnaires(event: EventItem): FeedbackQuestionnaire[] {
   if (event.feedbackQuestionnaires && event.feedbackQuestionnaires.length > 0) {
     return event.feedbackQuestionnaires.map((questionnaire, questionnaireIndex) => ({
@@ -118,11 +154,14 @@ function normalizeFeedbackQuestionnaires(event: EventItem): FeedbackQuestionnair
 }
 
 export function EventDetail({ eventId, onBack }: EventDetailProps) {
-  const { getEvent, updateEvent, markAttendance, endSession, addEventDocument, deleteEventDocument } = useEvents()
+  const { getEvent, updateEvent, markAttendance, endSession, addEventDocument, deleteEventDocument, deleteEvent } = useEvents()
   const { user } = useAuth()
   const event = getEvent(eventId)
   const [showEditForm, setShowEditForm] = useState(false)
   const [showQrScanner, setShowQrScanner] = useState(false)
+  const [showDeletePrompt, setShowDeletePrompt] = useState(false)
+  const [deletingEvent, setDeletingEvent] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
 
   if (!event) {
     return (
@@ -139,6 +178,19 @@ export function EventDetail({ eventId, onBack }: EventDetailProps) {
   const isUpcoming = event.status === "upcoming"
   const isAdmin = user?.role === "Admin"
 
+  async function handleDeleteEvent() {
+    setDeletingEvent(true)
+    setDeleteError("")
+    try {
+      await deleteEvent(event.id)
+      onBack()
+    } catch (error: any) {
+      setDeleteError(error?.message ?? "Gabim gjatë fshirjes së modulit.")
+    } finally {
+      setDeletingEvent(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 lg:px-8">
       {/* Top bar */}
@@ -147,7 +199,7 @@ export function EventDetail({ eventId, onBack }: EventDetailProps) {
           <ArrowLeft className="h-4 w-4" />
           Kthehu te modulet
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isAdmin && isUpcoming && (
             <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowEditForm(true)}>
               <Pencil className="h-4 w-4" />
@@ -162,6 +214,12 @@ export function EventDetail({ eventId, onBack }: EventDetailProps) {
           )}
           {isAdmin && isUpcoming && <NotifyButton eventId={event.id} isNotified={event.isNotified} />}
           {isAdmin && <ShareButton eventId={event.id} />}
+          {isAdmin && (
+            <Button variant="destructive" size="sm" className="gap-2" onClick={() => setShowDeletePrompt(true)}>
+              <Trash2 className="h-4 w-4" />
+              Fshi Modulin
+            </Button>
+          )}
         </div>
       </div>
 
@@ -190,6 +248,30 @@ export function EventDetail({ eventId, onBack }: EventDetailProps) {
             await markAttendance(event.id, participantId, "attended")
           }}
         />
+      )}
+
+      {showDeletePrompt && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-foreground/50 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-foreground">Fshi këtë modul?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Kjo do të fshijë modulin, sesionet, pjesëmarrësit, dokumentet dhe pyetësorët e lidhur.
+            </p>
+            {deleteError && (
+              <p className="mt-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                {deleteError}
+              </p>
+            )}
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="ghost" onClick={() => setShowDeletePrompt(false)} disabled={deletingEvent}>
+                Anulo
+              </Button>
+              <Button variant="destructive" onClick={() => void handleDeleteEvent()} disabled={deletingEvent}>
+                {deletingEvent ? "Duke fshirë..." : "Po, fshije"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -489,12 +571,56 @@ function UpcomingEventDetail({
   const [eqResponses, setEqResponses] = useState<any[]>([])
   const [eqResponsesLoading, setEqResponsesLoading] = useState(false)
   const [eqShowResponses, setEqShowResponses] = useState<string | null>(null)
+  const [assignSessionId, setAssignSessionId] = useState<string | null>(null)
+  const [memberSearchQuery, setMemberSearchQuery] = useState("")
+  const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null)
+  const [assignMemberError, setAssignMemberError] = useState("")
+  const [sessionAssignNotice, setSessionAssignNotice] = useState<Record<string, string>>({})
   const { user } = useAuth()
-  const { markAttendance, users, cancelBooking, fetchEvents } = useEvents()
+  const { markAttendance, users, cancelBooking, fetchEvents, fetchUsers } = useEvents()
   const isAdmin = user?.role === "Admin"
   const canRunQuiz = user?.role === "Admin" || user?.role === "Lecturer"
   const canManageSessionParticipants = isAdmin || user?.role === "Lecturer"
   const usersById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
+  const selectedAssignSession = useMemo(
+    () => event.dates.find((date) => date.id === assignSessionId) ?? null,
+    [assignSessionId, event.dates],
+  )
+  const assignableMembers = useMemo(() => {
+    if (!assignSessionId) return []
+
+    const normalizedQuery = memberSearchQuery.trim().toLowerCase()
+    const sessionParticipantIds = new Set(
+      event.participants
+        .filter((participant) => participant.dateId === assignSessionId)
+        .map((participant) => participant.userId),
+    )
+
+    return users
+      .filter((candidate) => candidate.role === "Member" && !sessionParticipantIds.has(candidate.id))
+      .filter((candidate) => {
+        if (!normalizedQuery) return true
+        const fullName = `${candidate.firstName} ${candidate.lastName}`.trim().toLowerCase()
+        return (
+          fullName.includes(normalizedQuery) ||
+          candidate.memberRegistryNumber.toLowerCase().includes(normalizedQuery) ||
+          candidate.email.toLowerCase().includes(normalizedQuery)
+        )
+      })
+      .sort((a, b) => {
+        const aReservations = event.participants.filter((participant) => participant.userId === a.id).length
+        const bReservations = event.participants.filter((participant) => participant.userId === b.id).length
+        if (aReservations !== bReservations) return aReservations - bReservations
+        return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+      })
+      .slice(0, 40)
+  }, [assignSessionId, event.participants, memberSearchQuery, users])
+
+  useEffect(() => {
+    if (assignSessionId && users.length === 0) {
+      void fetchUsers()
+    }
+  }, [assignSessionId, fetchUsers, users.length])
 
   async function handleSessionAttendance(participantId: string, status: "attended" | "absent") {
     const key = `${participantId}-${status}`
@@ -516,6 +642,38 @@ function UpcomingEventDetail({
       console.error("Failed to remove participant from session", error)
     } finally {
       setRemovingSessionParticipantId(null)
+    }
+  }
+
+  function openAssignMemberDialog(dateId: string) {
+    setAssignSessionId(dateId)
+    setMemberSearchQuery("")
+    setAssignMemberError("")
+  }
+
+  async function handleAssignMemberToSession(memberId: string) {
+    if (!assignSessionId) return
+
+    setAssigningMemberId(memberId)
+    setAssignMemberError("")
+    try {
+      const response = await fetchApi(`/Events/${event.id}/sessions/${assignSessionId}/participants`, {
+        method: "POST",
+        body: JSON.stringify({ userId: memberId }),
+      }) as { status?: string } | null
+
+      const message = response?.status === "waitlisted"
+        ? "Anëtari u shtua në listën e pritjes për këtë sesion."
+        : "Anëtari u shtua me sukses në sesion."
+
+      setSessionAssignNotice((prev) => ({ ...prev, [assignSessionId]: message }))
+      setAssignSessionId(null)
+      setMemberSearchQuery("")
+      await fetchEvents()
+    } catch (error: any) {
+      setAssignMemberError(error?.message ?? "Gabim gjatë shtimit të anëtarit.")
+    } finally {
+      setAssigningMemberId(null)
     }
   }
 
@@ -1063,19 +1221,37 @@ function UpcomingEventDetail({
                           className="h-8 pl-8 text-xs"
                         />
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-2 text-xs"
-                        disabled={downloadingSessionExcelId === d.id}
-                        onClick={() => void handleDownloadSessionParticipantsExcel(d.id)}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        {downloadingSessionExcelId === d.id ? "Duke shkarkuar..." : "Shkarko Excel"}
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isAdmin && !d.isEnded && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-2 text-xs"
+                            onClick={() => openAssignMemberDialog(d.id)}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Shto anëtar
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-2 text-xs"
+                          disabled={downloadingSessionExcelId === d.id}
+                          onClick={() => void handleDownloadSessionParticipantsExcel(d.id)}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          {downloadingSessionExcelId === d.id ? "Duke shkarkuar..." : "Shkarko Excel"}
+                        </Button>
+                      </div>
                     </div>
                     {sessionExportError && (
                       <p className="mb-3 text-xs text-destructive">{sessionExportError}</p>
+                    )}
+                    {sessionAssignNotice[d.id] && (
+                      <p className="mb-3 rounded-md border border-green-500/20 bg-green-500/5 px-3 py-2 text-xs font-medium text-green-700">
+                        {sessionAssignNotice[d.id]}
+                      </p>
                     )}
 
                     {filteredParticipants.length === 0 ? (
@@ -1083,8 +1259,66 @@ function UpcomingEventDetail({
                         Nuk u gjet asnjë pjesëmarrës për këtë sesion.
                       </p>
                     ) : (
-                      <div className="overflow-x-auto rounded-md border border-border">
-                        <table className="w-full text-left text-sm">
+                      <div className="space-y-3">
+                        <div className="space-y-2 md:hidden">
+                          {filteredParticipants.map((p) => {
+                            const identity = resolveParticipantIdentity(p, usersById)
+                            const statusMeta = getParticipantStatusMeta(p)
+                            const isAttended = p.attendance === "attended"
+                            const isAbsent = p.attendance === "absent"
+                            const confirmKey = `${p.id}-attended`
+                            const rejectKey = `${p.id}-absent`
+                            const isUpdating = attendanceUpdatingKey === confirmKey || attendanceUpdatingKey === rejectKey
+                            const isRemoving = removingSessionParticipantId === p.id
+
+                            return (
+                              <div key={p.id} className="rounded-lg border border-border bg-background px-3 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-foreground">{identity.displayName}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">{identity.memberRegistryNumber || "Pa nr. regjistri"}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{identity.email || "Pa email"}</p>
+                                  </div>
+                                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusMeta.className}`}>
+                                    {statusMeta.label}
+                                  </span>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="h-8 flex-1 min-w-[110px] text-[11px]"
+                                    variant={isAttended ? "default" : "outline"}
+                                    disabled={isUpdating || isAttended || isRemoving || p.status === "waitlisted"}
+                                    onClick={() => handleSessionAttendance(p.id, "attended")}
+                                  >
+                                    Konfirmo
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-8 flex-1 min-w-[110px] text-[11px]"
+                                    variant={isAbsent ? "destructive" : "outline"}
+                                    disabled={isUpdating || isAbsent || isRemoving || p.status === "waitlisted"}
+                                    onClick={() => handleSessionAttendance(p.id, "absent")}
+                                  >
+                                    Refuzo
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-8 flex-1 min-w-[110px] text-[11px]"
+                                    variant="ghost"
+                                    disabled={isUpdating || isRemoving}
+                                    onClick={() => void handleRemoveSessionParticipant(p.id)}
+                                  >
+                                    {isRemoving ? "Duke hequr..." : "Hiq"}
+                                  </Button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        <div className="hidden overflow-x-auto rounded-md border border-border md:block">
+                          <table className="w-full text-left text-sm">
                           <thead>
                             <tr className="border-b border-border bg-muted/50">
                               <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Emri</th>
@@ -1127,7 +1361,7 @@ function UpcomingEventDetail({
                                         size="sm"
                                         className="h-7 px-2 text-[11px]"
                                         variant={isAttended ? "default" : "outline"}
-                                        disabled={isUpdating || isAttended || isRemoving}
+                                        disabled={isUpdating || isAttended || isRemoving || p.status === "waitlisted"}
                                         onClick={() => handleSessionAttendance(p.id, "attended")}
                                       >
                                         Konfirmo
@@ -1136,7 +1370,7 @@ function UpcomingEventDetail({
                                         size="sm"
                                         className="h-7 px-2 text-[11px]"
                                         variant={isAbsent ? "destructive" : "outline"}
-                                        disabled={isUpdating || isAbsent || isRemoving}
+                                        disabled={isUpdating || isAbsent || isRemoving || p.status === "waitlisted"}
                                         onClick={() => handleSessionAttendance(p.id, "absent")}
                                       >
                                         Refuzo
@@ -1156,7 +1390,8 @@ function UpcomingEventDetail({
                               )
                             })}
                           </tbody>
-                        </table>
+                          </table>
+                        </div>
                       </div>
                     )}
 
@@ -1449,6 +1684,75 @@ function UpcomingEventDetail({
           </div>
         </div>
       )}
+
+      <CommandDialog
+        open={!!assignSessionId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignSessionId(null)
+            setMemberSearchQuery("")
+            setAssignMemberError("")
+          }
+        }}
+        title="Shto anëtar në sesion"
+        description="Kërkoni dhe zgjidhni anëtarin që dëshironi të shtoni."
+        className="max-w-2xl"
+      >
+        <div className="border-b border-border px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">
+            {selectedAssignSession
+              ? `Shto anëtar • ${format(parseISO(selectedAssignSession.date), "EEEE, d MMM yyyy")}${selectedAssignSession.time ? ` • ${selectedAssignSession.time}` : ""}`
+              : "Shto anëtar"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Zgjidhni një anëtar të rolit Member. Sistemi respekton rregullat ekzistuese të rezervimeve për modul.
+          </p>
+          {assignMemberError && (
+            <p className="mt-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
+              {assignMemberError}
+            </p>
+          )}
+        </div>
+        <CommandInput
+          value={memberSearchQuery}
+          onValueChange={setMemberSearchQuery}
+          placeholder="Kërko me emër, email ose nr. regjistri..."
+        />
+        <CommandList>
+          <CommandEmpty>Nuk u gjet asnjë anëtar i disponueshëm.</CommandEmpty>
+          <CommandGroup heading="Anëtarët">
+            {assignableMembers.map((member) => {
+              const reservationCount = event.participants.filter((participant) => participant.userId === member.id).length
+              const isAssigning = assigningMemberId === member.id
+              const fullName = `${member.firstName} ${member.lastName}`.trim()
+
+              return (
+                <CommandItem
+                  key={member.id}
+                  value={member.id}
+                  onSelect={() => void handleAssignMemberToSession(member.id)}
+                  disabled={isAssigning}
+                  className="items-start py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-foreground">{fullName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {member.memberRegistryNumber} • {member.email}
+                    </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {reservationCount > 0 ? `${reservationCount} rezervim(e) në këtë modul` : "Pa rezervime në këtë modul"}
+                      {member.isActive === false ? " • Joaktiv" : ""}
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium text-primary">
+                    {isAssigning ? "Duke shtuar..." : "Shto"}
+                  </span>
+                </CommandItem>
+              )
+            })}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
 
       {/* Participants */}
       <div className="rounded-lg border border-border bg-card p-5">

@@ -126,6 +126,25 @@ public class EventsController(IEventsService eventsService) : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/sessions/{dateId:guid}/participants")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AddMemberToSession(Guid id, Guid dateId, [FromBody] AddEventParticipantRequest request)
+    {
+        try
+        {
+            var status = await _eventsService.AssignMemberToSessionAsync(id, dateId, request.UserId);
+            return Ok(new { status });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("{id:guid}/sessions/{dateId:guid}/end")]
     [Authorize(Roles = "Admin,Lecturer")]
     public async Task<IActionResult> EndSession(Guid id, Guid dateId)
@@ -687,6 +706,7 @@ public record MarkAttendanceRequest(string Status);
 
 public record AddEventDocumentRequest(string FileName, string FileUrl);
 public record UploadEventDocumentRequest(IFormFile File, string? FileName);
+public record AddEventParticipantRequest(Guid UserId);
 public record SubmitLecturerFeedbackRequest(int Rating, string? Comment, bool IsAnonymous);
 public record ScanEventAttendanceRequest(string QrToken, double? Latitude, double? Longitude);
 public record CreateEventQuestionnaireRequest(string Title, List<EventQuestionnaireQuestionInput> Questions);

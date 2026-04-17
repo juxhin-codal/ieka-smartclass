@@ -2,12 +2,14 @@
 
 import Image from "next/image"
 import { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { NotificationCenter } from "@/components/notifications/notification-center"
 import { LanguageToggle } from "@/components/i18n/language-toggle"
-import { LayoutDashboard, Calendar, LogOut, Users, FileBarChart, Settings, Menu, X, GraduationCap, FileText, FolderOpen, UserCheck, ClipboardList } from "lucide-react"
+import { QuickQrScannerModal } from "@/components/qr/quick-qr-scanner-modal"
+import { LayoutDashboard, Calendar, LogOut, Users, FileBarChart, Settings, Menu, X, GraduationCap, FileText, FolderOpen, UserCheck, ClipboardList, QrCode } from "lucide-react"
 
 export type TabKey = "dashboard" | "events" | "myModules" | "myHistory" | "studies" | "attendance" | "myDocuments" | "myEvaluations" | "members" | "students" | "reports" | "settings"
 
@@ -58,7 +60,9 @@ const navLabelFallback: Record<string, string> = {
 export function AppHeader({ activeTab, onTabChange }: AppHeaderProps) {
   const { user, logout } = useAuth()
   const { t } = useI18n()
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showQuickScanner, setShowQuickScanner] = useState(false)
 
   function navLabel(labelKey: string) {
     const translated = t(labelKey)
@@ -81,6 +85,7 @@ export function AppHeader({ activeTab, onTabChange }: AppHeaderProps) {
   }, [user?.role])
   const defaultTab = visibleTabs[0]?.key ?? "events"
   const canAccessSettings = user?.role === "Admin" || user?.role === "Lecturer" || user?.role === "Member"
+  const canUseQuickScanner = user?.role === "Member" || user?.role === "Student"
 
   function handleTabChange(tab: TabKey) {
     onTabChange(tab)
@@ -131,6 +136,19 @@ export function AppHeader({ activeTab, onTabChange }: AppHeaderProps) {
 
         {/* Right: actions */}
         <div className="flex items-center gap-2">
+          {canUseQuickScanner && (
+            <button
+              onClick={() => {
+                setMenuOpen(false)
+                setShowQuickScanner(true)
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              aria-label="Hap skanerin QR"
+              title="Skano QR"
+            >
+              <QrCode className="h-4 w-4" />
+            </button>
+          )}
           <LanguageToggle />
           {user && <NotificationCenter />}
 
@@ -219,6 +237,19 @@ export function AppHeader({ activeTab, onTabChange }: AppHeaderProps) {
             )
           })}
 
+          {canUseQuickScanner && (
+            <button
+              onClick={() => {
+                setMenuOpen(false)
+                setShowQuickScanner(true)
+              }}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <QrCode className="h-4 w-4 shrink-0" />
+              Skano QR
+            </button>
+          )}
+
           {/* Settings */}
           {canAccessSettings && (
             <button
@@ -260,6 +291,13 @@ export function AppHeader({ activeTab, onTabChange }: AppHeaderProps) {
             )}
           </div>
         </div>
+      )}
+
+      {showQuickScanner && (
+        <QuickQrScannerModal
+          onClose={() => setShowQuickScanner(false)}
+          onResolved={(route) => router.push(route)}
+        />
       )}
     </header>
   )

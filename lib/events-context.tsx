@@ -84,7 +84,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const response = await fetchApi("/Members?pageNumber=1&pageSize=500")
+      const response = await fetchApi("/Members?pageNumber=1&pageSize=2000")
       setUsers(response.items || [])
     } catch (e: any) {
       setUsers([])
