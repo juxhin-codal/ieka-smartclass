@@ -9,7 +9,8 @@
 import { useEffect, useState } from "react"
 import { useEvents } from "@/lib/events-context"
 import { useAuth } from "@/lib/auth-context"
-import { format, parseISO } from "date-fns"
+import { parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
     ArrowLeft, CalendarRange, MapPin, Tag, Clock, CheckCircle2,
@@ -116,7 +117,7 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
 
         const moduleName = event!.name
         const sessionDateRaw = event!.dates.find((d) => d.id === dateId)?.date
-        const sessionDateLabel = sessionDateRaw ? format(parseISO(sessionDateRaw), "EEEE, d MMMM yyyy") : dateId
+        const sessionDateLabel = sessionDateRaw ? formatDate(sessionDateRaw, "EEEE, d MMMM yyyy") : dateId
         setCancelReservationPrompt({
             dateId,
             participantId: reservation.id,
@@ -162,7 +163,7 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
                     </p>
                 ) : (
                     <p className="text-sm text-muted-foreground">
-                        {selectedDate && format(parseISO(selectedDate.date), "EEEE, d MMMM yyyy")}
+                        {selectedDate && formatDate(selectedDate.date, "EEEE, d MMMM yyyy")}
                         {selectedDate?.time && ` • ${selectedDate.time}`}
                     </p>
                 )}
@@ -202,8 +203,8 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
                 <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-4">
                     <span className="flex items-center gap-1.5">
                         <CalendarRange className="h-4 w-4" />
-                        {startDate && format(parseISO(startDate), "MMM d")}
-                        {endDate && endDate !== startDate && ` — ${format(parseISO(endDate), "MMM d, yyyy")}`}
+                        {startDate && formatDate(startDate, "d MMMM")}
+                        {endDate && endDate !== startDate && ` — ${formatDate(endDate, "d MMMM yyyy")}`}
                     </span>
                     <span className="flex items-center gap-1.5">
                         <Clock className="h-4 w-4" />
@@ -312,7 +313,7 @@ export function MemberModuleDetail({ eventId, onBack }: MemberModuleDetailProps)
                                     <CalendarRange className={`h-5 w-5 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
                                     <div>
                                         <p className={`text-sm font-semibold ${isSelected ? "text-primary" : "text-foreground"}`}>
-                                            {format(parseISO(d.date), "EEEE, d MMMM yyyy")}
+                                            {formatDate(d.date, "EEEE, d MMMM yyyy")}
                                         </p>
                                         <p className="text-xs text-muted-foreground mt-0.5">
                                             {d.time && `${d.time} • `}

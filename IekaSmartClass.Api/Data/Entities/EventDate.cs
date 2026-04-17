@@ -60,6 +60,11 @@ public class EventDate
             CurrentParticipants--;
     }
 
+    public void SetCurrentParticipants(int count)
+    {
+        CurrentParticipants = Math.Max(0, count);
+    }
+
     public void EndSession()
     {
         IsEnded = true;

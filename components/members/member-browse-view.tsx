@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useEvents } from "@/lib/events-context"
 import { useAuth } from "@/lib/auth-context"
-import { format, parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
     ArrowLeft, CalendarRange, MapPin, Tag, Users, BookOpen, Search, Clock, CreditCard,
@@ -113,20 +113,20 @@ export function MemberBrowseView({ onBack, onOpenModule }: MemberBrowseViewProps
                                                 {event.cpdHours}h CPD
                                             </span>
                                             {hasReservation && (
-                                            <span className="inline-flex items-center whitespace-nowrap rounded-full bg-green-500/10 px-2.5 py-1 text-xs font-semibold text-green-600">
-                                                ✓ Ju keni rezervim ({myReservations})
-                                            </span>
+                                                <span className="inline-flex items-center whitespace-nowrap rounded-full bg-green-500/10 px-2.5 py-1 text-xs font-semibold text-green-600">
+                                                    ✓ Ju keni rezervim ({myReservations})
+                                                </span>
                                             )}
                                             {requiresPerModulePayment && (event.price ?? 0) > 0 ? (
-                                            <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600">
-                                                <CreditCard className="h-3 w-3" />
-                                                Me pagesë: {(event.price ?? 0).toLocaleString()} LEK
-                                            </span>
-                                        ) : (
-                                            <span className="inline-flex items-center whitespace-nowrap rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600">
-                                                Pa pagesë
-                                            </span>
-                                        )}
+                                                <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600">
+                                                    <CreditCard className="h-3 w-3" />
+                                                    Me pagesë: {(event.price ?? 0).toLocaleString()} LEK
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center whitespace-nowrap rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600">
+                                                    Pa pagesë
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
@@ -147,9 +147,9 @@ export function MemberBrowseView({ onBack, onOpenModule }: MemberBrowseViewProps
                                     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-4">
                                         <span className="flex items-center gap-1.5">
                                             <CalendarRange className="h-3.5 w-3.5" />
-                                            {startDate && format(parseISO(startDate), "MMM d")}
-                                            {endDate && endDate !== startDate && ` — ${format(parseISO(endDate), "MMM d")}`}
-                                            {startDate && `, ${format(parseISO(startDate), "yyyy")}`}
+                                            {startDate && formatDate(startDate, "d MMMM")}
+                                            {endDate && endDate !== startDate && ` — ${formatDate(endDate, "d MMMM")}`}
+                                            {startDate && `, ${formatDate(startDate, "yyyy")}`}
                                         </span>
                                         <span className="flex items-center gap-1.5">
                                             <Clock className="h-3.5 w-3.5" />
@@ -180,8 +180,8 @@ export function MemberBrowseView({ onBack, onOpenModule }: MemberBrowseViewProps
                                                 : requiresPerModulePayment && (event.price ?? 0) > 0
                                                     ? `Paguaj ${(event.price ?? 0).toLocaleString()} LEK`
                                                     : remaining > 0
-                                                ? "Rezervo Vendin"
-                                                : "Hap Modulin"}
+                                                        ? "Rezervo Vendin"
+                                                        : "Hap Modulin"}
                                     </Button>
                                 </div>
                             </div>

@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { format, parseISO } from "date-fns"
-import { sq } from "date-fns/locale"
+import { parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { useEvents } from "@/lib/events-context"
 import type { EventItem, Participant } from "@/lib/data"
@@ -21,7 +21,7 @@ function getBookingDateIso(booking: MemberBooking) {
 function formatBookingDate(value: string | null) {
     if (!value) return "—"
     try {
-        return format(parseISO(value), "dd MMM yyyy", { locale: sq })
+        return formatDate(value, "dd MMM yyyy")
     } catch {
         return value
     }

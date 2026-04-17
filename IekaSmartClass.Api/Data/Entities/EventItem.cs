@@ -133,6 +133,46 @@ public class EventItem
         CurrentParticipants++;
     }
 
+    public void DecrementParticipant()
+    {
+        if (CurrentParticipants > 0)
+            CurrentParticipants--;
+    }
+
+    /// <summary>
+    /// Resets CurrentParticipants on this event and each of its dates to match
+    /// the actual registered participants loaded from the database.
+    /// Returns true if any counter was corrected.
+    /// </summary>
+    public bool ReconcileParticipantCounts()
+    {
+        var changed = false;
+
+        var registeredByDate = _participants
+            .Where(p => p.Status == "registered")
+            .GroupBy(p => p.DateId)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        foreach (var date in _dates)
+        {
+            var actual = registeredByDate.GetValueOrDefault(date.Id, 0);
+            if (date.CurrentParticipants != actual)
+            {
+                date.SetCurrentParticipants(actual);
+                changed = true;
+            }
+        }
+
+        var totalActual = registeredByDate.Values.Sum();
+        if (CurrentParticipants != totalActual)
+        {
+            CurrentParticipants = totalActual;
+            changed = true;
+        }
+
+        return changed;
+    }
+
     public bool RefreshStatusFromDates()
     {
         var shouldBePast = _dates.Count > 0 && _dates.All(d => d.IsEnded);

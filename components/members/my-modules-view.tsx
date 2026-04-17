@@ -9,7 +9,8 @@
 import { useState, useMemo } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { useEvents } from "@/lib/events-context"
-import { format, parseISO } from "date-fns"
+import { parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import {
     CalendarRange, CheckCircle2, QrCode, BookOpen, Star, AlertCircle, Award, ListFilter, PlayCircle, MapPin, Tag,
     Clock, Search, User, FileText, Download, X, Ticket, Video, XCircle
@@ -314,7 +315,7 @@ function BookingCard({
                         {sessionDate && (
                             <span className="flex items-center gap-1.5">
                                 <CalendarRange className="h-3.5 w-3.5" />
-                                {format(parseISO(sessionDate.date), "EEE, MMM d, yyyy")}
+                                {formatDate(sessionDate.date, "EEEE, d MMMM yyyy")}
                                 {sessionDate.time ? ` • ${sessionDate.time}` : ""}
                             </span>
                         )}

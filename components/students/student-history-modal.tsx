@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { format, parseISO } from "date-fns"
 import {
   BookOpen,
   CalendarDays,
@@ -19,13 +18,13 @@ import type {
   StazhItem,
   StudentMyModuleResponse,
 } from "@/lib/data"
-import { cn } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—"
   try {
-    return format(parseISO(value), "dd MMM yyyy HH:mm")
+    return formatDate(value, "dd MMM yyyy HH:mm")
   } catch {
     return value
   }
@@ -193,7 +192,7 @@ export function StudentHistoryModal({ student, onClose }: StudentHistoryModalPro
       for (const topic of [...(mod.topics ?? [])].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))) {
         const status = topic.attended ? "Prezent"
           : topic.scheduledDate && new Date(topic.scheduledDate) > now ? "Ne pritje"
-          : "Pa prezence"
+            : "Pa prezence"
         const attendedDate = topic.attendedAt ? formatDateTime(topic.attendedAt) : ""
         const topicDate = topic.scheduledDate ? formatDateTime(topic.scheduledDate) : ""
         rows.push(`"${mod.title}";${mod.yearGrade};"${topic.name}";"${topic.lecturer}";"${topicDate}";"${topic.location ?? ""}";"${status}";"${attendedDate}"`)

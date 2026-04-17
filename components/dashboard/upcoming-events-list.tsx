@@ -1,7 +1,7 @@
 "use client"
 
 import { useEvents } from "@/lib/events-context"
-import { format, parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import { MapPin, Users, CalendarDays } from "lucide-react"
 
 export function UpcomingEventsList() {
@@ -54,8 +54,8 @@ export function UpcomingEventsList() {
 
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
-                {startDate && format(parseISO(startDate), "MMM d")}
-                {endDate && endDate !== startDate && ` - ${format(parseISO(endDate), "MMM d")}`}
+                {startDate && formatDate(startDate, "d MMMM")}
+                {endDate && endDate !== startDate && ` - ${formatDate(endDate, "d MMMM")}`}
               </p>
               <div className="flex items-center gap-1.5">
                 <div className="h-1 w-14 overflow-hidden rounded-full bg-border">

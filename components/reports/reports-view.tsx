@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useEvents } from "@/lib/events-context"
-import { format, parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import {
   Star, MessageSquare, CheckCircle2, ChevronDown, ChevronUp, ChevronsUpDown,
   BarChart3, FileText, Search, Users, TrendingUp, Clock, Download, AlertCircle,
@@ -202,7 +202,7 @@ export function ReportsView() {
   function handleExportFeedback() {
     const rows = ["Moduli,Data,Pyetja,Lloji,Përgjigja,Anëtari"]
     eventsWithAnswers.forEach((e) => {
-      const date = e.dates[0]?.date ? format(parseISO(e.dates[0].date), "d MMM yyyy") : ""
+      const date = e.dates[0]?.date ? formatDate(e.dates[0].date, "d MMM yyyy") : ""
       const pts = e.participants.filter((p) => p.answers && p.answers.length > 0)
       e.feedbackQuestions.forEach((q) => {
         pts.forEach((p) => {
@@ -320,10 +320,10 @@ export function ReportsView() {
                         {firstDate ? (
                           <>
                             <span className="font-medium text-foreground">
-                              {format(parseISO(firstDate), "d MMM yyyy")}
+                              {formatDate(firstDate, "d MMM yyyy")}
                             </span>
                             {lastDate && lastDate !== firstDate && (
-                              <span className="block text-muted-foreground">→ {format(parseISO(lastDate), "d MMM yyyy")}</span>
+                              <span className="block text-muted-foreground">→ {formatDate(lastDate, "d MMM yyyy")}</span>
                             )}
                           </>
                         ) : "—"}
@@ -552,7 +552,7 @@ export function ReportsView() {
                           <h3 className="text-sm font-semibold text-foreground">{event.name}</h3>
                           <div className="flex items-center gap-3 mt-0.5">
                             <span className="text-xs text-muted-foreground">
-                              {event.dates[0]?.date && format(parseISO(event.dates[0].date), "MMM d, yyyy")}
+                              {event.dates[0]?.date && formatDate(event.dates[0].date, "d MMMM yyyy")}
                             </span>
                             <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary font-medium">
                               {responseRate}% përgjigje

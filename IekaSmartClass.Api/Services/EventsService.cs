@@ -54,6 +54,11 @@ public class EventsService(
             {
                 hasChanges = true;
             }
+
+            if (eventItem.ReconcileParticipantCounts())
+            {
+                hasChanges = true;
+            }
         }
 
         if (hasChanges)
@@ -780,6 +785,7 @@ public class EventsService(
                 {
                     var duplicateDate = eventItem.Dates.FirstOrDefault(x => x.Id == duplicate.DateId);
                     duplicateDate?.DecrementParticipant();
+                    eventItem.DecrementParticipant();
                 }
 
                 _participantRepository.Delete(duplicate);
@@ -877,6 +883,7 @@ public class EventsService(
 
         var existingDate = existingEvent.Dates.FirstOrDefault(x => x.Id == cancelledDateId);
         existingDate?.DecrementParticipant();
+        existingEvent.DecrementParticipant();
 
         // Promote the earliest waitlisted person for this date.
         var nextInLine = await _participantRepository.Query()
@@ -887,6 +894,7 @@ public class EventsService(
         if (nextInLine != null && existingDate != null)
         {
             existingDate.IncrementParticipant();
+            existingEvent.IncrementParticipant();
             nextInLine.Promote(existingDate.CurrentParticipants);
         }
     }

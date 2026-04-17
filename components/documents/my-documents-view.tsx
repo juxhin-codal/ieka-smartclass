@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { format, parseISO } from "date-fns"
 import { fetchApi, fetchWithAuth } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth-context"
 import type { StazhDocument, StazhItem, StudentMyModuleResponse } from "@/lib/data"
@@ -9,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ChevronDown, ChevronRight, Download, FileText, FolderOpen, Library, RefreshCw, Trash2, Upload, Users } from "lucide-react"
+import { formatDate } from "@/lib/utils"
 
 type StudentSummaryApi = {
   id: string
@@ -48,17 +48,17 @@ function isGuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-function formatDate(value: string) {
+function fmtDate(value: string) {
   try {
-    return format(parseISO(value), "dd MMM yyyy")
+    return formatDate(value, "dd MMM yyyy")
   } catch {
     return value
   }
 }
 
-function formatDateTime(value: string) {
+function fmtDateTime(value: string) {
   try {
-    return format(parseISO(value), "dd MMM yyyy HH:mm")
+    return formatDate(value, "dd MMM yyyy HH:mm")
   } catch {
     return value
   }
@@ -322,7 +322,7 @@ function MentorStudentDocumentsCard({
               >
                 {stazhet.map((stazh) => (
                   <option key={stazh.id} value={stazh.id}>
-                    {stazh.title} ({formatDate(stazh.startDate)} - {formatDate(stazh.endDate)})
+                    {stazh.title} ({fmtDate(stazh.startDate)} - {fmtDate(stazh.endDate)})
                   </option>
                 ))}
               </select>
@@ -417,7 +417,7 @@ function MentorStudentDocumentsCard({
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {doc.cleanDescription ? `${doc.cleanDescription} • ` : ""}
-                        Ngarkuar nga mentori më {formatDateTime(doc.uploadedAt)}
+                        Ngarkuar nga mentori më {fmtDateTime(doc.uploadedAt)}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -470,7 +470,7 @@ function MentorStudentDocumentsCard({
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {doc.cleanDescription ? `${doc.cleanDescription} • ` : ""}
-                          Ngarkuar më {formatDateTime(doc.uploadedAt)}
+                          Ngarkuar më {fmtDateTime(doc.uploadedAt)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -780,7 +780,7 @@ function MentorDocumentsPanel({
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {doc.cleanDescription ? `${doc.cleanDescription} • ` : ""}
-                          Studenti: {doc.studentName} ({doc.studentCode}) • Ngarkuar më {formatDateTime(doc.uploadedAt)}
+                          Studenti: {doc.studentName} ({doc.studentCode}) • Ngarkuar më {fmtDateTime(doc.uploadedAt)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1174,7 +1174,7 @@ function StudentDocumentsPanel({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground break-words">{doc.fileName}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {doc.description ? `${doc.description} • ` : ""}{formatDateTime(doc.uploadedAt)}
+                      {doc.description ? `${doc.description} • ` : ""}{fmtDateTime(doc.uploadedAt)}
                     </p>
                   </div>
                 </div>
@@ -1254,7 +1254,7 @@ function StudentDocumentsPanel({
                                   <div className="min-w-0 flex-1">
                                     <p className="text-sm font-medium text-foreground break-words">{doc.fileName}</p>
                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                      {(doc.sizeBytes / 1024).toFixed(0)} KB • {formatDateTime(doc.uploadedAt)}
+                                      {(doc.sizeBytes / 1024).toFixed(0)} KB • {fmtDateTime(doc.uploadedAt)}
                                     </p>
                                   </div>
                                 </div>

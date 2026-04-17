@@ -8,7 +8,8 @@ import { SeatSelector } from "@/components/events/seat-selector"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { format, parseISO } from "date-fns"
+import { parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import {
   CalendarDays,
   MapPin,
@@ -237,7 +238,7 @@ export function EventReservation({ eventId, onBack }: EventReservationProps) {
                     <CalendarRange className={`h-5 w-5 ${isSelected ? (isFull ? "text-amber-500" : "text-primary") : "text-muted-foreground"}`} />
                     <div>
                       <p className={`text-sm font-semibold ${isSelected ? (isFull ? "text-amber-500" : "text-primary") : "text-foreground"}`}>
-                        {format(parseISO(d.date), "EEEE, d MMMM yyyy")}
+                        {formatDate(d.date, "EEEE, d MMMM yyyy")}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {d.currentParticipants}/{d.maxParticipants} vende të zëna
@@ -270,7 +271,7 @@ export function EventReservation({ eventId, onBack }: EventReservationProps) {
         <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="text-lg font-semibold text-foreground mb-1">Zgjidhni vendin tuaj</h2>
           <p className="text-sm text-muted-foreground mb-6">
-            {format(parseISO(selectedDate.date), "EEEE, MMMM d, yyyy")}
+            {formatDate(selectedDate.date, "EEEE, d MMMM yyyy")}
           </p>
           <SeatSelector
             eventDate={selectedDate}
@@ -295,8 +296,8 @@ export function EventReservation({ eventId, onBack }: EventReservationProps) {
           <h2 className="text-lg font-semibold text-foreground mb-1">Informacioni Juaj</h2>
           <p className="text-sm text-muted-foreground mb-6">
             {selectedSeat === -1
-              ? `Listë pritjeje për ${selectedDate && format(parseISO(selectedDate.date), "MMM d, yyyy")}`
-              : `Sedia #${selectedSeat} — ${selectedDate && format(parseISO(selectedDate.date), "MMM d, yyyy")}`}
+              ? `Listë pritjeje për ${selectedDate && formatDate(selectedDate.date, "d MMMM yyyy")}`
+              : `Sedia #${selectedSeat} — ${selectedDate && formatDate(selectedDate.date, "d MMMM yyyy")}`}
           </p>
           <div className="flex flex-col gap-4 max-w-md">
             <div className="flex flex-col gap-2">
@@ -360,7 +361,7 @@ export function EventReservation({ eventId, onBack }: EventReservationProps) {
               </p>
               {selectedSeat && selectedSeat > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Sedia #{selectedSeat} — {selectedDate && format(parseISO(selectedDate.date), "d MMMM yyyy")}
+                  Sedia #{selectedSeat} — {selectedDate && formatDate(selectedDate.date, "d MMMM yyyy")}
                 </p>
               )}
             </>

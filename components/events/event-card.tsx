@@ -1,7 +1,7 @@
 "use client"
 
 import type { EventItem } from "@/lib/data"
-import { format, parseISO } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import { MapPin, Users, Tag, CalendarRange, ArrowRight } from "lucide-react"
 
 interface EventCardProps {
@@ -53,9 +53,9 @@ export function EventCard({ event, onClick }: EventCardProps) {
         <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
           <CalendarRange className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm text-foreground">
-            {startDate && format(parseISO(startDate), "MMM d")}
-            {endDate && endDate !== startDate && ` — ${format(parseISO(endDate), "MMM d")}`}
-            {startDate && `, ${format(parseISO(startDate), "yyyy")}`}
+            {startDate && formatDate(startDate, "d MMMM")}
+            {endDate && endDate !== startDate && ` — ${formatDate(endDate, "d MMMM")}`}
+            {startDate && `, ${formatDate(startDate, "yyyy")}`}
           </span>
           <span className="ml-auto text-xs text-muted-foreground">
             {event.dates.length} sesione • {event.cpdHours}h CPD
@@ -85,10 +85,15 @@ export function EventCard({ event, onClick }: EventCardProps) {
       <div className="flex items-center justify-between border-t border-border px-5 py-3">
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">
-            {event.currentParticipants}
-            <span className="text-muted-foreground"> / {event.sessionCapacity * event.totalSessions} ({event.sessionCapacity} vende × {event.totalSessions})</span>
-          </span>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-foreground leading-tight">
+              {event.currentParticipants}
+              <span className="text-muted-foreground font-normal"> / {event.sessionCapacity * event.totalSessions} vende</span>
+            </span>
+            <span className="text-[11px] text-muted-foreground leading-tight">
+              {event.sessionCapacity} vende/sesion · {event.totalSessions} sesione
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="h-2 w-20 overflow-hidden rounded-full bg-border">

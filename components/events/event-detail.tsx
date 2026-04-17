@@ -21,7 +21,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { QRCodeCanvas } from "qrcode.react"
-import { format, parseISO, isToday } from "date-fns"
+import { parseISO, isToday } from "date-fns"
+import { formatDate } from "@/lib/utils"
 import {
   ArrowLeft,
   Bell,
@@ -49,7 +50,38 @@ import {
   Search,
   Download,
   Loader2,
+  ClipboardList,
+  BookOpen,
+  Calculator,
+  Briefcase,
+  Globe,
+  BarChart2,
+  Shield,
+  Cpu,
+  Leaf,
+  Landmark,
+  Scale,
+  Banknote,
+  TrendingUp,
+  Building2,
+  GraduationCap,
+  FlaskConical,
+  type LucideIcon,
 } from "lucide-react"
+
+const TOPIC_ICONS: LucideIcon[] = [
+  BookOpen, Calculator, Briefcase, Globe, BarChart2,
+  Shield, Cpu, Leaf, Landmark, Scale,
+  Banknote, TrendingUp, Building2, GraduationCap, FlaskConical,
+]
+
+function topicIcon(topic: string): LucideIcon {
+  let hash = 0
+  for (let i = 0; i < topic.length; i++) {
+    hash = (hash * 31 + topic.charCodeAt(i)) >>> 0
+  }
+  return TOPIC_ICONS[hash % TOPIC_ICONS.length]
+}
 
 interface EventDetailProps {
   eventId: string
@@ -192,32 +224,57 @@ export function EventDetail({ eventId, onBack }: EventDetailProps) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 lg:px-8">
+    <div className="mx-auto max-w-4xl px-4 py-6 lg:px-8">
       {/* Top bar */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button variant="ghost" onClick={onBack} className="w-fit gap-2 text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" />
+      <div className="mb-6 rounded-lg border border-border bg-card px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+        {/* Back button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="h-8 w-fit gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
           Kthehu te modulet
         </Button>
-        <div className="flex flex-wrap items-center gap-2">
+
+        {/* Divider on desktop */}
+        <div className="hidden sm:block h-5 w-px bg-border mx-0.5" />
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
           {isAdmin && isUpcoming && (
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowEditForm(true)}>
-              <Pencil className="h-4 w-4" />
-              Modifiko Modulin
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-3 text-xs"
+              onClick={() => setShowEditForm(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Modifiko
             </Button>
           )}
           {(isAdmin || user?.role === "Lecturer") && (
-            <Button variant="default" size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowQrScanner(true)}>
-              <QrCode className="h-4 w-4" />
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => setShowQrScanner(true)}
+            >
+              <QrCode className="h-3.5 w-3.5" />
               Skano QR
             </Button>
           )}
           {isAdmin && isUpcoming && <NotifyButton eventId={event.id} isNotified={event.isNotified} />}
           {isAdmin && <ShareButton eventId={event.id} />}
           {isAdmin && (
-            <Button variant="destructive" size="sm" className="gap-2" onClick={() => setShowDeletePrompt(true)}>
-              <Trash2 className="h-4 w-4" />
-              Fshi Modulin
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 gap-1.5 px-3 text-xs"
+              onClick={() => setShowDeletePrompt(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Fshi
             </Button>
           )}
         </div>
@@ -277,6 +334,66 @@ export function EventDetail({ eventId, onBack }: EventDetailProps) {
   )
 }
 
+/* --- QR Modal --- */
+function QrModal({
+  title,
+  onClose,
+  loading,
+  error,
+  children,
+}: {
+  title: string
+  onClose: () => void
+  loading: boolean
+  error: string | null
+  children?: React.ReactNode
+}) {
+  useEffect(() => {
+    document.body.style.overflow = "hidden"
+    return () => { document.body.style.overflow = "" }
+  }, [])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-sm mx-4 rounded-xl border border-border bg-card shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2">
+            <QrCode className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">Duke gjeneruar...</p>
+            </div>
+          ) : error ? (
+            <p className="text-sm text-destructive text-center py-4">{error}</p>
+          ) : (
+            children
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* --- Notify Button --- */
 function NotifyButton({ eventId, isNotified }: { eventId: string; isNotified?: boolean }) {
   const { markAsNotified } = useEvents()
@@ -293,12 +410,12 @@ function NotifyButton({ eventId, isNotified }: { eventId: string; isNotified?: b
     <Button
       variant={isNotified ? "secondary" : "default"}
       size="sm"
-      className="gap-2"
+      className={`h-8 gap-1.5 px-3 text-xs ${isNotified ? "" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
       onClick={handleNotify}
       disabled={loading || isNotified}
     >
-      {isNotified ? <CheckCircle2 className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-      {isNotified ? "Të njoftuar" : (loading ? "Duke njoftuar..." : "Njofto përdoruesit")}
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isNotified ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+      {isNotified ? "Të njoftuar" : (loading ? "Duke njoftuar..." : "Njofto")}
     </Button>
   )
 }
@@ -315,8 +432,8 @@ function ShareButton({ eventId }: { eventId: string }) {
   }
 
   return (
-    <Button variant="outline" size="sm" className="gap-2" onClick={handleCopy}>
-      {copied ? <CheckCircle2 className="h-4 w-4 text-accent" /> : <Share2 className="h-4 w-4" />}
+    <Button variant="outline" size="sm" className="h-8 gap-1.5 px-3 text-xs" onClick={handleCopy}>
+      {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Share2 className="h-3.5 w-3.5" />}
       {copied ? "U kopjua" : "Shpërndaje"}
     </Button>
   )
@@ -548,8 +665,6 @@ function UpcomingEventDetail({
   const [sessionQrDialogId, setSessionQrDialogId] = useState<string | null>(null)
   const [sessionQrToken, setSessionQrToken] = useState<string | null>(null)
   const [sessionQrLoading, setSessionQrLoading] = useState(false)
-  const [sendingQuestionnaireEmailDateId, setSendingQuestionnaireEmailDateId] = useState<string | null>(null)
-  const [questionnaireEmailResult, setQuestionnaireEmailResult] = useState<Record<string, { sent: number } | "error">>({})
   const [sendingDocumentsEmailDateId, setSendingDocumentsEmailDateId] = useState<string | null>(null)
   const [documentsEmailResult, setDocumentsEmailResult] = useState<Record<string, { sent: number } | "error">>({})
   const [sessionDocFile, setSessionDocFile] = useState<Record<string, File | null>>({})
@@ -557,6 +672,10 @@ function UpcomingEventDetail({
   const [sessionDocUploading, setSessionDocUploading] = useState<string | null>(null)
   const [sessionDocInputKey, setSessionDocInputKey] = useState(0)
   const [deletingSessionDocId, setDeletingSessionDocId] = useState<string | null>(null)
+  const [expandedSessionDocsId, setExpandedSessionDocsId] = useState<string | null>(null)
+  const [endSessionConfirmId, setEndSessionConfirmId] = useState<string | null>(null)
+  const [docsExpanded, setDocsExpanded] = useState(false)
+  const [eqSectionExpanded, setEqSectionExpanded] = useState(false)
   // Event Questionnaires (module-level)
   const [eventQuestionnaires, setEventQuestionnaires] = useState<EventQuestionnaireInfo[]>(event.eventQuestionnaires ?? [])
   const [eqCreateTitle, setEqCreateTitle] = useState("")
@@ -773,19 +892,6 @@ function UpcomingEventDetail({
     }
   }
 
-  async function handleSendSessionQuestionnaireEmails(dateId: string) {
-    setSendingQuestionnaireEmailDateId(dateId)
-    try {
-      const res = await fetchWithAuth(`${API_BASE_URL}/Events/${event.id}/dates/${dateId}/send-questionnaire-emails`, { method: "POST" })
-      const data = await res.json()
-      setQuestionnaireEmailResult(prev => ({ ...prev, [dateId]: { sent: data.sent ?? 0 } }))
-    } catch {
-      setQuestionnaireEmailResult(prev => ({ ...prev, [dateId]: "error" }))
-    } finally {
-      setSendingQuestionnaireEmailDateId(null)
-    }
-  }
-
   async function handleSendSessionDocumentsEmail(dateId: string) {
     setSendingDocumentsEmailDateId(dateId)
     try {
@@ -902,7 +1008,7 @@ function UpcomingEventDetail({
   }, [event.quizQuestions])
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 pb-10">
+    <div className="mx-auto max-w-4xl space-y-3 pb-10">
       {liveQuizRound !== null && (
         <LiveQuizPanel
           eventId={event.id}
@@ -922,32 +1028,93 @@ function UpcomingEventDetail({
         />
       )}
 
-      {/* Session QR Dialog */}
-      {sessionQrDialogId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSessionQrDialogId(null)}>
-          <div className="rounded-lg border border-border bg-card p-6 shadow-lg max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-foreground">QR Kod për Sesionin</h3>
-              <button onClick={() => setSessionQrDialogId(null)} className="rounded p-1 hover:bg-muted">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            {sessionQrLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      {/* End Session Confirm Modal */}
+      {endSessionConfirmId && (() => {
+        const sessionDate = event.dates.find(d => d.id === endSessionConfirmId)
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => setEndSessionConfirmId(null)}
+          >
+            <div
+              className="rounded-lg border border-border bg-card shadow-lg w-full max-w-sm mx-4 overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-950/40">
+                    <X className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">Mbyll sesionin</h3>
+                </div>
+                <button
+                  onClick={() => setEndSessionConfirmId(null)}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-            ) : sessionQrToken ? (
-              <div className="flex flex-col items-center gap-3">
-                <QRCodeCanvas value={sessionQrToken} size={200} includeMargin />
-                <p className="text-xs text-muted-foreground text-center">
-                  Skanoni këtë QR kod me telefonin për të konfirmuar praninë në sesion.
+
+              {/* Body */}
+              <div className="px-5 pb-4">
+                <p className="text-sm text-muted-foreground">
+                  Jeni i sigurt që dëshironi të mbyllni sesionin e{" "}
+                  <span className="font-medium text-foreground">
+                    {sessionDate ? formatDate(sessionDate.date, "EEEE, d MMMM yyyy") : "zgjedhur"}
+                  </span>
+                  ?
+                </p>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Kjo veprim nuk mund të anulohet.
                 </p>
               </div>
-            ) : (
-              <p className="text-xs text-destructive text-center py-4">Gabim gjatë gjenerimit të QR kodit.</p>
-            )}
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setEndSessionConfirmId(null)}
+                >
+                  Anulo
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => {
+                    onEndSession(endSessionConfirmId)
+                    setEndSessionConfirmId(null)
+                  }}
+                >
+                  Po, mbyll sesionin
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
+        )
+      })()}
+
+      {/* Session QR Dialog */}
+      {sessionQrDialogId && (
+        <QrModal
+          title="QR Kod për Sesionin"
+          onClose={() => setSessionQrDialogId(null)}
+          loading={sessionQrLoading}
+          error={!sessionQrToken && !sessionQrLoading ? "Gabim gjatë gjenerimit të QR kodit." : null}
+        >
+          {sessionQrToken && (
+            <div className="flex flex-col items-center gap-4">
+              <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+                <QRCodeCanvas value={sessionQrToken} size={220} includeMargin={false} />
+              </div>
+              <p className="text-sm text-muted-foreground text-center max-w-xs">
+                Skanoni këtë QR kod me telefonin për të konfirmuar praninë në sesion.
+              </p>
+            </div>
+          )}
+        </QrModal>
       )}
 
       {/* Header Card */}
@@ -1005,8 +1172,8 @@ function UpcomingEventDetail({
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <MiniStat icon={CalendarRange} label="Datat">
-            {startDate && format(parseISO(startDate), "MMM d")}
-            {endDate && endDate !== startDate && ` - ${format(parseISO(endDate), "MMM d")}`}
+            {startDate && formatDate(startDate, "d MMMM")}
+            {endDate && endDate !== startDate && ` - ${formatDate(endDate, "d MMMM")}`}
           </MiniStat>
           <MiniStat icon={Users} label="Pjesëmarrësit">
             {event.currentParticipants} / {event.maxParticipants}
@@ -1033,43 +1200,75 @@ function UpcomingEventDetail({
       </div>
 
       {/* Topics */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h3 className="text-sm font-semibold text-foreground mb-3">Temat</h3>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {topics.map((topic) => (
-            <span
-              key={topic}
-              className="inline-flex items-center gap-1 rounded-md bg-primary/8 px-2.5 py-1 text-xs font-medium text-primary"
-            >
-              {topic}
-              {isAdmin && (
-                <button onClick={() => removeTopic(topic)} className="ml-0.5 rounded p-0.5 hover:bg-primary/20" aria-label={`Hiq ${topic}`}>
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </span>
-          ))}
-        </div>
-        {isAdmin && (
-          <div className="flex gap-2">
-            <Input
-              placeholder="Shto një temë..."
-              value={topicInput}
-              onChange={(e) => setTopicInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  addTopic()
-                }
-              }}
-              className="text-sm border-border bg-muted/30 max-w-sm"
-            />
-            <Button onClick={addTopic} variant="secondary" size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              Shto
-            </Button>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50 dark:bg-amber-950/40">
+            <Tag className="h-3.5 w-3.5 text-amber-500" />
           </div>
-        )}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground leading-none">Temat</h3>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {topics.length === 0 ? "Nuk ka tema" : `${topics.length} temë${topics.length !== 1 ? "" : ""}`}
+            </p>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 flex flex-col gap-4">
+          {/* Tags */}
+          {topics.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {topics.map((topic) => {
+                const TopicIcon = topicIcon(topic)
+                return (
+                  <span
+                    key={topic}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
+                  >
+                    <TopicIcon className="h-3 w-3 shrink-0" />
+                    {topic}
+                    {isAdmin && (
+                      <button
+                        onClick={() => removeTopic(topic)}
+                        className="ml-0.5 rounded-full p-0.5 hover:bg-amber-200/60 dark:hover:bg-amber-800/40 transition-colors"
+                        aria-label={`Hiq ${topic}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/20 px-4 py-3">
+              <Tag className="h-4 w-4 text-muted-foreground/40" />
+              <p className="text-xs text-muted-foreground">Nuk ka tema të shtuara.</p>
+            </div>
+          )}
+
+          {/* Add input */}
+          {isAdmin && (
+            <div className="flex gap-2">
+              <Input
+                placeholder="Shto një temë..."
+                value={topicInput}
+                onChange={(e) => setTopicInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    addTopic()
+                  }
+                }}
+                className="h-8 flex-1 max-w-sm text-sm bg-muted/30"
+              />
+              <Button onClick={addTopic} variant="outline" size="sm" className="h-8 gap-1.5 text-xs shrink-0" disabled={!topicInput.trim()}>
+                <Plus className="h-3.5 w-3.5" />
+                Shto
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Dates */}
@@ -1098,9 +1297,9 @@ function UpcomingEventDetail({
               : participantsForSession
 
             return (
-              <div key={d.id} className="rounded-md border border-border bg-muted/40">
+              <div key={d.id} className={`rounded-lg border bg-card overflow-hidden transition-shadow hover:shadow-sm ${d.isEnded ? "border-green-200 dark:border-green-900/50" : "border-border"}`}>
                 <div
-                  className={`flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between ${canManageSessionParticipants ? "cursor-pointer transition-colors hover:bg-muted/30" : ""}`}
+                  className={`flex items-center gap-3 px-3 py-3 ${canManageSessionParticipants ? "cursor-pointer transition-colors hover:bg-muted/30" : ""}`}
                   onClick={() => {
                     if (!canManageSessionParticipants) return
                     setExpandedSessionId(isExpanded ? null : d.id)
@@ -1115,23 +1314,42 @@ function UpcomingEventDetail({
                   role={canManageSessionParticipants ? "button" : undefined}
                   tabIndex={canManageSessionParticipants ? 0 : undefined}
                 >
-                  <div className="flex items-center gap-2">
-                    <CalendarRange className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-sm text-foreground">{format(parseISO(d.date), "EEEE, MMM d, yyyy")}</span>
-                    {d.isEnded && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded ml-1">Mbyllur</span>}
+                  {/* Status accent bar */}
+                  <div className={`shrink-0 w-1 self-stretch rounded-full ${d.isEnded ? "bg-green-500" : "bg-primary"}`} />
+
+                  {/* Date + meta */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-foreground">{formatDate(d.date, "EEEE, d MMMM yyyy")}</span>
+                      {d.isEnded
+                        ? <span className="rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 text-[10px] font-medium">Mbyllur</span>
+                        : <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium">Aktiv</span>
+                      }
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-1 w-16 overflow-hidden rounded-full bg-border">
+                          <div
+                            className={`h-full rounded-full transition-all ${d.maxParticipants > 0 && d.currentParticipants / d.maxParticipants >= 0.9 ? "bg-destructive" : "bg-primary"}`}
+                            style={{ width: `${d.maxParticipants > 0 ? Math.min(100, Math.round(d.currentParticipants / d.maxParticipants * 100)) : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">{d.currentParticipants} / {d.maxParticipants} vende</span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">{participantsForSession.length} pjesëmarrës të regjistruar</span>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <span className="text-xs text-muted-foreground">{d.currentParticipants}/{d.maxParticipants} p.</span>
-                    <span className="text-xs text-muted-foreground">{participantsForSession.length} pjesëmarrës</span>
-                    {!d.isEnded && canRunQuiz && (
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!d.isEnded && canRunQuiz && new Date(d.date) < new Date() && (
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs"
                         onClick={(clickEvent) => {
                           clickEvent.stopPropagation()
-                          onEndSession(d.id)
+                          setEndSessionConfirmId(d.id)
                         }}
                       >
                         Mbyll sesionin
@@ -1140,50 +1358,33 @@ function UpcomingEventDetail({
                     {isAdmin && (
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="h-7 text-xs gap-1"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        title="QR Kod"
                         onClick={(clickEvent) => {
                           clickEvent.stopPropagation()
                           void handleGenerateSessionQr(d.id)
                         }}
                       >
-                        <QrCode className="h-3 w-3" />
-                        QR
+                        <QrCode className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {isAdmin && d.isEnded && (() => {
-                      const qeState = questionnaireEmailResult[d.id]
-                      return (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1"
-                          disabled={sendingQuestionnaireEmailDateId === d.id}
-                          onClick={(clickEvent) => {
-                            clickEvent.stopPropagation()
-                            void handleSendSessionQuestionnaireEmails(d.id)
-                          }}
-                        >
-                          {sendingQuestionnaireEmailDateId === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Mail className="h-3 w-3" />}
-                          {typeof qeState === "object" ? `Dërguar ${qeState.sent}` : qeState === "error" ? "Gabim" : "Dërgo Pyetësorin"}
-                        </Button>
-                      )
-                    })()}
+
                     {isAdmin && d.isEnded && (() => {
                       const deState = documentsEmailResult[d.id]
                       return (
                         <Button
                           size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          title={typeof deState === "object" ? `Dërguar ${deState.sent}` : deState === "error" ? "Gabim dërgimi dokumentesh" : "Dërgo Dokumentet"}
                           disabled={sendingDocumentsEmailDateId === d.id}
                           onClick={(clickEvent) => {
                             clickEvent.stopPropagation()
                             void handleSendSessionDocumentsEmail(d.id)
                           }}
                         >
-                          {sendingDocumentsEmailDateId === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                          {typeof deState === "object" ? `Dërguar ${deState.sent}` : deState === "error" ? "Gabim" : "Dërgo Dokumentet"}
+                          {sendingDocumentsEmailDateId === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                         </Button>
                       )
                     })()}
@@ -1201,10 +1402,9 @@ function UpcomingEventDetail({
                       </Button>
                     )}
                     {canManageSessionParticipants && (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        {isExpanded ? "Mbyll" : "Shfaq"}
-                        {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                      </span>
+                      <div className="ml-1 text-muted-foreground">
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1319,77 +1519,77 @@ function UpcomingEventDetail({
 
                         <div className="hidden overflow-x-auto rounded-md border border-border md:block">
                           <table className="w-full text-left text-sm">
-                          <thead>
-                            <tr className="border-b border-border bg-muted/50">
-                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Emri</th>
-                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Nr. Regjistri</th>
-                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Email</th>
-                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Status</th>
-                              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Veprime</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredParticipants.map((p) => {
-                              const identity = resolveParticipantIdentity(p, usersById)
-                              const isAttended = p.attendance === "attended"
-                              const isAbsent = p.attendance === "absent"
-                              const confirmKey = `${p.id}-attended`
-                              const rejectKey = `${p.id}-absent`
-                              const isUpdating = attendanceUpdatingKey === confirmKey || attendanceUpdatingKey === rejectKey
-                              const isRemoving = removingSessionParticipantId === p.id
+                            <thead>
+                              <tr className="border-b border-border bg-muted/50">
+                                <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Emri</th>
+                                <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Nr. Regjistri</th>
+                                <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Email</th>
+                                <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Status</th>
+                                <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Veprime</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredParticipants.map((p) => {
+                                const identity = resolveParticipantIdentity(p, usersById)
+                                const isAttended = p.attendance === "attended"
+                                const isAbsent = p.attendance === "absent"
+                                const confirmKey = `${p.id}-attended`
+                                const rejectKey = `${p.id}-absent`
+                                const isUpdating = attendanceUpdatingKey === confirmKey || attendanceUpdatingKey === rejectKey
+                                const isRemoving = removingSessionParticipantId === p.id
 
-                              return (
-                                <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20">
-                                  <td className="px-3 py-2 text-xs font-medium text-foreground whitespace-nowrap">
-                                    {identity.displayName}
-                                  </td>
-                                  <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{identity.memberRegistryNumber || "-"}</td>
-                                  <td className="px-3 py-2 text-xs text-muted-foreground">{identity.email || "-"}</td>
-                                  <td className="px-3 py-2 text-xs">
-                                    <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${isAttended
-                                      ? "bg-green-500/10 text-green-600"
-                                      : isAbsent
-                                        ? "bg-red-500/10 text-red-600"
-                                        : "bg-muted text-muted-foreground"
-                                      }`}>
-                                      {isAttended ? "I pranishëm" : isAbsent ? "Refuzuar" : "Në pritje"}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <div className="flex items-center gap-1.5">
-                                      <Button
-                                        size="sm"
-                                        className="h-7 px-2 text-[11px]"
-                                        variant={isAttended ? "default" : "outline"}
-                                        disabled={isUpdating || isAttended || isRemoving || p.status === "waitlisted"}
-                                        onClick={() => handleSessionAttendance(p.id, "attended")}
-                                      >
-                                        Konfirmo
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        className="h-7 px-2 text-[11px]"
-                                        variant={isAbsent ? "destructive" : "outline"}
-                                        disabled={isUpdating || isAbsent || isRemoving || p.status === "waitlisted"}
-                                        onClick={() => handleSessionAttendance(p.id, "absent")}
-                                      >
-                                        Refuzo
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        className="h-7 px-2 text-[11px]"
-                                        variant="ghost"
-                                        disabled={isUpdating || isRemoving}
-                                        onClick={() => void handleRemoveSessionParticipant(p.id)}
-                                      >
-                                        {isRemoving ? "Duke hequr..." : "Hiq"}
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
+                                return (
+                                  <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                                    <td className="px-3 py-2 text-xs font-medium text-foreground whitespace-nowrap">
+                                      {identity.displayName}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{identity.memberRegistryNumber || "-"}</td>
+                                    <td className="px-3 py-2 text-xs text-muted-foreground">{identity.email || "-"}</td>
+                                    <td className="px-3 py-2 text-xs">
+                                      <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${isAttended
+                                        ? "bg-green-500/10 text-green-600"
+                                        : isAbsent
+                                          ? "bg-red-500/10 text-red-600"
+                                          : "bg-muted text-muted-foreground"
+                                        }`}>
+                                        {isAttended ? "I pranishëm" : isAbsent ? "Refuzuar" : "Në pritje"}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <Button
+                                          size="sm"
+                                          className="h-7 px-2 text-[11px]"
+                                          variant={isAttended ? "default" : "outline"}
+                                          disabled={isUpdating || isAttended || isRemoving || p.status === "waitlisted"}
+                                          onClick={() => handleSessionAttendance(p.id, "attended")}
+                                        >
+                                          Konfirmo
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 px-2 text-[11px]"
+                                          variant={isAbsent ? "destructive" : "outline"}
+                                          disabled={isUpdating || isAbsent || isRemoving || p.status === "waitlisted"}
+                                          onClick={() => handleSessionAttendance(p.id, "absent")}
+                                        >
+                                          Refuzo
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 px-2 text-[11px]"
+                                          variant="ghost"
+                                          disabled={isUpdating || isRemoving}
+                                          onClick={() => void handleRemoveSessionParticipant(p.id)}
+                                        >
+                                          {isRemoving ? "Duke hequr..." : "Hiq"}
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
                           </table>
                         </div>
                       </div>
@@ -1397,69 +1597,118 @@ function UpcomingEventDetail({
 
                     {/* Session Documents */}
                     {canManageSessionParticipants && (
-                      <div className="mt-3 border-t border-border pt-3">
-                        <h4 className="text-xs font-semibold text-foreground mb-2">Dokumentet e sesionit</h4>
-                        {d.documents && d.documents.length > 0 ? (
-                          <div className="flex flex-col gap-1.5 mb-2">
-                            {d.documents.map(doc => (
-                              <div key={doc.id} className="flex items-center justify-between p-1.5 rounded border border-border">
-                                <div className="flex items-center gap-2">
-                                  <FileText className="h-3.5 w-3.5 text-blue-500" />
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleOpenDocument(doc.id, doc.fileUrl, doc.fileName)}
-                                    className="text-xs hover:underline font-medium text-foreground text-left"
+                      <div className="mt-4 border-t border-border pt-4">
+                        {/* Section header — clickable toggle */}
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between mb-0 group"
+                          onClick={() => setExpandedSessionDocsId(prev => prev === d.id ? null : d.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-center h-6 w-6 rounded-md bg-blue-50 dark:bg-blue-950/40">
+                              <FileText className="h-3.5 w-3.5 text-blue-500" />
+                            </div>
+                            <h4 className="text-xs font-semibold text-foreground">Dokumentet e sesionit</h4>
+                            {d.documents && d.documents.length > 0 && (
+                              <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                {d.documents.length}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-muted-foreground group-hover:text-foreground transition-colors">
+                            {expandedSessionDocsId === d.id
+                              ? <ChevronUp className="h-3.5 w-3.5" />
+                              : <ChevronDown className="h-3.5 w-3.5" />
+                            }
+                          </span>
+                        </button>
+
+                        {expandedSessionDocsId === d.id && (
+                          <div className="mt-3">
+                            {/* Document list */}
+                            {d.documents && d.documents.length > 0 ? (
+                              <div className="flex flex-col gap-1.5 mb-3">
+                                {d.documents.map(doc => (
+                                  <div
+                                    key={doc.id}
+                                    className="group flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2 transition-colors hover:bg-muted/60"
                                   >
-                                    {doc.fileName}
-                                  </button>
-                                  <span className="text-[10px] text-muted-foreground">{doc.sizeBytes ? `${(doc.sizeBytes / 1024).toFixed(0)} KB` : ""}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-1.5 text-destructive"
-                                    disabled={deletingSessionDocId === doc.id}
-                                    onClick={() => void handleDeleteSessionDocument(d.id, doc.id)}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <FileText className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleOpenDocument(doc.id, doc.fileUrl, doc.fileName)}
+                                        className="text-xs font-medium text-foreground hover:text-blue-600 hover:underline truncate text-left max-w-[180px]"
+                                        title={doc.fileName}
+                                      >
+                                        {doc.fileName}
+                                      </button>
+                                      {doc.sizeBytes ? (
+                                        <span className="shrink-0 text-[10px] text-muted-foreground bg-muted rounded px-1 py-0.5">
+                                          {(doc.sizeBytes / 1024).toFixed(0)} KB
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                                      disabled={deletingSessionDocId === doc.id}
+                                      onClick={() => void handleDeleteSessionDocument(d.id, doc.id)}
+                                      title="Fshi dokumentin"
+                                    >
+                                      {deletingSessionDocId === doc.id
+                                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                                        : <Trash2 className="h-3 w-3" />
+                                      }
+                                    </Button>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            ) : (
+                              <div className="flex flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-border bg-muted/20 py-4 mb-3">
+                                <FileText className="h-5 w-5 text-muted-foreground/50" />
+                                <p className="text-[11px] text-muted-foreground">Nuk ka dokumente për këtë sesion.</p>
+                              </div>
+                            )}
+
+                            {/* Upload form */}
+                            <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2.5">
+                              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Ngarko dokument</p>
+                              <div className="flex gap-2 items-end">
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">Emri i dokumentit</Label>
+                                  <Input
+                                    value={sessionDocName[d.id] ?? ""}
+                                    onChange={e => setSessionDocName(prev => ({ ...prev, [d.id]: e.target.value }))}
+                                    placeholder="Opsionale"
+                                    className="h-7 text-xs"
+                                  />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <Label className="text-[11px] text-muted-foreground">Skedari</Label>
+                                  <Input
+                                    key={`${d.id}-${sessionDocInputKey}`}
+                                    type="file"
+                                    className="h-7 text-xs cursor-pointer"
+                                    onChange={e => setSessionDocFile(prev => ({ ...prev, [d.id]: e.target.files?.[0] ?? null }))}
+                                  />
+                                </div>
+                                <Button
+                                  size="sm"
+                                  className="h-7 gap-1.5 text-xs shrink-0"
+                                  onClick={() => void handleUploadSessionDocument(d.id)}
+                                  disabled={!sessionDocFile[d.id] || sessionDocUploading === d.id}
+                                >
+                                  {sessionDocUploading === d.id
+                                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Duke ngarkuar...</>
+                                    : <><Upload className="h-3 w-3" /> Ngarko</>
+                                  }
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        ) : (
-                          <p className="text-[11px] text-muted-foreground mb-2">Nuk ka dokumente për këtë sesion.</p>
                         )}
-                        <div className="flex gap-2 items-end">
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-[11px]">Emri</Label>
-                            <Input
-                              value={sessionDocName[d.id] ?? ""}
-                              onChange={e => setSessionDocName(prev => ({ ...prev, [d.id]: e.target.value }))}
-                              placeholder="Opsionale"
-                              className="h-7 text-xs"
-                            />
-                          </div>
-                          <div className="flex-1 space-y-1">
-                            <Label className="text-[11px]">Skedari</Label>
-                            <Input
-                              key={`${d.id}-${sessionDocInputKey}`}
-                              type="file"
-                              className="h-7 text-xs"
-                              onChange={e => setSessionDocFile(prev => ({ ...prev, [d.id]: e.target.files?.[0] ?? null }))}
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            className="h-7 gap-1 text-xs"
-                            onClick={() => void handleUploadSessionDocument(d.id)}
-                            disabled={!sessionDocFile[d.id] || sessionDocUploading === d.id}
-                          >
-                            <Upload className="h-3 w-3" />
-                            {sessionDocUploading === d.id ? "..." : "Ngarko"}
-                          </Button>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -1471,72 +1720,125 @@ function UpcomingEventDetail({
       </div>
 
       {/* Documents */}
-      <div className="rounded-lg border border-border bg-card p-5">
-        <h3 className="text-sm font-semibold text-foreground mb-3">Dokumentet</h3>
-        <div className="flex flex-col gap-3">
-          {event.documents && event.documents.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {event.documents.map(doc => (
-                <div key={doc.id} className="flex items-center justify-between p-2 rounded-md border border-border">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-blue-500" />
-                    <button
-                      type="button"
-                      onClick={() => void handleOpenDocument(doc.id, doc.fileUrl, doc.fileName)}
-                      className="text-sm hover:underline font-medium text-foreground text-left"
-                    >
-                      {doc.fileName}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void handleOpenDocument(doc.id, doc.fileUrl, doc.fileName)}
-                      className="h-7 px-2"
-                      disabled={downloadingDocId === doc.id}
-                    >
-                      {downloadingDocId === doc.id ? "Duke hapur..." : "Hap"}
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => onDeleteDocument(doc.id)} className="text-destructive h-7 px-2">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        {/* Section header — clickable toggle */}
+        <button
+          type="button"
+          onClick={() => setDocsExpanded(prev => !prev)}
+          className="flex w-full items-center justify-between p-5 hover:bg-muted/20 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center h-7 w-7 rounded-md bg-blue-50 dark:bg-blue-950/40">
+              <FileText className="h-4 w-4 text-blue-500" />
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">Nuk ka dokumente të bashkangjitura.</p>
-          )}
-
-          <div className="flex gap-2 items-end mt-2">
-            <div className="flex-1 space-y-1">
-              <Label className="text-xs">Emri i dokumentit</Label>
-              <Input value={docName} onChange={e => setDocName(e.target.value)} placeholder="Opsionale: emri i dokumentit" className="h-8 text-sm" />
+            <div className="text-left">
+              <h3 className="text-sm font-semibold text-foreground">Dokumentet</h3>
+              <p className="text-xs text-muted-foreground">
+                {(event.documents?.length ?? 0) === 0 ? "Nuk ka dokumente" : `${event.documents!.length} dokument${event.documents!.length !== 1 ? "e" : ""}`}
+              </p>
             </div>
-            <div className="flex-1 space-y-1">
-              <Label className="text-xs">Skedari</Label>
-              <Input
-                key={docInputKey}
-                type="file"
-                className="h-8 text-sm"
-                onChange={(event) => {
-                  setDocUploadError("")
-                  setDocFile(event.target.files?.[0] ?? null)
-                }}
-              />
-            </div>
-            <Button
-              size="sm"
-              className="h-8 gap-2"
-              onClick={() => void handleDocumentUpload()}
-              disabled={!docFile || isUploadingDoc}
-            >
-              <Upload className="h-4 w-4" /> {isUploadingDoc ? "Duke ngarkuar..." : "Bashkangjit"}
-            </Button>
           </div>
-          {docUploadError && <p className="text-xs text-destructive">{docUploadError}</p>}
-        </div>
+          {docsExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+        </button>
+
+        {docsExpanded && (
+          <div className="border-t border-border px-5 pb-5 pt-4 flex flex-col gap-3">
+            {/* Document list */}
+            {event.documents && event.documents.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                {event.documents.map(doc => (
+                  <div
+                    key={doc.id}
+                    className="group flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2.5 transition-colors hover:bg-muted/60"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText className="h-4 w-4 shrink-0 text-blue-500" />
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenDocument(doc.id, doc.fileUrl, doc.fileName)}
+                        className="text-sm font-medium text-foreground hover:text-blue-600 hover:underline truncate text-left max-w-xs"
+                        title={doc.fileName}
+                      >
+                        {doc.fileName}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleOpenDocument(doc.id, doc.fileUrl, doc.fileName)}
+                        className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        disabled={downloadingDocId === doc.id}
+                      >
+                        {downloadingDocId === doc.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Download className="h-3.5 w-3.5" />
+                        }
+                        {downloadingDocId === doc.id ? "Duke hapur..." : "Hap"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDeleteDocument(doc.id)}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        title="Fshi dokumentin"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/20 py-6">
+                <FileText className="h-6 w-6 text-muted-foreground/40" />
+                <p className="text-xs text-muted-foreground">Nuk ka dokumente të bashkangjitura.</p>
+              </div>
+            )}
+
+            {/* Upload form */}
+            <div className="rounded-md border border-border bg-muted/20 p-3.5 space-y-3">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Bashkangjit dokument</p>
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">Emri i dokumentit</Label>
+                  <Input
+                    value={docName}
+                    onChange={e => setDocName(e.target.value)}
+                    placeholder="Opsionale"
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">Skedari</Label>
+                  <Input
+                    key={docInputKey}
+                    type="file"
+                    className="h-8 text-xs cursor-pointer"
+                    onChange={(event) => {
+                      setDocUploadError("")
+                      setDocFile(event.target.files?.[0] ?? null)
+                    }}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs shrink-0"
+                  onClick={() => void handleDocumentUpload()}
+                  disabled={!docFile || isUploadingDoc}
+                >
+                  {isUploadingDoc
+                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Duke ngarkuar...</>
+                    : <><Upload className="h-3.5 w-3.5" /> Bashkangjit</>
+                  }
+                </Button>
+              </div>
+              {docUploadError && (
+                <p className="text-xs text-destructive">{docUploadError}</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Feedback Questions */}
@@ -1554,135 +1856,176 @@ function UpcomingEventDetail({
         onRemoveOption={removeOption}
       />
 
-      {/* Event Questionnaires (module-level, like student module questionnaires) */}
+      {/* Event Questionnaires (module-level) */}
       {isAdmin && (
-        <div className="rounded-lg border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-3">Pyetësorët e modulit</h3>
-          <p className="text-xs text-muted-foreground mb-3">Pyetësorë të strukturuar për të gjitha sesionet e modulit. Gjeneroni QR ose dërgoni me email.</p>
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
+          {/* Toggle header */}
+          <button
+            type="button"
+            onClick={() => setEqSectionExpanded(prev => !prev)}
+            className="flex w-full items-center justify-between p-5 hover:bg-muted/20 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950/40">
+                <ClipboardList className="h-4 w-4 text-violet-500" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-sm font-semibold text-foreground">Pyetësorët e modulit</h3>
+                <p className="text-xs text-muted-foreground">
+                  {eventQuestionnaires.length === 0 ? "Nuk ka pyetësorë" : `${eventQuestionnaires.length} pyetësor${eventQuestionnaires.length !== 1 ? "ë" : ""}`}
+                </p>
+              </div>
+            </div>
+            {eqSectionExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
 
-          {eventQuestionnaires.length > 0 && (
-            <div className="flex flex-col gap-2 mb-3">
-              {eventQuestionnaires.map(eq => (
-                <div key={eq.id} className="rounded-md border border-border bg-muted/30">
-                  <div className="flex items-center justify-between px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-3.5 w-3.5 text-primary" />
-                      <button type="button" onClick={() => void handleToggleEventQuestionnaireDetail(eq.id)} className="text-sm font-medium text-foreground hover:underline text-left">
-                        {eq.title}
-                      </button>
-                      <span className="text-[11px] text-muted-foreground">{eq.questionCount} pyetje • {eq.responseCount} përgjigje</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button size="sm" variant="outline" className="h-6 px-2 text-[11px] gap-1" onClick={() => void handleEventQuestionnaireQr(eq.id)}>
-                        <QrCode className="h-3 w-3" /> QR
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-6 px-2 text-[11px] gap-1" onClick={() => void handleViewEventQuestionnaireResponses(eq.id)}>
-                        <Users className="h-3 w-3" /> Përgjigjet
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-1.5 text-destructive"
-                        disabled={eqDeletingId === eq.id}
-                        onClick={() => void handleDeleteEventQuestionnaire(eq.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Detail view */}
-                  {eqExpandedId === eq.id && (
-                    <div className="border-t border-border px-3 py-2">
-                      {eqDetailLoading ? (
-                        <div className="flex items-center gap-2 py-2"><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-xs">Duke ngarkuar...</span></div>
-                      ) : eqDetail ? (
-                        <div className="flex flex-col gap-1.5">
-                          {(eqDetail.questions ?? []).map((q: any, i: number) => (
-                            <div key={q.id} className="flex items-center gap-2 rounded bg-card p-2 text-xs">
-                              <span className="flex h-5 w-5 items-center justify-center rounded bg-primary/10 text-[10px] font-semibold text-primary">{i + 1}</span>
-                              <span className="text-foreground">{q.text}</span>
-                              <span className="text-muted-foreground ml-auto">{q.type === "Options" || q.type === 0 ? "Opsione" : q.type === "FreeText" || q.type === 1 ? "Tekst" : "Yje"}</span>
-                            </div>
-                          ))}
+          {eqSectionExpanded && (
+            <div className="border-t border-border px-5 pb-5 pt-4 flex flex-col gap-3">
+              {eventQuestionnaires.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {eventQuestionnaires.map(eq => (
+                    <div key={eq.id} className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                      {/* Questionnaire row */}
+                      <div className="flex items-center justify-between px-4 py-3 gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-100 dark:bg-violet-900/30">
+                            <FileText className="h-3.5 w-3.5 text-violet-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => void handleToggleEventQuestionnaireDetail(eq.id)}
+                              className="text-sm font-medium text-foreground hover:underline text-left truncate block max-w-xs"
+                            >
+                              {eq.title}
+                            </button>
+                            <p className="text-[11px] text-muted-foreground">
+                              {eq.questionCount} pyetje · {eq.responseCount} përgjigje
+                            </p>
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Nuk u gjetën detaje.</p>
-                      )}
-                    </div>
-                  )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] gap-1" onClick={() => void handleEventQuestionnaireQr(eq.id)}>
+                            <QrCode className="h-3 w-3" /> QR
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] gap-1" onClick={() => void handleViewEventQuestionnaireResponses(eq.id)}>
+                            <Users className="h-3 w-3" /> Përgjigjet
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            disabled={eqDeletingId === eq.id}
+                            onClick={() => void handleDeleteEventQuestionnaire(eq.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
 
-                  {/* Responses view */}
-                  {eqShowResponses === eq.id && (
-                    <div className="border-t border-border px-3 py-2">
-                      {eqResponsesLoading ? (
-                        <div className="flex items-center gap-2 py-2"><Loader2 className="h-4 w-4 animate-spin" /> <span className="text-xs">Duke ngarkuar...</span></div>
-                      ) : eqResponses.length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-1">Nuk ka përgjigje ende.</p>
-                      ) : (
-                        <div className="flex flex-col gap-1.5">
-                          {eqResponses.map((r: any) => (
-                            <div key={r.responseId ?? r.id} className="rounded bg-card/80 p-2 text-xs">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-foreground">{r.firstName} {r.lastName}</span>
-                                <span className="text-muted-foreground">{r.submittedAt ? format(parseISO(r.submittedAt), "dd/MM/yyyy HH:mm") : ""}</span>
-                              </div>
-                              <div className="flex flex-col gap-0.5 pl-2">
-                                {(r.answers ?? []).map((a: any) => (
-                                  <div key={a.questionId} className="flex gap-2">
-                                    <span className="text-muted-foreground">{a.questionText ?? "Pyetje"}:</span>
-                                    <span className="text-foreground">{a.answerText ?? a.answer}</span>
+                      {/* Detail expand */}
+                      {eqExpandedId === eq.id && (
+                        <div className="border-t border-border bg-card/50 px-4 py-3">
+                          {eqDetailLoading ? (
+                            <div className="flex items-center gap-2 py-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">Duke ngarkuar...</span>
+                            </div>
+                          ) : eqDetail ? (
+                            <div className="flex flex-col gap-1.5">
+                              {(eqDetail.questions ?? []).map((q: any, i: number) => (
+                                <div key={q.id} className="flex items-center gap-2.5 rounded-md bg-muted/40 px-3 py-2 text-xs">
+                                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/10 text-[10px] font-semibold text-primary">{i + 1}</span>
+                                  <span className="text-foreground flex-1">{q.text}</span>
+                                  <span className="text-muted-foreground">
+                                    {q.type === "Options" || q.type === 0 ? "Opsione" : q.type === "FreeText" || q.type === 1 ? "Tekst" : "Yje"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Nuk u gjetën detaje.</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Responses expand */}
+                      {eqShowResponses === eq.id && (
+                        <div className="border-t border-border bg-card/50 px-4 py-3">
+                          {eqResponsesLoading ? (
+                            <div className="flex items-center gap-2 py-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">Duke ngarkuar...</span>
+                            </div>
+                          ) : eqResponses.length === 0 ? (
+                            <p className="text-xs text-muted-foreground py-1">Nuk ka përgjigje ende.</p>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              {eqResponses.map((r: any) => (
+                                <div key={r.responseId ?? r.id} className="rounded-md border border-border bg-card px-3 py-2.5 text-xs">
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="font-semibold text-foreground">{r.firstName} {r.lastName}</span>
+                                    <span className="text-muted-foreground">{r.submittedAt ? formatDate(r.submittedAt, "dd/MM/yyyy HH:mm") : ""}</span>
                                   </div>
-                                ))}
-                              </div>
+                                  <div className="flex flex-col gap-0.5 pl-2 border-l-2 border-muted">
+                                    {(r.answers ?? []).map((a: any) => (
+                                      <div key={a.questionId} className="flex gap-2">
+                                        <span className="text-muted-foreground shrink-0">{a.questionText ?? "Pyetje"}:</span>
+                                        <span className="text-foreground">{a.answerText ?? a.answer}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/20 py-6">
+                  <ClipboardList className="h-6 w-6 text-muted-foreground/40" />
+                  <p className="text-xs text-muted-foreground">Nuk ka pyetësorë të modulit.</p>
+                </div>
+              )}
+
+              {/* Create new */}
+              <div className="flex gap-2 items-center rounded-md border border-border bg-muted/20 p-3">
+                <Input
+                  value={eqCreateTitle}
+                  onChange={e => setEqCreateTitle(e.target.value)}
+                  placeholder="Titulli i pyetësorit të ri..."
+                  className="h-8 flex-1 text-sm bg-card"
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateEventQuestionnaire() } }}
+                />
+                <Button size="sm" className="h-8 gap-1.5 text-xs shrink-0" onClick={() => void handleCreateEventQuestionnaire()} disabled={eqCreating || !eqCreateTitle.trim()}>
+                  <Plus className="h-3.5 w-3.5" /> Shto pyetësor
+                </Button>
+              </div>
             </div>
           )}
-
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <Input
-                value={eqCreateTitle}
-                onChange={e => setEqCreateTitle(e.target.value)}
-                placeholder="Titulli i pyetësorit të ri..."
-                className="h-8 text-sm"
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); void handleCreateEventQuestionnaire() } }}
-              />
-            </div>
-            <Button size="sm" className="h-8 gap-2" onClick={() => void handleCreateEventQuestionnaire()} disabled={eqCreating || !eqCreateTitle.trim()}>
-              <Plus className="h-4 w-4" /> Shto pyetësor
-            </Button>
-          </div>
         </div>
       )}
 
       {/* Event Questionnaire QR Dialog */}
       {eqQrDialogId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setEqQrDialogId(null)}>
-          <div className="rounded-lg border border-border bg-card p-6 shadow-lg max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-foreground">QR Kod për Pyetësorin</h3>
-              <button onClick={() => setEqQrDialogId(null)} className="rounded p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
-            </div>
-            {eqQrLoading ? (
-              <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-            ) : eqQrToken ? (
-              <div className="flex flex-col items-center gap-3">
-                <QRCodeCanvas value={eqQrToken} size={200} includeMargin />
-                <p className="text-xs text-muted-foreground text-center">Skanoni për të plotësuar pyetësorin.</p>
+        <QrModal
+          title="QR Kod për Pyetësorin"
+          onClose={() => setEqQrDialogId(null)}
+          loading={eqQrLoading}
+          error={!eqQrToken && !eqQrLoading ? "Gabim gjatë gjenerimit të QR kodit." : null}
+        >
+          {eqQrToken && (
+            <div className="flex flex-col items-center gap-4">
+              <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+                <QRCodeCanvas value={eqQrToken} size={220} includeMargin={false} />
               </div>
-            ) : (
-              <p className="text-xs text-destructive text-center py-4">Gabim gjatë gjenerimit të QR kodit.</p>
-            )}
-          </div>
-        </div>
+              <p className="text-sm text-muted-foreground text-center max-w-xs">Skanoni për të plotësuar pyetësorin.</p>
+            </div>
+          )}
+        </QrModal>
       )}
 
       <CommandDialog
@@ -1701,7 +2044,7 @@ function UpcomingEventDetail({
         <div className="border-b border-border px-4 py-3">
           <p className="text-sm font-semibold text-foreground">
             {selectedAssignSession
-              ? `Shto anëtar • ${format(parseISO(selectedAssignSession.date), "EEEE, d MMM yyyy")}${selectedAssignSession.time ? ` • ${selectedAssignSession.time}` : ""}`
+              ? `Shto anëtar • ${formatDate(selectedAssignSession.date, "EEEE, d MMMM yyyy")}${selectedAssignSession.time ? ` • ${selectedAssignSession.time}` : ""}`
               : "Shto anëtar"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -1860,8 +2203,8 @@ function PastEventDetail({ event }: { event: EventItem }) {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MiniStat icon={CalendarRange} label="Datat">
-            {startDate && format(parseISO(startDate), "MMM d")}
-            {endDate && endDate !== startDate && ` - ${format(parseISO(endDate), "MMM d, yyyy")}`}
+            {startDate && formatDate(startDate, "d MMMM")}
+            {endDate && endDate !== startDate && ` - ${formatDate(endDate, "d MMMM yyyy")}`}
           </MiniStat>
           <MiniStat icon={Users} label="Pjesëmarrësit">
             {event.currentParticipants} / {event.maxParticipants}
@@ -1917,7 +2260,7 @@ function PastEventDetail({ event }: { event: EventItem }) {
                     >
                       <div className="flex items-center gap-2 text-sm text-foreground">
                         <CalendarRange className="h-3.5 w-3.5 text-primary" />
-                        <span>{format(parseISO(sessionDate.date), "EEEE, MMM d, yyyy")}</span>
+                        <span>{formatDate(sessionDate.date, "EEEE, d MMMM yyyy")}</span>
                         {sessionDate.time && (
                           <span className="text-xs text-muted-foreground">• {sessionDate.time}</span>
                         )}
@@ -1981,10 +2324,10 @@ function PastEventDetail({ event }: { event: EventItem }) {
                                       <td className="px-3 py-2.5 text-xs">
                                         <span
                                           className={`rounded px-2 py-0.5 font-medium ${isAttended
-                                              ? "bg-green-500/10 text-green-600"
-                                              : isAbsent
-                                                ? "bg-red-500/10 text-red-600"
-                                                : "bg-muted text-muted-foreground"
+                                            ? "bg-green-500/10 text-green-600"
+                                            : isAbsent
+                                              ? "bg-red-500/10 text-red-600"
+                                              : "bg-muted text-muted-foreground"
                                             }`}
                                         >
                                           {isAttended ? "Konfirmuar" : isAbsent ? "Refuzuar" : "Në pritje"}
@@ -2196,7 +2539,7 @@ function FeedbackQuestionnairesEditor({
   onUpdateOption: (questionnaireId: string, questionId: string, index: number, value: string) => void
   onRemoveOption: (questionnaireId: string, questionId: string, index: number) => void
 }) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const [copiedQuestionnaireId, setCopiedQuestionnaireId] = useState<string | null>(null)
   const origin = typeof window !== "undefined" ? window.location.origin : ""
 
@@ -2518,7 +2861,7 @@ function ParticipantsTable({
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground">{identity.email || "-"}</td>
                 <td className="px-3 py-2.5 text-muted-foreground">
-                  {dateMap.get(p.dateId) ? format(parseISO(dateMap.get(p.dateId)!), "MMM d, yyyy") : "-"}
+                  {dateMap.get(p.dateId) ? formatDate(dateMap.get(p.dateId)!, "d MMMM yyyy") : "-"}
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${p.status === "waitlisted" ? "bg-amber-500/10 text-amber-500" : "bg-primary/10 text-primary"}`}>

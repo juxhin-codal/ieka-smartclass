@@ -37,7 +37,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { EmailDomainHints } from "@/components/ui/email-domain-hints"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 import { Scanner } from "@yudiel/react-qr-scanner"
 import { QRCodeCanvas } from "qrcode.react"
 import {
@@ -1480,7 +1480,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
       doc.setFontSize(9)
       doc.setFont("helvetica", "normal")
       doc.setTextColor(120, 120, 120)
-      doc.text(`Gjeneruar: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, marginL, y)
+      doc.text(`Gjeneruar: ${formatDate(new Date(), "dd MMM yyyy, HH:mm")}`, marginL, y)
       y += 4
       doc.setDrawColor(200, 200, 200)
       doc.line(marginL, y, pageW - marginR, y)
@@ -1497,7 +1497,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         doc.setFontSize(8)
         doc.setFont("helvetica", "normal")
         doc.setTextColor(100, 100, 100)
-        doc.text(`Plotesuar: ${format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}`, marginL, y)
+        doc.text(`Plotesuar: ${formatDate(resp.submittedAt, "dd MMM yyyy, HH:mm")}`, marginL, y)
         y += 6
         doc.setTextColor(0, 0, 0)
 
@@ -2319,7 +2319,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     const rows = ["sep=;", "Nr;Emri;Mbiemri;Email;Statusi;Data Prezences"]
     attStudentsForTopic.forEach((s, idx) => {
       const status = s.wasBeforeAssignment ? "I pa regjistruar" : s.attended ? "Prezent" : "Pa prezence"
-      const attendedDate = s.attendedAt ? format(parseISO(s.attendedAt), "dd MMM yyyy HH:mm") : ""
+      const attendedDate = s.attendedAt ? formatDate(s.attendedAt, "dd MMM yyyy HH:mm") : ""
       rows.push(`${idx + 1};"${s.firstName}";"${s.lastName}";"${s.email}";"${status}";"${attendedDate}"`)
     })
     const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
@@ -2336,14 +2336,14 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
     const rows = ["sep=;", "Tema;Data Temes;Lektori;Emri;Mbiemri;Email;Statusi;Data Prezences"]
     const sortedTopics = [...attModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
     for (const topic of sortedTopics) {
-      const topicDate = topic.scheduledDate ? format(parseISO(topic.scheduledDate), "dd MMM yyyy HH:mm") : ""
+      const topicDate = topic.scheduledDate ? formatDate(topic.scheduledDate, "dd MMM yyyy HH:mm") : ""
       for (const assignment of attModuleDetail.assignments) {
         const attendance = assignment.topicAttendances.find(ta => ta.topicId === topic.id)
         const wasBeforeAssignment = topic.scheduledDate && assignment.assignedAt
           ? new Date(topic.scheduledDate) < new Date(assignment.assignedAt)
           : false
         const status = wasBeforeAssignment ? "I pa regjistruar" : attendance ? "Prezent" : "Pa prezence"
-        const attendedDate = attendance ? format(parseISO(attendance.attendedAt), "dd MMM yyyy HH:mm") : ""
+        const attendedDate = attendance ? formatDate(attendance.attendedAt, "dd MMM yyyy HH:mm") : ""
         rows.push(`"${topic.name}";"${topicDate}";"${topic.lecturer}";"${assignment.firstName}";"${assignment.lastName}";"${assignment.email}";"${status}";"${attendedDate}"`)
       }
     }
@@ -2367,7 +2367,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
         ? new Date(topic.scheduledDate) < new Date(assignment.assignedAt)
         : false
       const status = wasBeforeAssignment ? "I pa regjistruar" : attendance ? "Prezent" : "Pa prezence"
-      const attendedDate = attendance ? format(parseISO(attendance.attendedAt), "dd MMM yyyy HH:mm") : ""
+      const attendedDate = attendance ? formatDate(attendance.attendedAt, "dd MMM yyyy HH:mm") : ""
       rows.push(`${idx + 1};"${assignment.firstName}";"${assignment.lastName}";"${assignment.email}";"${status}";"${attendedDate}"`)
     })
     const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" })
@@ -3618,12 +3618,12 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                               const rows = ["sep=;", "Tema;Data Temes;Lektori;Emri;Mbiemri;Email;Statusi;Data Prezences"]
                               const sortedTopics = [...selectedModuleDetail.topics].sort((a, b) => (a.scheduledDate ?? "").localeCompare(b.scheduledDate ?? ""))
                               for (const t of sortedTopics) {
-                                const tDate = t.scheduledDate ? format(parseISO(t.scheduledDate), "dd MMM yyyy HH:mm") : ""
+                                const tDate = t.scheduledDate ? formatDate(t.scheduledDate, "dd MMM yyyy HH:mm") : ""
                                 for (const a of selectedModuleDetail.assignments) {
                                   const att = a.topicAttendances.find(ta => ta.topicId === t.id)
                                   const before = t.scheduledDate && a.assignedAt ? new Date(t.scheduledDate) < new Date(a.assignedAt) : false
                                   const status = before ? "I pa regjistruar" : att ? "Prezent" : "Pa prezence"
-                                  const attDate = att ? format(parseISO(att.attendedAt), "dd MMM yyyy HH:mm") : ""
+                                  const attDate = att ? formatDate(att.attendedAt, "dd MMM yyyy HH:mm") : ""
                                   rows.push(`"${t.name}";"${tDate}";"${t.lecturer}";"${a.firstName}";"${a.lastName}";"${a.email}";"${status}";"${attDate}"`)
                                 }
                               }
@@ -3807,7 +3807,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                         {topic.scheduledDate && (
                                           <span className="inline-flex items-center gap-1">
                                             <CalendarDays className="h-3 w-3" />
-                                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                                            {formatDate(topic.scheduledDate, "dd MMM yyyy, HH:mm")}
                                           </span>
                                         )}
                                         {topic.location && (
@@ -4321,7 +4321,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                                     >
                                       <div>
                                         <span className="text-sm font-medium text-foreground">{resp.firstName} {resp.lastName}</span>
-                                        <span className="ml-2 text-xs text-muted-foreground">{format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">{formatDate(resp.submittedAt, "dd MMM yyyy, HH:mm")}</span>
                                       </div>
                                       <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", selectedResponseId === resp.responseId && "rotate-90")} />
                                     </button>
@@ -4665,7 +4665,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         {topic.scheduledDate && (
                           <span className="inline-flex items-center gap-0.5">
                             <CalendarDays className="h-2.5 w-2.5" />
-                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                            {formatDate(topic.scheduledDate, "dd MMM yyyy, HH:mm")}
                           </span>
                         )}
                         <span>Lektori: {topic.lecturer}</span>
@@ -4708,7 +4708,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                         {topic.scheduledDate && (
                           <span className="inline-flex items-center gap-0.5">
                             <CalendarDays className="h-2.5 w-2.5" />
-                            {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                            {formatDate(topic.scheduledDate, "dd MMM yyyy, HH:mm")}
                           </span>
                         )}
                         <span>Lektori: {topic.lecturer}</span>
@@ -4757,7 +4757,7 @@ function MentorAdminStudentsView({ forcedTab }: { forcedTab?: ManagementTab } = 
                       {attIsPastTopic && <span className="ml-2 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground align-middle">E kaluar</span>}
                     </h3>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {attSelectedTopic.scheduledDate && format(parseISO(attSelectedTopic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                      {attSelectedTopic.scheduledDate && formatDate(attSelectedTopic.scheduledDate, "dd MMM yyyy, HH:mm")}
                       {attSelectedTopic.location ? ` • ${attSelectedTopic.location}` : ""}
                       {` • Lektori: ${attSelectedTopic.lecturer}`}
                     </p>
@@ -5919,7 +5919,7 @@ function StudentCalendarView() {
                 <tbody>
                   {upcomingTopics.slice(0, 8).map((t, i) => (
                     <tr key={i} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-xs text-foreground">{format(parseISO(t.date), "dd MMM yyyy, HH:mm")}</td>
+                      <td className="px-3 py-2 text-xs text-foreground">{formatDate(t.date, "dd MMM yyyy, HH:mm")}</td>
                       <td className="px-3 py-2 text-xs text-foreground font-medium">{t.topicName}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{t.moduleName}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{t.location ?? "—"}</td>
@@ -6038,7 +6038,7 @@ function StudentCalendarView() {
                             {topic.scheduledDate && (
                               <span className="inline-flex items-center gap-0.5">
                                 <CalendarDays className="h-2.5 w-2.5" />
-                                {format(parseISO(topic.scheduledDate), "dd MMM yyyy, HH:mm")}
+                                {formatDate(topic.scheduledDate, "dd MMM yyyy, HH:mm")}
                               </span>
                             )}
                             {topic.location && (
@@ -6234,8 +6234,8 @@ function StudentCalendarView() {
                           <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Data</span>
                         </div>
-                        <p className="text-sm font-semibold text-foreground leading-snug">{format(parseISO(t.scheduledDate), "dd MMM yyyy")}</p>
-                        <p className="text-xs text-muted-foreground">{format(parseISO(t.scheduledDate), "HH:mm")}</p>
+                        <p className="text-sm font-semibold text-foreground leading-snug">{formatDate(t.scheduledDate, "dd MMM yyyy")}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(t.scheduledDate, "HH:mm")}</p>
                       </div>
                     )}
                     {t.location && (
@@ -6253,8 +6253,8 @@ function StudentCalendarView() {
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                           <span className="text-[10px] font-medium uppercase tracking-wider text-emerald-600">Prezenca</span>
                         </div>
-                        <p className="text-sm font-semibold text-emerald-700 leading-snug">{format(parseISO(t.attendedAt), "dd MMM yyyy")}</p>
-                        <p className="text-xs text-emerald-600">{format(parseISO(t.attendedAt), "HH:mm")}</p>
+                        <p className="text-sm font-semibold text-emerald-700 leading-snug">{formatDate(t.attendedAt, "dd MMM yyyy")}</p>
+                        <p className="text-xs text-emerald-600">{formatDate(t.attendedAt, "HH:mm")}</p>
                       </div>
                     )}
                   </div>
@@ -6305,7 +6305,7 @@ function StudentCalendarView() {
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-foreground break-words">{doc.fileName}</p>
                               <p className="text-[11px] text-muted-foreground">
-                                {(doc.sizeBytes / 1024).toFixed(0)} KB • {format(parseISO(doc.uploadedAt), "dd MMM yyyy")}
+                                {(doc.sizeBytes / 1024).toFixed(0)} KB • {formatDate(doc.uploadedAt, "dd MMM yyyy")}
                               </p>
                             </div>
                             <Download className={cn("h-4 w-4 shrink-0 text-primary", downloadingDocId === doc.id && "animate-pulse")} />
@@ -6480,7 +6480,7 @@ export function StudentEvaluationsView() {
                       {mod.resultSetAt && (
                         <p className="mt-0.5 flex items-center gap-1">
                           <CalendarDays className="h-3 w-3" />
-                          Vendosur më {format(parseISO(mod.resultSetAt), "dd MMM yyyy, HH:mm")}
+                          Vendosur më {formatDate(mod.resultSetAt, "dd MMM yyyy, HH:mm")}
                         </p>
                       )}
                     </div>
@@ -6531,7 +6531,7 @@ export function StudentEvaluationsView() {
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground flex items-center gap-1">
                         <CalendarDays className="h-3 w-3" />
-                        Plotësuar më {format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}
+                        Plotësuar më {formatDate(resp.submittedAt, "dd MMM yyyy, HH:mm")}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -6648,7 +6648,7 @@ export function StudentEvaluationsView() {
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground flex items-center gap-1">
                           <CalendarDays className="h-3 w-3" />
-                          Plotësuar më {format(parseISO(resp.submittedAt), "dd MMM yyyy, HH:mm")}
+                          Plotësuar më {formatDate(resp.submittedAt, "dd MMM yyyy, HH:mm")}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
