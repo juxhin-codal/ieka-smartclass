@@ -34,7 +34,7 @@ public class EventsController(IEventsService eventsService) : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> CreateEvent([FromBody] CreateEventRequest request)
     {
-        var dates = request.Dates?.Select(d => (d.Date, d.Time)).ToList();
+        var dates = request.Dates?.Select(d => (d.Date, d.Time, d.Location, d.RequireLocation, d.Latitude, d.Longitude)).ToList();
         var feedbackJson = BuildFeedbackQuestionsJson(request.FeedbackQuestions, request.FeedbackQuestionnaires);
         var id = await _eventsService.CreateEventAsync(
             request.Name, request.Place, request.SessionCapacity, request.TotalSessions, request.CpdHours,
@@ -681,7 +681,7 @@ public record CreateEventRequest(
     List<FeedbackQuestionRequest>? FeedbackQuestions,
     List<FeedbackQuestionnaireRequest>? FeedbackQuestionnaires
 );
-public record CreateEventDateRequest(string Date, string Time);
+public record CreateEventDateRequest(string Date, string Time, string? Location = null, bool RequireLocation = false, double? Latitude = null, double? Longitude = null);
 
 public record UpdateEventRequest(
     string Name,

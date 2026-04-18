@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { EventItem } from "@/lib/data"
-import { Plus, X, CalendarPlus, Trash2, Zap, MapPin } from "lucide-react"
+import { Plus, X, CalendarPlus, Trash2, MapPin, CheckCircle2, Navigation, Star, ChevronDown } from "lucide-react"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
 interface EditEventFormProps {
     event: EventItem
@@ -18,18 +19,50 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
 
     const lecturers = users.filter((u) => u.role === "Lecturer")
 
+    const IEKA_LAT = "41.321232"
+    const IEKA_LNG = "19.825963"
+
+    // Derive module-level location state from existing dates
+    const _firstWithCoords = (event.dates ?? []).find(d => d.latitude != null && d.longitude != null)
+    const _isIekaCoords = !_firstWithCoords ||
+        (Math.abs(Number(_firstWithCoords.latitude) - 41.321232) < 0.001 &&
+            Math.abs(Number(_firstWithCoords.longitude) - 19.825963) < 0.001)
+
     const [name, setName] = useState(event.name)
     const [place, setPlace] = useState(event.place)
+    const [moduleRequireLocation, setModuleRequireLocation] = useState((event.dates ?? []).some(d => d.requireLocation))
+    const [useIekaLocation, setUseIekaLocation] = useState(_isIekaCoords)
+    const [moduleGoogleMapsUrl, setModuleGoogleMapsUrl] = useState("")
+    const [moduleLatitude, setModuleLatitude] = useState(_firstWithCoords && !_isIekaCoords ? String(_firstWithCoords.latitude) : "")
+    const [moduleLongitude, setModuleLongitude] = useState(_firstWithCoords && !_isIekaCoords ? String(_firstWithCoords.longitude) : "")
     const [topicInput, setTopicInput] = useState("")
     const [topics, setTopics] = useState<string[]>(event.topics ?? [])
     const [sessionCapacity, setSessionCapacity] = useState(String(event.sessionCapacity))
     const [totalSessions, setTotalSessions] = useState(String(event.totalSessions))
     const [cpdHours, setCpdHours] = useState(String(event.cpdHours))
-    const [webinarLink, setWebinarLink] = useState(event.webinarLink ?? "")
+
+    function getDefaultTime(hours: number | string): string {
+        const h = Math.max(1, Number(hours) || 4)
+        const endHour = 9 + h
+        const end = endHour < 24 ? `${String(endHour).padStart(2, "0")}:00` : "23:00"
+        return `09:00 – ${end}`
+    }
+
+    function handleCpdHoursChange(val: string) {
+        setCpdHours(val)
+        const newTime = getDefaultTime(val)
+        setDates((p) => p.map((d) => ({ ...d, time: newTime })))
+    }
+    const [webinarLink] = useState(event.webinarLink ?? "")
     const [price, setPrice] = useState(String(event.price ?? 0))
     const [lecturerIds, setLecturerIds] = useState<string[]>(event.lecturerIds ?? [])
-    const [dates, setDates] = useState<{ date: string; time: string; location?: string; useCustomLocation?: boolean; requireLocation?: boolean; latitude?: string; longitude?: string; googleMapsUrl?: string }[]>(
+    const [freeTextLektor, setFreeTextLektor] = useState(!!(event.lecturerName && (event.lecturerIds?.length ?? 0) === 0))
+    const [customLektorName, setCustomLektorName] = useState(event.lecturerName ?? "")
+    const [lektorDropdownOpen, setLektorDropdownOpen] = useState(false)
+    const [lektorSearch, setLektorSearch] = useState("")
+    const [dates, setDates] = useState<{ id?: string; date: string; time: string; location?: string; useCustomLocation?: boolean; requireLocation?: boolean; latitude?: string; longitude?: string; googleMapsUrl?: string }[]>(
         (event.dates ?? []).map((d) => ({
+            id: d.id,
             date: d.date.split("T")[0], // strip time part if ISO
             time: d.time,
             location: d.location ?? "",
@@ -48,7 +81,50 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
         if (t && !topics.includes(t)) { setTopics((p) => [...p, t]); setTopicInput("") }
     }
 
-    function addDate() { setDates((p) => [...p, { date: "", time: "09:00 – 13:00", location: "", useCustomLocation: false, requireLocation: false, latitude: "", longitude: "", googleMapsUrl: "" }]) }
+    function applyLocationToDates(lat: string, lng: string, require: boolean) {
+        setDates((p) => p.map((d) => d.useCustomLocation ? d : { ...d, latitude: lat, longitude: lng, requireLocation: require }))
+    }
+
+    function handleRequireLocationToggle() {
+        const next = !moduleRequireLocation
+        setModuleRequireLocation(next)
+        if (next) {
+            const lat = useIekaLocation ? IEKA_LAT : moduleLatitude
+            const lng = useIekaLocation ? IEKA_LNG : moduleLongitude
+            if (lat && lng) applyLocationToDates(lat, lng, true)
+        } else {
+            applyLocationToDates("", "", false)
+        }
+    }
+
+    function handleUseIekaLocationToggle() {
+        const next = !useIekaLocation
+        setUseIekaLocation(next)
+        if (next) {
+            setModuleGoogleMapsUrl("")
+            setModuleLatitude("")
+            setModuleLongitude("")
+            applyLocationToDates(IEKA_LAT, IEKA_LNG, moduleRequireLocation)
+        } else {
+            applyLocationToDates("", "", moduleRequireLocation)
+        }
+    }
+
+    function handleModuleGoogleMapsUrl(url: string) {
+        setModuleGoogleMapsUrl(url)
+        const match = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/) || url.match(/q=(-?\d+\.?\d*),(-?\d+\.?\d*)/)
+        if (match) {
+            setModuleLatitude(match[1])
+            setModuleLongitude(match[2])
+            applyLocationToDates(match[1], match[2], moduleRequireLocation)
+        }
+    }
+
+    function addDate() {
+        const lat = moduleRequireLocation ? (useIekaLocation ? IEKA_LAT : moduleLatitude) : ""
+        const lng = moduleRequireLocation ? (useIekaLocation ? IEKA_LNG : moduleLongitude) : ""
+        setDates((p) => [...p, { date: "", time: getDefaultTime(cpdHours), location: "", useCustomLocation: false, requireLocation: moduleRequireLocation, latitude: lat, longitude: lng, googleMapsUrl: "" }])
+    }
     function removeDate(i: number) { setDates((p) => p.filter((_, j) => j !== i)) }
     function updateDate(i: number, field: "date" | "time" | "location", value: string) {
         setDates((p) => p.map((d, j) => j === i ? { ...d, [field]: value } : d))
@@ -65,7 +141,6 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
         setDates((p) => p.map((d, j) => {
             if (j !== i) return d
             const updated = { ...d, googleMapsUrl: url }
-            // Try to extract coordinates from Google Maps URL
             const match = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/) || url.match(/q=(-?\d+\.?\d*),(-?\d+\.?\d*)/)
             if (match) {
                 updated.latitude = match[1]
@@ -82,7 +157,16 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
         const generated = Array.from({ length: numSessions }, (_, i) => {
             const d = new Date(base)
             d.setDate(d.getDate() + i * 7)
-            return { date: d.toISOString().split("T")[0], time: dates[i]?.time || "09:00 – 13:00", location: dates[i]?.location ?? "", useCustomLocation: dates[i]?.useCustomLocation ?? false }
+            return {
+                date: d.toISOString().split("T")[0],
+                time: dates[i]?.time || getDefaultTime(cpdHours),
+                location: dates[i]?.location ?? "",
+                useCustomLocation: dates[i]?.useCustomLocation ?? false,
+                requireLocation: dates[i]?.requireLocation ?? moduleRequireLocation,
+                latitude: dates[i]?.latitude || (moduleRequireLocation ? (useIekaLocation ? IEKA_LAT : moduleLatitude) : "") || "",
+                longitude: dates[i]?.longitude || (moduleRequireLocation ? (useIekaLocation ? IEKA_LNG : moduleLongitude) : "") || "",
+                googleMapsUrl: dates[i]?.googleMapsUrl ?? "",
+            }
         })
         setDates(generated)
     }
@@ -114,8 +198,10 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
                 cpdHours: Number(cpdHours) || 4,
                 price: Number(price) || 0,
                 webinarLink: webinarLink.trim() || undefined,
-                lecturerIds,
+                lecturerIds: freeTextLektor ? [] : lecturerIds,
+                lecturerName: freeTextLektor ? customLektorName.trim() || undefined : undefined,
                 dates: dates.map((d) => ({
+                    id: d.id || undefined,
                     date: d.date,
                     time: d.time,
                     location: d.useCustomLocation && d.location?.trim() ? d.location.trim() : undefined,
@@ -158,35 +244,186 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
                         {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
                     </div>
 
-                    {/* Place & Webinar */}
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="flex flex-col gap-2">
-                            <Label htmlFor="edit-place">Vendi *</Label>
-                            <Input id="edit-place" value={place} onChange={(e) => setPlace(e.target.value)} />
-                            {errors.place && <p className="text-xs text-destructive">{errors.place}</p>}
+                    {/* Vendi & Vendodhja */}
+                    <div className="rounded-xl border border-border overflow-hidden">
+                        <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-2.5">
+                            <MapPin className="h-3.5 w-3.5 text-primary" />
+                            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vendi &amp; Vendodhja</span>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <Label htmlFor="edit-webinar">Linku i Webinarit (Opsionale)</Label>
-                            <Input id="edit-webinar" type="url" value={webinarLink} onChange={(e) => setWebinarLink(e.target.value)} placeholder="https://zoom.us/j/..." />
-                        </div>
-                        <div className="flex flex-col gap-2 sm:col-span-2">
-                            <Label>Cakto Lektor (Opsionale)</Label>
-                            <div className="flex flex-wrap gap-2 rounded-lg border border-border p-3 min-h-[50px] bg-background">
-                                {lecturers.map(l => {
-                                    const isSelected = lecturerIds.includes(l.id)
-                                    return (
-                                        <div
-                                            key={l.id}
-                                            onClick={() => setLecturerIds(p => isSelected ? p.filter(x => x !== l.id) : [...p, l.id])}
-                                            className={`cursor-pointer border px-3 py-1 text-sm rounded-full transition-colors ${isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
-                                                }`}
-                                        >
-                                            {l.firstName} {l.lastName}
-                                        </div>
-                                    )
-                                })}
-                                {lecturers.length === 0 && <p className="text-sm text-muted-foreground">Nuk ka lektorë në sistem.</p>}
+                        <div className="flex flex-col gap-4 p-4">
+                            {/* Place */}
+                            <div className="flex flex-col gap-1.5">
+                                <Label htmlFor="edit-place">Adresa fizike *</Label>
+                                <Input id="edit-place" value={place} onChange={(e) => setPlace(e.target.value)}
+                                    className={`transition-colors ${errors.place ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}`}
+                                />
+                                {errors.place && <p className="text-xs text-destructive">{errors.place}</p>}
                             </div>
+
+                            <div className="h-px bg-border" />
+
+                            {/* GPS + IEKA on same row */}
+                            <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-2.5 flex-1 h-10 px-3 rounded-md border border-input bg-background cursor-pointer select-none hover:bg-muted/40 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={moduleRequireLocation}
+                                        onChange={handleRequireLocationToggle}
+                                        className="h-4 w-4 accent-primary shrink-0"
+                                    />
+                                    <span className="text-sm font-medium">Kërko GPS për prezencën</span>
+                                </label>
+
+                                {moduleRequireLocation && (
+                                    <label className="flex items-center gap-2.5 flex-1 h-10 px-3 rounded-md border border-input bg-background cursor-pointer select-none hover:bg-muted/40 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={useIekaLocation}
+                                            onChange={handleUseIekaLocationToggle}
+                                            className="h-4 w-4 accent-primary shrink-0"
+                                        />
+                                        <span className="text-sm font-medium">Vendodhja e IEKA</span>
+                                        <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">{Number(IEKA_LAT).toFixed(4)}, {Number(IEKA_LNG).toFixed(4)}</span>
+                                    </label>
+                                )}
+                            </div>
+
+                            {/* Maps URL field — only when GPS checked and not using IEKA */}
+                            {moduleRequireLocation && !useIekaLocation && (
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <Navigation className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                        <Input
+                                            value={moduleGoogleMapsUrl}
+                                            onChange={(e) => handleModuleGoogleMapsUrl(e.target.value)}
+                                            placeholder="Ngjisni linkun e Google Maps..."
+                                            className="text-sm"
+                                        />
+                                    </div>
+                                    {moduleLatitude && moduleLongitude ? (
+                                        <p className="flex items-center gap-1.5 text-xs text-green-600 pl-5">
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                            {Number(moduleLatitude).toFixed(5)}, {Number(moduleLongitude).toFixed(5)}
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-muted-foreground pl-5">P.sh. nga Google Maps → Shpërnda → Kopjo link</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {moduleRequireLocation && useIekaLocation && (
+                                <p className="flex items-center gap-1.5 text-xs text-green-600">
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    GPS aktiv • Koordinatat e IEKA konfirmuara
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Cakto Lektor */}
+                    <div className="rounded-xl border border-border">
+                        <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-2.5 rounded-t-xl">
+                            <div className="flex items-center gap-2">
+                                <Star className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cakto Lektor</span>
+                            </div>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={freeTextLektor}
+                                    onChange={() => { setFreeTextLektor(p => !p); setCustomLektorName(""); setLecturerIds([]) }}
+                                    className="h-3.5 w-3.5 accent-primary"
+                                />
+                                <span className="text-xs text-muted-foreground">Lektor i jashtëm</span>
+                            </label>
+                        </div>
+                        <div className="p-4 relative">
+                            {freeTextLektor ? (
+                                <div className="flex flex-col gap-1.5">
+                                    <Input
+                                        value={customLektorName}
+                                        onChange={(e) => setCustomLektorName(e.target.value)}
+                                        placeholder="p.sh. Prof. Dr. Artan Hoxha"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Shkruani emrin e lektorit të jashtëm</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-2 relative">
+                                    {/* Selected tags */}
+                                    {lecturerIds.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {lecturerIds.map(id => {
+                                                const l = lecturers.find(x => x.id === id)
+                                                if (!l) return null
+                                                return (
+                                                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary border border-primary/20">
+                                                        {l.firstName} {l.lastName}
+                                                        <button type="button" onClick={() => setLecturerIds(p => p.filter(x => x !== id))} className="ml-0.5 rounded-full hover:bg-primary/20 transition-colors">
+                                                            <X className="h-2.5 w-2.5" />
+                                                        </button>
+                                                    </span>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                    {/* Trigger */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setLektorDropdownOpen(p => !p)}
+                                        className="flex items-center justify-between w-full h-10 px-3 rounded-md border border-input bg-background text-sm hover:bg-muted/40 transition-colors"
+                                    >
+                                        <span className="text-muted-foreground">
+                                            {lecturerIds.length === 0 ? "Kërko dhe zgjidh lektor..." : `${lecturerIds.length} lektorë zgjedhur`}
+                                        </span>
+                                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${lektorDropdownOpen ? "rotate-180" : ""}`} />
+                                    </button>
+                                    {/* Dropdown */}
+                                    {lektorDropdownOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setLektorDropdownOpen(false)} />
+                                            <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border border-border bg-popover shadow-md">
+                                                <Command>
+                                                    <CommandInput
+                                                        autoFocus
+                                                        value={lektorSearch}
+                                                        onValueChange={setLektorSearch}
+                                                        placeholder="Filtro..."
+                                                    />
+                                                    <CommandList className="max-h-52">
+                                                        <CommandEmpty>Nuk u gjet asnjë lektor.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {lecturers.map(l => {
+                                                                const isSelected = lecturerIds.includes(l.id)
+                                                                return (
+                                                                    <CommandItem
+                                                                        key={l.id}
+                                                                        value={`${l.firstName} ${l.lastName}`}
+                                                                        onSelect={() => {
+                                                                            setLecturerIds(p => isSelected ? p.filter(x => x !== l.id) : [...p, l.id])
+                                                                        }}
+                                                                        className="flex items-center gap-2.5 cursor-pointer"
+                                                                    >
+                                                                        <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${isSelected ? "border-primary bg-primary" : "border-border bg-background"
+                                                                            }`}>
+                                                                            {isSelected && (
+                                                                                <svg className="h-2.5 w-2.5 text-primary-foreground" fill="none" viewBox="0 0 10 10">
+                                                                                    <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                                                </svg>
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="text-sm">{l.firstName} {l.lastName}</span>
+                                                                        {l.email && <span className="text-xs text-muted-foreground ml-auto">{l.email}</span>}
+                                                                    </CommandItem>
+                                                                )
+                                                            })}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -228,7 +465,7 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="edit-cpd">Orë CPD</Label>
-                            <Input id="edit-cpd" type="number" min="0" value={cpdHours} onChange={(e) => setCpdHours(e.target.value)} />
+                            <Input id="edit-cpd" type="number" min="0" value={cpdHours} onChange={(e) => handleCpdHoursChange(e.target.value)} />
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="edit-price">Çmimi (LEK)</Label>
@@ -246,9 +483,6 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
                         <div className="flex items-center justify-between">
                             <Label>Datat e Sesioneve *</Label>
                             <div className="flex gap-2">
-                                <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateDates} className="gap-1.5 text-xs" disabled={!dates[0]?.date}>
-                                    <Zap className="h-3.5 w-3.5" />Auto {totalSessions} sesione
-                                </Button>
                                 <Button type="button" variant="ghost" size="sm" onClick={addDate} className="gap-1.5 text-xs">
                                     <CalendarPlus className="h-3.5 w-3.5" />Shto
                                 </Button>
@@ -256,42 +490,45 @@ export function EditEventForm({ event, onClose }: EditEventFormProps) {
                         </div>
                         {errors.dates && <p className="text-xs text-destructive">{errors.dates}</p>}
                         <div className="flex flex-col gap-2">
-                            {dates.map((d, i) => (
-                                <div key={i} className="flex flex-col gap-2 rounded-lg border border-border bg-muted/20 p-3">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-xs text-muted-foreground shrink-0">Sesioni {i + 1}</p>
-                                        <div className="flex gap-2 flex-1">
-                                            <Input type="date" value={d.date} onChange={(e) => updateDate(i, "date", e.target.value)} className="text-sm flex-1" />
-                                            <Input type="text" value={d.time} onChange={(e) => updateDate(i, "time", e.target.value)} placeholder="09:00 – 13:00" className="text-sm w-36" />
+                            {dates
+                                .map((d, i) => ({ d, i }))
+                                .sort((a, b) => (a.d.date && b.d.date ? a.d.date.localeCompare(b.d.date) : a.d.date ? -1 : b.d.date ? 1 : 0))
+                                .map(({ d, i }, displayIndex) => (
+                                    <div key={i} className="flex flex-col gap-2 rounded-lg border border-border bg-muted/20 p-3">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-xs text-muted-foreground shrink-0">Sesioni {displayIndex + 1}</p>
+                                            <div className="flex gap-2 flex-1">
+                                                <Input type="date" value={d.date} onChange={(e) => updateDate(i, "date", e.target.value)} className="text-sm flex-1" />
+                                                <Input type="text" value={d.time} onChange={(e) => updateDate(i, "time", e.target.value)} placeholder="09:00 – 13:00" className="text-sm w-36" />
+                                            </div>
+                                            {/* Custom location toggle */}
+                                            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer shrink-0 select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!d.useCustomLocation}
+                                                    onChange={() => toggleCustomLocation(i)}
+                                                    className="h-3.5 w-3.5 accent-primary"
+                                                />
+                                                <MapPin className="h-3 w-3" />Lokacion tjetër
+                                            </label>
+                                            {dates.length > 1 && (
+                                                <button type="button" onClick={() => removeDate(i)}
+                                                    className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-destructive">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
                                         </div>
-                                        {/* Custom location toggle */}
-                                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer shrink-0 select-none">
-                                            <input
-                                                type="checkbox"
-                                                checked={!!d.useCustomLocation}
-                                                onChange={() => toggleCustomLocation(i)}
-                                                className="h-3.5 w-3.5 accent-primary"
+                                        {d.useCustomLocation && (
+                                            <Input
+                                                value={d.location ?? ""}
+                                                onChange={(e) => updateDate(i, "location", e.target.value)}
+                                                placeholder="p.sh. Salla B2, Hotel Sheraton..."
+                                                className="text-sm"
                                             />
-                                            <MapPin className="h-3 w-3" />Lokacion tjetër
-                                        </label>
-                                        {dates.length > 1 && (
-                                            <button type="button" onClick={() => removeDate(i)}
-                                                className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-destructive">
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
                                         )}
+                                        {errors[`date-${i}`] && <p className="text-xs text-destructive">{errors[`date-${i}`]}</p>}
                                     </div>
-                                    {d.useCustomLocation && (
-                                        <Input
-                                            value={d.location ?? ""}
-                                            onChange={(e) => updateDate(i, "location", e.target.value)}
-                                            placeholder="p.sh. Salla B2, Hotel Sheraton..."
-                                            className="text-sm"
-                                        />
-                                    )}
-                                    {errors[`date-${i}`] && <p className="text-xs text-destructive">{errors[`date-${i}`]}</p>}
-                                </div>
-                            ))}
+                                ))}
                         </div>
                     </div>
 

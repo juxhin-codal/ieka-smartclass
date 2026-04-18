@@ -10,8 +10,9 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, onClick }: EventCardProps) {
-  const startDate = event.dates[0]?.date
-  const endDate = event.dates[event.dates.length - 1]?.date
+  const sortedDates = [...event.dates].sort((a, b) => a.date.localeCompare(b.date))
+  const startDate = sortedDates[0]?.date
+  const endDate = sortedDates[sortedDates.length - 1]?.date
   const fillPercent = Math.round(
     (event.currentParticipants / event.maxParticipants) * 100
   )

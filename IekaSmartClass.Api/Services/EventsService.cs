@@ -104,7 +104,7 @@ public class EventsService(
         return eventItem;
     }
 
-    public async Task<Guid> CreateEventAsync(string name, string place, int sessionCapacity, int totalSessions, int cpdHours, decimal price = 0, string? lecturerName = null, string? webinarLink = null, List<string>? topics = null, List<(string Date, string Time)>? dates = null, List<string>? lecturerIds = null, string? feedbackQuestionsJson = null)
+    public async Task<Guid> CreateEventAsync(string name, string place, int sessionCapacity, int totalSessions, int cpdHours, decimal price = 0, string? lecturerName = null, string? webinarLink = null, List<string>? topics = null, List<(string Date, string Time, string? Location, bool RequireLocation, double? Latitude, double? Longitude)>? dates = null, List<string>? lecturerIds = null, string? feedbackQuestionsJson = null)
     {
         var eventItem = new EventItem(name, place, sessionCapacity, totalSessions, cpdHours, price, lecturerName, webinarLink, lecturerIds);
 
@@ -121,7 +121,11 @@ public class EventsService(
             foreach (var d in dates)
             {
                 if (DateTime.TryParse(d.Date, out var parsedDate))
-                    eventItem.AddDate(new EventDate(parsedDate, d.Time, sessionCapacity));
+                {
+                    var eventDate = new EventDate(parsedDate, d.Time, sessionCapacity, d.Location);
+                    eventDate.UpdateDetails(parsedDate, d.Time, d.Location, d.RequireLocation, d.Latitude, d.Longitude);
+                    eventItem.AddDate(eventDate);
+                }
             }
         }
 
@@ -562,7 +566,41 @@ public class EventsService(
             }
         }
 
-        await _dbContext.SaveChangesAsync();
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex)
+        {
+            var details = string.Join("; ", ex.Entries.Select(e =>
+            {
+                var keyValues = string.Join(",", e.Metadata.FindPrimaryKey()?.Properties
+                    .Select(p => $"{p.Name}={e.Property(p.Name).CurrentValue}") ?? []);
+                var dbVals = e.GetDatabaseValues();
+                return $"[{e.Metadata.Name} Key={keyValues} State={e.State} DbExists={dbVals != null}]";
+            }));
+            _logger.LogError("UpdateEvent concurrency conflict for event {EventId}: {Details}", id, details);
+            await ResolveUpdateConcurrencyAsync(ex);
+            await _dbContext.SaveChangesAsync();
+        }
+    }
+
+    private static async Task ResolveUpdateConcurrencyAsync(Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex)
+    {
+        foreach (var entry in ex.Entries)
+        {
+            var dbValues = await entry.GetDatabaseValuesAsync();
+            if (dbValues != null)
+            {
+                // Row exists but was modified by another process — refresh original values so the retry succeeds.
+                entry.OriginalValues.SetValues(dbValues);
+            }
+            else
+            {
+                // Row no longer exists in the DB — re-insert it so data isn't lost.
+                entry.State = Microsoft.EntityFrameworkCore.EntityState.Added;
+            }
+        }
     }
 
     public async Task MarkAsNotifiedAsync(Guid id)

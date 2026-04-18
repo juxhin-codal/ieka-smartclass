@@ -143,9 +143,17 @@ public class EventItem
     /// Resets CurrentParticipants on this event and each of its dates to match
     /// the actual registered participants loaded from the database.
     /// Returns true if any counter was corrected.
+    /// Only runs when the Participants collection has been explicitly loaded.
     /// </summary>
     public bool ReconcileParticipantCounts()
     {
+        // Skip reconciliation when participants haven't been included in the query
+        // to avoid incorrectly zeroing out counters.
+        if (_participants.Count == 0 && _dates.Any(d => d.CurrentParticipants > 0))
+        {
+            return false;
+        }
+
         var changed = false;
 
         var registeredByDate = _participants

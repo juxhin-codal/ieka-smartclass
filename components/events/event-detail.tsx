@@ -648,8 +648,9 @@ function UpcomingEventDetail({
     markChanged()
   }
 
-  const startDate = event.dates[0]?.date
-  const endDate = event.dates[event.dates.length - 1]?.date
+  const sortedEventDates = useMemo(() => [...event.dates].sort((a, b) => a.date.localeCompare(b.date)), [event.dates])
+  const startDate = sortedEventDates[0]?.date
+  const endDate = sortedEventDates[sortedEventDates.length - 1]?.date
   const fillPercent = Math.round((event.currentParticipants / event.maxParticipants) * 100)
 
   const [liveQuizRound, setLiveQuizRound] = useState<number | null>(null)
@@ -695,6 +696,8 @@ function UpcomingEventDetail({
   const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null)
   const [assignMemberError, setAssignMemberError] = useState("")
   const [sessionAssignNotice, setSessionAssignNotice] = useState<Record<string, string>>({})
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set())
+  const [isAddingBatch, setIsAddingBatch] = useState(false)
   const { user } = useAuth()
   const { markAttendance, users, cancelBooking, fetchEvents, fetchUsers } = useEvents()
   const isAdmin = user?.role === "Admin"
@@ -768,6 +771,40 @@ function UpcomingEventDetail({
     setAssignSessionId(dateId)
     setMemberSearchQuery("")
     setAssignMemberError("")
+    setSelectedMemberIds(new Set())
+  }
+
+  function toggleMemberSelection(memberId: string) {
+    setSelectedMemberIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(memberId)) next.delete(memberId)
+      else next.add(memberId)
+      return next
+    })
+  }
+
+  async function handleAddSelectedMembers() {
+    if (!assignSessionId || selectedMemberIds.size === 0) return
+    setIsAddingBatch(true)
+    setAssignMemberError("")
+    try {
+      for (const memberId of selectedMemberIds) {
+        await fetchApi(`/Events/${event.id}/sessions/${assignSessionId}/participants`, {
+          method: "POST",
+          body: JSON.stringify({ userId: memberId }),
+        })
+      }
+      const count = selectedMemberIds.size
+      setSessionAssignNotice((prev) => ({ ...prev, [assignSessionId]: `${count} anëtar${count !== 1 ? "ë" : ""} u shtua${count !== 1 ? "n" : ""} me sukses.` }))
+      setAssignSessionId(null)
+      setMemberSearchQuery("")
+      setSelectedMemberIds(new Set())
+      await fetchEvents()
+    } catch (error: any) {
+      setAssignMemberError(error?.message ?? "Gabim gjatë shtimit të anëtarëve.")
+    } finally {
+      setIsAddingBatch(false)
+    }
   }
 
   async function handleAssignMemberToSession(memberId: string) {
@@ -1275,7 +1312,7 @@ function UpcomingEventDetail({
       <div className="rounded-lg border border-border bg-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">Datat dhe sesionet e modulit</h3>
         <div className="flex flex-col gap-2">
-          {event.dates.map((d) => {
+          {sortedEventDates.map((d) => {
             const participantsForSession = event.participants.filter((p) => p.dateId === d.id)
             const isExpanded = expandedSessionId === d.id
             const searchValue = sessionSearch[d.id] ?? ""
@@ -2035,23 +2072,24 @@ function UpcomingEventDetail({
             setAssignSessionId(null)
             setMemberSearchQuery("")
             setAssignMemberError("")
+            setSelectedMemberIds(new Set())
           }
         }}
         title="Shto anëtar në sesion"
-        description="Kërkoni dhe zgjidhni anëtarin që dëshironi të shtoni."
-        className="max-w-2xl"
+        description="Kërkoni dhe zgjidhni anëtarët që dëshironi të shtoni."
+        className="max-w-xl"
       >
-        <div className="border-b border-border px-4 py-3">
+        <div className="border-b border-border px-4 py-2.5">
           <p className="text-sm font-semibold text-foreground">
             {selectedAssignSession
               ? `Shto anëtar • ${formatDate(selectedAssignSession.date, "EEEE, d MMMM yyyy")}${selectedAssignSession.time ? ` • ${selectedAssignSession.time}` : ""}`
               : "Shto anëtar"}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Zgjidhni një anëtar të rolit Member. Sistemi respekton rregullat ekzistuese të rezervimeve për modul.
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Zgjidhni një ose më shumë anëtarë. Sistemi respekton rregullat ekzistuese të rezervimeve për modul.
           </p>
           {assignMemberError && (
-            <p className="mt-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
+            <p className="mt-1.5 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs font-medium text-destructive">
               {assignMemberError}
             </p>
           )}
@@ -2061,40 +2099,54 @@ function UpcomingEventDetail({
           onValueChange={setMemberSearchQuery}
           placeholder="Kërko me emër, email ose nr. regjistri..."
         />
-        <CommandList>
+        <CommandList className="max-h-72">
           <CommandEmpty>Nuk u gjet asnjë anëtar i disponueshëm.</CommandEmpty>
           <CommandGroup heading="Anëtarët">
             {assignableMembers.map((member) => {
-              const reservationCount = event.participants.filter((participant) => participant.userId === member.id).length
-              const isAssigning = assigningMemberId === member.id
+              const reservationCount = event.participants.filter((p) => p.userId === member.id).length
+              const isSelected = selectedMemberIds.has(member.id)
               const fullName = `${member.firstName} ${member.lastName}`.trim()
 
               return (
                 <CommandItem
                   key={member.id}
-                  value={member.id}
-                  onSelect={() => void handleAssignMemberToSession(member.id)}
-                  disabled={isAssigning}
-                  className="items-start py-3"
+                  value={`${fullName} ${member.email} ${member.memberRegistryNumber}`}
+                  onSelect={() => toggleMemberSelection(member.id)}
+                  className="flex items-center gap-2.5 py-1.5 px-3 cursor-pointer hover:bg-muted/30 aria-selected:bg-muted/40 data-[selected=true]:bg-muted/40"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground">{fullName}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {member.memberRegistryNumber} • {member.email}
-                    </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {reservationCount > 0 ? `${reservationCount} rezervim(e) në këtë modul` : "Pa rezervime në këtë modul"}
-                      {member.isActive === false ? " • Joaktiv" : ""}
-                    </p>
+                  <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${isSelected ? "border-primary bg-primary" : "border-border bg-background"
+                    }`}>
+                    {isSelected && (
+                      <svg className="h-2.5 w-2.5 text-primary-foreground" fill="none" viewBox="0 0 10 10">
+                        <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
                   </div>
-                  <span className="text-xs font-medium text-primary">
-                    {isAssigning ? "Duke shtuar..." : "Shto"}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-medium text-foreground text-sm">{fullName}</span>
+                    <span className="text-muted-foreground text-xs"> · {member.email}</span>
+                    {reservationCount > 0 && (
+                      <span className="ml-1 text-[11px] text-muted-foreground/70">· {reservationCount} rezervim(e)</span>
+                    )}
+                  </div>
                 </CommandItem>
               )
             })}
           </CommandGroup>
         </CommandList>
+        {selectedMemberIds.size > 0 && (
+          <div className="border-t border-border px-4 py-2.5 flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">{selectedMemberIds.size} anëtar{selectedMemberIds.size !== 1 ? "ë" : ""} zgjedhur</span>
+            <Button
+              size="sm"
+              onClick={() => void handleAddSelectedMembers()}
+              disabled={isAddingBatch}
+              className="h-7 text-xs px-3"
+            >
+              {isAddingBatch ? "Duke shtuar..." : `Shto ${selectedMemberIds.size} anëtar${selectedMemberIds.size !== 1 ? "ë" : ""}`}
+            </Button>
+          </div>
+        )}
       </CommandDialog>
 
       {/* Participants */}
@@ -2146,12 +2198,12 @@ function PastEventDetail({ event }: { event: EventItem }) {
     [feedbackQuestionnaires]
   )
 
-  const startDate = event.dates[0]?.date
-  const endDate = event.dates[event.dates.length - 1]?.date
+  const startDate = sortedEventDates[0]?.date
+  const endDate = sortedEventDates[sortedEventDates.length - 1]?.date
 
   // Check if the event's last date is today
   const finishedToday = useMemo(() => {
-    const last = event.dates[event.dates.length - 1]?.date
+    const last = sortedEventDates[sortedEventDates.length - 1]?.date
     if (!last) return false
     try {
       return isToday(parseISO(last))

@@ -8,7 +8,7 @@ public interface IEventsService
 {
     Task<PaginatedList<EventItem>> GetEventsAsync(int pageNumber, int pageSize);
     Task<EventItem?> GetEventByIdAsync(Guid id);
-    Task<Guid> CreateEventAsync(string name, string place, int sessionCapacity, int totalSessions, int cpdHours, decimal price = 0, string? lecturerName = null, string? webinarLink = null, List<string>? topics = null, List<(string Date, string Time)>? dates = null, List<string>? lecturerIds = null, string? feedbackQuestionsJson = null);
+    Task<Guid> CreateEventAsync(string name, string place, int sessionCapacity, int totalSessions, int cpdHours, decimal price = 0, string? lecturerName = null, string? webinarLink = null, List<string>? topics = null, List<(string Date, string Time, string? Location, bool RequireLocation, double? Latitude, double? Longitude)>? dates = null, List<string>? lecturerIds = null, string? feedbackQuestionsJson = null);
     Task<string> ReserveSeatAsync(Guid eventId, Guid userId, Guid dateId);
     Task<string> AssignMemberToSessionAsync(Guid eventId, Guid dateId, Guid memberId);
     Task<IReadOnlyList<EventItem>> GetMyModulesAsync(Guid userId);
